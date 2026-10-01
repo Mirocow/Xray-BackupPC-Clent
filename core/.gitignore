@@ -1,0 +1,8 @@
+# артефакты сборки (только в корне core/)
+/backuppc-xray
+*.exe
+
+# артефакты живого прогона (e2e_native.sh запускает сервер из core/)
+admin-token.txt
+users.json
+config.json
