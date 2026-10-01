@@ -9,15 +9,23 @@
 //
 //	backuppc-xray run  -config app.json        # запуск (до SIGINT/SIGTERM)
 //	backuppc-xray test -config app.json        # валидация (TestXray-режим)
+//
+// Отладка (инструментарий разработки, см. DEVELOPMENT.md):
+//
+//	BACKUPPC_PPROF=127.0.0.1:6060 backuppc-xray run -config app.json
+//	    — net/http/pprof: профили горутин/аллокаций/CPU туннеля.
 package main
 
 import (
 	"flag"
 	"fmt"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"backuppc-core/preprocess"
 
@@ -26,8 +34,26 @@ import (
 )
 
 func main() {
+	startDebugHooks()
 	if code := run(os.Args[1:]); code != 0 {
 		os.Exit(code)
+	}
+}
+
+// startDebugHooks — отладочные возможности ядра: pprof-листенер по
+// BACKUPPC_PPROF (addr, напр. 127.0.0.1:6060). Уровень журнала Xray
+// задается конфигом ("log": {"loglevel": ...}). В нормальном режиме
+// хук бездействует.
+func startDebugHooks() {
+	if addr := os.Getenv("BACKUPPC_PPROF"); addr != "" {
+		go func() {
+			fmt.Printf("backuppc-xray: pprof на http://%s/debug/pprof/\n", addr)
+			srv := &http.Server{
+				Addr:              addr,
+				ReadHeaderTimeout: 10 * time.Second,
+			}
+			_ = srv.ListenAndServe()
+		}()
 	}
 }
 
