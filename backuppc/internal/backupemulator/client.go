@@ -134,6 +134,9 @@ func (c *Client) DialChunk(ctx context.Context, sessionID string, index uint32, 
 		DisableCompression:    true,
 		MaxConnsPerHost:       1,
 		ResponseHeaderTimeout: 20 * time.Second,
+		// освобождение соединений отработавших чанков без резкого
+		// CloseIdleConnections (END_STREAM успевает достичь сервера)
+		IdleConnTimeout: 90 * time.Second,
 	}
 
 	pr, pw := io.Pipe()
