@@ -1,0 +1,44 @@
+// Proto-контракт outbound-протокола backuppc для ядра Xray.
+//
+// Конфиг передается в core.OutboundHandlerConfig.ProxySettings
+// (serial.TypedMessage) и материализуется registered-креатором из
+// пакета core/outbound. Полное имя сообщения: backuppc.Config.
+syntax = "proto3";
+
+package backuppc;
+
+option go_package = "backuppc-core/backuppcpb";
+
+// Config — настройки одного backuppc-outbound (соответствует
+// backuppc.ClientConfig транспортной библиотеки).
+message Config {
+  // address — адрес сервера xray-backuppc (хост[:порт], домен или IP).
+  string address = 1;
+  // port — TLS-порт сервера (обычно 443).
+  uint32 port = 2;
+  // uuid — ключ клиента: HMAC несущего канала + VLESS-аутентификация.
+  string uuid = 3;
+  // host — домен-донор для Host-заголовка (SNI подменяется этим же значением).
+  string host = 4;
+  // endpoint_paths — список несущих методов backuppc.* (ротация на чанк).
+  repeated string endpoint_paths = 5;
+  // user_agent — User-Agent пула BackupPC (пусто — случайный из пула).
+  string user_agent = 6;
+  // insecure — пропустить верификацию TLS (только тесты).
+  bool insecure = 7;
+  // cert_fingerprint — SHA-256 (hex) сертификата сервера: пиннинг вместо CA.
+  string cert_fingerprint = 8;
+  // min_padding / max_padding — диапазон случайного паддинга кадров (байты).
+  uint32 min_padding = 9;
+  uint32 max_padding = 10;
+  // session_duration_ms — целевое время жизни сессии-чанка (мс).
+  int64 session_duration_ms = 11;
+  // session_bytes — лимит чанка по объему (байты).
+  int64 session_bytes = 12;
+  // ping_base_ms — базовый интервал keep-alive心跳 (мс).
+  int64 ping_base_ms = 13;
+  // ping_jitter_ms — разброс jitter keep-alive (мс).
+  int64 ping_jitter_ms = 14;
+  // balancing_interval_ms — интервал балансировщика rx/tx (мс).
+  int64 balancing_interval_ms = 15;
+}
