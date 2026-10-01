@@ -1,0 +1,13 @@
+# Бинарки и локальные конфиги
+backuppc-client
+config.json
+
+# TLS-ключи
+*.pem
+*.key
+*.crt
+
+# Локальные артефакты
+/bin/
+/dist/
+coverage.out
