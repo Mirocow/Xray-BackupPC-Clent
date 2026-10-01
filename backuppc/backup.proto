@@ -1,0 +1,66 @@
+// Спецификация несущего канала Backup-Emulator (gRPC over HTTP/2 + TLS).
+//
+// Реальный транспорт не использует protobuf-кодек: содержимое каждого
+// gRPC-сообщения — бинарный кадр ТЗ (см. internal/backupemulator/conn.go).
+// Данный .proto описывает КОНТРАКТ канала для интеграции сторонних
+// клиентов/серверов и генерации документации.
+//
+// Схема соответствует gRPC wire-протоколу:
+//   - вызов:  POST /backuppc.BackupService/<Method>, HTTP/2, TLS (ALPN h2);
+//   - content-type: application/grpc; te: trailers;
+//   - сообщение: [compressed(1B=0)][length(4B BE)][бинарный кадр ТЗ];
+//   - метаданные: X-Backup-Session-ID, X-Backup-Chunk-Index, X-Backup-Auth;
+//   - трейлеры: grpc-status, grpc-message, X-Backup-Status.
+
+syntax = "proto3";
+
+package backuppc;
+
+// BackupService — «узел хранения бэкапов»: стриминг чанков.
+//
+// Жизненный цикл логической сессии (ТЗ 3.4):
+//   chunk 0   — первый вызов; первое DATA-сообщение кадра = VLESS-запрос;
+//   chunk N   — ротация: END_STREAM тела запроса без EOF-маркера;
+//   EOF-маркер (кадр 0/0) — graceful-завершение логической сессии.
+service BackupService {
+  // BackupStream — основной двунаправленный стрим чанков.
+  rpc BackupStream(stream Chunk) returns (stream Chunk);
+
+  // PutChunk / UploadStream — алиасы для ротации: клиент выбирает метод
+  // случайно из endpointPaths, чтобы вызовы не были одинаковыми.
+  rpc PutChunk(stream Chunk) returns (stream Chunk);
+  rpc UploadStream(stream Chunk) returns (stream Chunk);
+}
+
+// Chunk — одно gRPC-сообщение (кадр ТЗ).
+message Chunk {
+  // Payload — полезная нагрузка кадра (байты VLESS-потока).
+  // Пустой payload + непустой padding — служебный кадр (пинг/мусор),
+  // принимающая сторона отбрасывает его, не трогая VLESS-поток.
+  bytes payload = 1;
+  // Padding — криптографически случайный мусор (crypto/rand,
+  // 32..1400 байт по умолчанию): кадры неотличимы по размеру.
+  bytes padding = 2;
+}
+
+// Метаданные вызова (HTTP/2 headers):
+//
+//   X-Backup-Session-ID: "ws-finance-03.1174.6f3ac2b1"
+//       — «задание» BackupPC: host.jobnum.nonce (host из пула хостов).
+//   X-Backup-Chunk-Index: "0", "1", ...
+//       — строго последовательные индексы чанков сессии (анти-replay).
+//   X-Backup-Auth: hex(HMAC-SHA256(uuid, sessionID|chunkIndex))
+//       — аутентификация вызова; ключ — UUID VLESS-пользователя.
+//
+// Трейлеры ответа:
+//
+//   grpc-status: "0"              — вызов завершен успешно;
+//   grpc-message: "backup session: <причина>";
+//   X-Backup-Status: "chunk-complete" | "ok" | "upstream-closed" | ...
+//       — статус «узла хранения» (эстафета ротации = chunk-complete).
+//
+// Анти-зондирование (ТЗ, раздел 6): на любые некорректные запросы сервер
+// отвечает JSON хранилища и никогда не рвет TCP (кроме TLS-фазы):
+//
+//   400 + {"error":{"code":"InvalidBackupSession","message":"Session token missing or expired"}}
+//   413 + {"status":"error","reason":"Storage node backup-pool-01 allocation failed"}

@@ -1,0 +1,39 @@
+{
+  "serverAddr": "203.0.113.10:8443",
+  "uuid": "52724a0e-6d3a-4b1c-9f2e-8a7c3d5b1e90",
+  "socksListen": "127.0.0.1:1080",
+  "host": "lampa-tv.ru",
+  "endpointPaths": [
+    "/backuppc.BackupService/BackupStream",
+    "/backuppc.ChunkService/PutChunk",
+    "/backuppc.StorageService/UploadStream"
+  ],
+  "insecure": true,
+  "certFingerprint": "",
+  "minPaddingSize": 32,
+  "maxPaddingSize": 1400,
+  "pingBaseInterval": "20s",
+  "pingJitterMax": "15s",
+  "balancingInterval": "5s",
+  "minTxThreshold": 16384,
+  "maxSessionDuration": "30m",
+  "maxSessionBytes": 2147483648,
+  "maxWriteChunk": 16384,
+  "fakeUploadChunk": 524288,
+  "idleTimeout": "90s",
+  "dialRetries": 3,
+  "rotationGrace": "250ms",
+  "rotationHandoff": "3s",
+  "backuppc": {
+    "enabled": true,
+    "idleOnly": true,
+    "incrementalEvery": "25m",
+    "incrementalMinBytes": 2097152,
+    "incrementalMaxBytes": 8388608,
+    "fullEvery": "8h",
+    "fullMinBytes": 33554432,
+    "fullMaxBytes": 134217728,
+    "nightStartHour": 22,
+    "nightEndHour": 6
+  }
+}
