@@ -1,0 +1,66 @@
+# Полный стек для локальной проверки и отладки: сервер xray-backuppc +
+# клиент (безголовое ядро Xray с backuppc-outbound) + HTTP-таргет.
+#
+# Сборка (из соседних репозиториев):
+#   docker build -t backuppc-server  ../xray-backuppc
+#   docker build -f deploy/Dockerfile -t backuppc-client .
+#
+# Запуск: docker compose -f deploy/docker-compose.stack.yml up
+#
+# Проверка туннеля (SOCKS5 клиента проксирует через сервер к таргету):
+#   curl -v --socks5-hostname 127.0.0.1:1080 http://127.0.0.1:18080/healthz
+#
+# Панель сервера: https://127.0.0.1:8444 (токен в журнале контейнера
+# backuppc-server). Переменные: UUID (по умолчанию e2e-значение).
+
+services:
+  backuppc-server:
+    image: backuppc-server:latest
+    container_name: backuppc-stack-server
+    restart: unless-stopped
+    ports:
+      - "8443:8443"   # транспорт (TLS, gRPC-несущий канал)
+      - "8444:8444"   # панель (React + REST/WS админ-API)
+    environment:
+      # конфиг сервера монтируется томом (см. server.stack.json)
+      BACPANEL_HINT: "admin token печатается в журнале контейнера"
+    volumes:
+      - ./server.stack.json:/etc/backuppc/config.json:ro
+      - backuppc-data:/var/lib/backuppc
+    networks:
+      - backuppc
+
+  backuppc-client:
+    image: backuppc-client:latest
+    container_name: backuppc-stack-client
+    restart: unless-stopped
+    depends_on:
+      - backuppc-server
+    environment:
+      BACKUPPC_SERVER: backuppc-server:8443
+      BACKUPPC_UUID: ${UUID:-be2e0001-0001-0001-0001-000000000001}
+      BACKUPPC_INSECURE: "1"
+      BACKUPPC_HOST: backup.local
+      BACKUPPC_LOGLEVEL: info
+    ports:
+      - "127.0.0.1:1080:1080"
+    networks:
+      - backuppc
+
+  target:
+    image: python:3.12-alpine
+    container_name: backuppc-stack-target
+    restart: unless-stopped
+    command: python -m http.server 80 --bind 0.0.0.0 --directory /srv
+    volumes:
+      - ./target-www:/srv:ro
+    ports:
+      - "127.0.0.1:18080:80"
+    networks:
+      - backuppc
+
+networks:
+  backuppc:
+
+volumes:
+  backuppc-data:

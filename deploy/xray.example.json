@@ -1,0 +1,24 @@
+{
+  "log": {"loglevel": "info"},
+  "inbounds": [{
+    "tag": "socksIn",
+    "protocol": "socks",
+    "listen": "0.0.0.0",
+    "port": 1080,
+    "settings": {"auth": "noauth", "udp": false}
+  }],
+  "outbounds": [
+    {
+      "tag": "proxy",
+      "protocol": "backuppc",
+      "settings": {
+        "serverAddr": "vpn.example.com:8443",
+        "uuid": "01234567-89ab-cdef-0123-456789abcdef",
+        "host": "backup.local",
+        "endpoints": "/backuppc.BackupService/BackupStream,/backuppc.ChunkService/PutChunk",
+        "certFingerprint": ""
+      }
+    },
+    {"tag": "direct", "protocol": "freedom"}
+  ]
+}
