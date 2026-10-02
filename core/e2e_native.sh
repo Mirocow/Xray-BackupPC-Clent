@@ -51,7 +51,7 @@ cat > "$WORK/server.json" <<EOF
   }
 }
 EOF
-"$WORK/backuppc-server" -config "$WORK/server.json" > "$WORK/server.log" 2>&1 &
+"$WORK/backuppc-server" -config "$WORK/server.json" -data "$WORK" > "$WORK/server.log" 2>&1 &
 SRV_PID=$!
 sleep 0.5
 
