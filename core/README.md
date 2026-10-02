@@ -131,3 +131,39 @@ python3 core/libxray/patch.py --libxray-dir ../libXray
   маскировка обрабатываются внутри протокола, `streamSettings`
   игнорируются.
 - `certFingerprint` (пиннинг SHA-256) приоритетнее `insecure`.
+
+## Роутеры ASUS (asuswrt-merlin-xrayui)
+
+Ядро — drop-in замена бинарника `xray` для [xrayui](https://github.com/DanielLavrushin/asuswrt-merlin-xrayui):
+совпадает CLI (`xray -c config.json [-c extra.json …] [-test]`,
+`xray version`; несколько `-c` сливаются — объекты рекурсивно, массивы
+конкатенацией, как в multi-json загрузчике Xray) и вывод версии
+(`Xray 26.3.27 …` — зонд `xrayui_core_version` распознает). Прежние
+подкоманды `run|test -config` сохранены для OneXray/скриптов.
+
+Сборка для роутеров (статические бинарники, без libc):
+
+```bash
+make release-router    # core/bin/xray-linux-arm32-v7a + xray-linux-arm64-v8a
+```
+
+Развёртывание на роутере (SSH):
+
+```bash
+cp /opt/bin/xray /opt/bin/xray.orig        # бэкап оригинального ядра
+scp core/bin/xray-linux-arm64-v8a root@router:/opt/bin/xray   # по arch
+chmod 0755 /opt/bin/xray
+sh /jffs/scripts/xrayui restart
+```
+
+Замечания:
+
+- `xray version` дополнительно печатает строку «Custom core: backuppc
+  outbound enabled» — по ней видно, что стоит патченное ядро;
+- смена версии ядра из панели xrayui (`switch_xray_version`) скачает
+  официальный Xray-core **без** протокола — после смены повторите
+  развёртывание; определяйте рабочее ядро по `xray version`;
+- `backuppc`-outbound берёт на себя TLS и HTTP/2 (маскировка
+  BackupPC), `streamSettings` в JSON игнорируются (см. «Совместимость»);
+- сборка конфига и импорт `backuppc://`-ссылок — средствами xrayui
+  (протокол добавлен в реестр outbound-ов веб-интерфейса).

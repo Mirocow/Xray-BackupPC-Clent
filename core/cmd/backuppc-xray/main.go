@@ -1,14 +1,21 @@
-// backuppc-xray — настольное ядро с нативным протоколом backuppc.
+// backuppc-xray — настольное/роутерное ядро с нативным протоколом backuppc.
 //
 // Повторяет контракт OneXrayCore (desktop_bin libXray): читает Xray JSON,
 // прогоняет его через конвейер backuppc-core (NormalizeJSON →
 // core.LoadConfig → Apply) и запускает инстанс Xray. Конфиги без
 // backuppc-outbound работают как в обычном ядре.
 //
-// Команды:
+// Поддерживаются два стиля аргументов:
 //
-//	backuppc-xray run  -config app.json        # запуск (до SIGINT/SIGTERM)
-//	backuppc-xray test -config app.json        # валидация (TestXray-режим)
+//	стиль xray (роутер asuswrt-merlin-xrayui, drop-in замена бинарника):
+//	    xray -c app.json [-c extra.json …] [-test]   # без -test — запуск
+//	    xray version                                  # «Xray 26.3.27 …»
+//	несколько -c сливаются: объекты — рекурсивно, массивы (outbounds,
+//	inbounds, rules) — конкатенацией, как в multi-json загрузчике Xray;
+//
+//	прежний стиль (совместимость, OneXray/скрипты):
+//	    backuppc-xray run  -config app.json        # запуск (до SIGINT/SIGTERM)
+//	    backuppc-xray test -config app.json        # валидация (TestXray-режим)
 //
 // Отладка (инструментарий разработки, см. DEVELOPMENT.md):
 //
@@ -17,6 +24,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"net/http"
@@ -64,36 +72,124 @@ func run(args []string) int {
 	}
 	switch args[0] {
 	case "run":
-		return withConfig(args[1:], startAndWait)
+		return withConfigs(args[1:], startAndWait, false)
 	case "test":
-		return withConfig(args[1:], validateOnly)
-	default:
+		return withConfigs(args[1:], validateOnly, false)
+	case "version", "-version", "--version":
+		printVersion()
+		return 0
+	case "help", "-help", "--help", "-h":
 		usage()
-		return 2
+		return 0
+	default:
+		// Стиль xray: xray -c file [-c file2] [-test] — запуск без -test
+		return withConfigs(args, startAndWait, true)
 	}
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "использование: backuppc-xray <run|test> -config <xray.json>")
+	fmt.Fprintln(os.Stderr, "использование: xray <run|test|version> -config <xray.json>")
+	fmt.Fprintln(os.Stderr, "          или: xray -c <xray.json> [-c <extra.json>…] [-test]  (стиль xray)")
 }
 
-func withConfig(args []string, action func(config []byte) error) int {
+func printVersion() {
+	lines := core.VersionStatement()
+	for _, line := range lines {
+		fmt.Println(line)
+	}
+	fmt.Println("Custom core: backuppc outbound enabled (xray-vless-backuppc)")
+}
+
+// withConfigs разбирает аргументы обоих стилей и выполняет действие.
+//
+// xrayStyle=true — путь флагов xrayui: несколько -c (конфиги сливаются),
+// флаг -test переключает validateOnly вместо запуска. Иначе — одиночный
+// -config подкоманд run|test.
+func withConfigs(args []string, action func(config []byte) error, xrayStyle bool) int {
 	fs := flag.NewFlagSet("", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
-	configPath := fs.String("config", "", "путь к Xray JSON")
+	configPath := fs.String("config", "", "путь к Xray JSON (подкоманды run|test)")
+	configFiles := multiFlag{}
+	fs.Var(&configFiles, "c", "путь Xray JSON; повторяется — конфиги сливаются")
+	testOnly := fs.Bool("test", false, "валидировать конфиг и выйти")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
-	if *configPath == "" {
-		fmt.Fprintln(os.Stderr, "укажите -config")
+
+	files := configFiles
+	if *configPath != "" {
+		files = append(files, *configPath)
+	}
+	if len(files) == 0 {
+		fmt.Fprintln(os.Stderr, "укажите -config или -c")
 		return 2
 	}
-	config, err := os.ReadFile(*configPath)
+
+	config, err := readMerged(files)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "чтение конфига: %v\n", err)
 		return 1
 	}
+
+	if xrayStyle && *testOnly {
+		return execValidate(config)
+	}
 	if err := action(config); err != nil {
+		fmt.Fprintf(os.Stderr, "ошибка: %v\n", err)
+		return 1
+	}
+	return 0
+}
+
+// multiFlag — повторяемый строковый флаг (-c a -c b).
+type multiFlag []string
+
+func (m *multiFlag) String() string { return strings.Join(*m, ",") }
+func (m *multiFlag) Set(v string) error {
+	*m = append(*m, v)
+	return nil
+}
+
+// readMerged читает конфиги и сливает их: объекты — рекурсивно, массивы —
+// конкатенацией (как multi-json загрузчик Xray; порядок = порядок -c).
+func readMerged(paths []string) ([]byte, error) {
+	merged := map[string]any{}
+	for _, p := range paths {
+		raw, err := os.ReadFile(p)
+		if err != nil {
+			return nil, err
+		}
+		var doc map[string]any
+		if err := json.Unmarshal(raw, &doc); err != nil {
+			return nil, fmt.Errorf("%s: %w", p, err)
+		}
+		mergeJSON(merged, doc)
+	}
+	return json.Marshal(merged)
+}
+
+func mergeJSON(dst, src map[string]any) {
+	for k, v := range src {
+		if prev, ok := dst[k]; ok {
+			if pm, ok1 := prev.(map[string]any); ok1 {
+				if vm, ok2 := v.(map[string]any); ok2 {
+					mergeJSON(pm, vm)
+					continue
+				}
+			}
+			if pa, ok1 := prev.([]any); ok1 {
+				if va, ok2 := v.([]any); ok2 {
+					dst[k] = append(pa, va...)
+					continue
+				}
+			}
+		}
+		dst[k] = v
+	}
+}
+
+func execValidate(config []byte) int {
+	if err := validateOnly(config); err != nil {
 		fmt.Fprintf(os.Stderr, "ошибка: %v\n", err)
 		return 1
 	}

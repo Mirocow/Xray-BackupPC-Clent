@@ -24,7 +24,7 @@ DEPLOY := deploy
 .PHONY: help \
 	analyze analyze-lib test test-dart test-app e2e-dart \
 	build-app build-android build-ios build-macos build-macos-se \
-	build-windows build-linux verify-release \
+	build-windows build-linux verify-release release-router \
 	debug-download debug-upload layer-bench debug-tools \
 	test-ref test-ref-race vet-ref fmt-ref fmt-ref-check lint-ref \
 	build-core patch-libxray e2e-ref e2e-stack loadtest \
@@ -79,6 +79,14 @@ build-linux: ## Linux
 
 verify-release: ## Проверка релизных артефактов (build_scripts/verify_release.py)
 	$(PYTHON) build_scripts/verify_release.py
+
+release-router: ## Ядро для роутеров ASUS/Merlin: arm32-v7a + arm64-v8a
+	cd core && mkdir -p bin
+	cd core && CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 \
+		$(GO) build -trimpath -ldflags="-s -w" -o bin/xray-linux-arm32-v7a ./cmd/backuppc-xray
+	cd core && CGO_ENABLED=0 GOOS=linux GOARCH=arm64 \
+		$(GO) build -trimpath -ldflags="-s -w" -o bin/xray-linux-arm64-v8a ./cmd/backuppc-xray
+	@ls -lh core/bin/xray-linux-*
 
 # ─── Отладка протокола (Dart) ─────────────────────────────────────────
 
