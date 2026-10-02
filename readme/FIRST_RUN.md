@@ -32,7 +32,6 @@ From your chosen workspace directory:
 
 ```shell
 git clone https://github.com/OneXray/OneXray.git
-git clone https://github.com/XTLS/libXray.git
 cd OneXray
 ```
 
@@ -41,21 +40,21 @@ cd OneXray
 ```text
 workspace/
 ├── OneXray/    # Flutter App; current directory
-├── libXray/    # native libraries and GeoData
+│   └── third_party/libXray/   # vendored native core source (backuppc-patched)
 └── VCore/      # Windows only
 ```
 
-Use dependency revisions compatible with your App checkout; the [Build workflow](../.github/workflows/build.yml) defines the CI references. Do not mix old native binaries with a new App API. A separate Xray-core checkout is not needed for the standard libXray build.
+The native core is vendored inside this repository (`third_party/libXray`, already patched with the backuppc protocol); the [Build workflow](../.github/workflows/build.yml) records its upstream base revision in `third_party/libXray/manifest.json`. Do not mix old native binaries with a new App API. A separate Xray-core checkout is not needed for the standard libXray build.
 
 ## 3. Prepare native libraries and GeoData
 
-Run only the section for your target. These libXray commands resolve Go dependencies and prepare `../libXray/dat/`; they do not build or publish the App.
+Run only the section for your target. These libXray commands resolve Go dependencies and prepare `third_party/libXray/dat/`; they do not build or publish the App.
 
 ### iOS / macOS
 
 ```shell
-python3 ../libXray/build/main.py apple go
-rsync -a --delete ../libXray/LibXray.xcframework/ swift/All/LibXray.xcframework/
+python3 third_party/libXray/build/main.py apple go
+rsync -a --delete third_party/libXray/LibXray.xcframework/ swift/All/LibXray.xcframework/
 ```
 
 Both platforms use this framework, including its simulator slices. The sync replaces only the generated framework; keep the other files in `swift/All/`.
@@ -65,9 +64,9 @@ The Xcode projects use [Swift Package Manager](https://docs.flutter.dev/packages
 ### Android
 
 ```shell
-python3 ../libXray/build/main.py android
+python3 third_party/libXray/build/main.py android
 mkdir -p android/app/libs
-cp ../libXray/libXray.aar ../libXray/libXray-sources.jar android/app/libs/
+cp third_party/libXray/libXray.aar third_party/libXray/libXray-sources.jar android/app/libs/
 ```
 
 The commands above use a macOS/Linux shell; on Windows, use Python and PowerShell equivalents for the build and copies. The App supports arm64-v8a and x86_64, not 32-bit ARM. Local Debug builds use the debug keystore; no Play service account or upload keystore is needed.
@@ -79,10 +78,10 @@ On Debian/Ubuntu, install the build and runtime dependencies:
 ```shell
 sudo apt-get update
 sudo apt-get install -y build-essential clang libclang-dev cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libblkid-dev libsecret-1-dev libayatana-appindicator3-dev libcap2-bin procps file
-python3 ../libXray/build/main.py linux
+python3 third_party/libXray/build/main.py linux
 mkdir -p linux/app
-cp ../libXray/linux_so/libXray.so linux/app/
-cp ../libXray/bin/xray linux/app/OneXrayCore
+cp third_party/libXray/linux_so/libXray.so linux/app/
+cp third_party/libXray/bin/xray linux/app/OneXrayCore
 chmod +x linux/app/OneXrayCore
 ```
 
@@ -113,14 +112,14 @@ After the selected libXray build, copy the **whole** data directory, including t
 
 ```shell
 mkdir -p assets/dat
-cp -R ../libXray/dat/. assets/dat/
+cp -R third_party/libXray/dat/. assets/dat/
 ```
 
 PowerShell equivalent:
 
 ```powershell
 New-Item -ItemType Directory -Force assets/dat | Out-Null
-Copy-Item ../libXray/dat/* assets/dat/ -Force
+Copy-Item third_party/libXray/dat/* assets/dat/ -Force
 ```
 
 `assets/dat/` is ignored by Git. A fresh clone cannot initialize its default routing data without these files. The Windows App packaging script already performs this copy.

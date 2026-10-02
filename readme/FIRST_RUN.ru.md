@@ -32,7 +32,6 @@ go version
 
 ```shell
 git clone https://github.com/OneXray/OneXray.git
-git clone https://github.com/XTLS/libXray.git
 cd OneXray
 ```
 
@@ -41,21 +40,21 @@ cd OneXray
 ```text
 workspace/
 ├── OneXray/    # приложение Flutter; текущий каталог
-├── libXray/    # нативные библиотеки и GeoData
+│   └── third_party/libXray/   # вендоренный исходник ядра (с патчем backuppc)
 └── VCore/      # только для Windows
 ```
 
-Версии зависимостей должны соответствовать выбранной версии приложения; ссылки CI определены в [Build workflow](../.github/workflows/build.yml). Не используйте старые нативные библиотеки с новым API приложения. Для стандартной сборки libXray отдельный репозиторий Xray-core не нужен.
+Нативное ядро вендорено внутри репозитория (`third_party/libXray`, уже с патчем backuppc); upstream-коммит основы записан в `third_party/libXray/manifest.json` (см. [Build workflow](../.github/workflows/build.yml)). Не используйте старые нативные библиотеки с новым API приложения. Для стандартной сборки libXray отдельный репозиторий Xray-core не нужен.
 
 ## 3. Подготовьте нативные библиотеки и GeoData
 
-Выполните только раздел для своей платформы. Эти команды libXray получают зависимости Go и подготавливают `../libXray/dat/`; они не собирают и не публикуют приложение.
+Выполните только раздел для своей платформы. Эти команды libXray получают зависимости Go и подготавливают `third_party/libXray/dat/`; они не собирают и не публикуют приложение.
 
 ### iOS / macOS
 
 ```shell
-python3 ../libXray/build/main.py apple go
-rsync -a --delete ../libXray/LibXray.xcframework/ swift/All/LibXray.xcframework/
+python3 third_party/libXray/build/main.py apple go
+rsync -a --delete third_party/libXray/LibXray.xcframework/ swift/All/LibXray.xcframework/
 ```
 
 Обе платформы используют этот framework, включая варианты для симулятора. Синхронизация заменяет только сгенерированный framework; остальные файлы `swift/All/` сохраняются.
@@ -65,9 +64,9 @@ rsync -a --delete ../libXray/LibXray.xcframework/ swift/All/LibXray.xcframework/
 ### Android
 
 ```shell
-python3 ../libXray/build/main.py android
+python3 third_party/libXray/build/main.py android
 mkdir -p android/app/libs
-cp ../libXray/libXray.aar ../libXray/libXray-sources.jar android/app/libs/
+cp third_party/libXray/libXray.aar third_party/libXray/libXray-sources.jar android/app/libs/
 ```
 
 Команды выше предназначены для оболочки macOS/Linux; в Windows используйте соответствующие команды Python и PowerShell. Приложение поддерживает arm64-v8a и x86_64, но не 32-битный ARM. Локальная Debug-сборка использует отладочный keystore; сервисный аккаунт Play и ключ загрузки не нужны.
@@ -79,10 +78,10 @@ cp ../libXray/libXray.aar ../libXray/libXray-sources.jar android/app/libs/
 ```shell
 sudo apt-get update
 sudo apt-get install -y build-essential clang libclang-dev cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libblkid-dev libsecret-1-dev libayatana-appindicator3-dev libcap2-bin procps file
-python3 ../libXray/build/main.py linux
+python3 third_party/libXray/build/main.py linux
 mkdir -p linux/app
-cp ../libXray/linux_so/libXray.so linux/app/
-cp ../libXray/bin/xray linux/app/OneXrayCore
+cp third_party/libXray/linux_so/libXray.so linux/app/
+cp third_party/libXray/bin/xray linux/app/OneXrayCore
 chmod +x linux/app/OneXrayCore
 ```
 
@@ -113,14 +112,14 @@ uv run --project build_scripts python build_scripts/main.py OneXray windows
 
 ```shell
 mkdir -p assets/dat
-cp -R ../libXray/dat/. assets/dat/
+cp -R third_party/libXray/dat/. assets/dat/
 ```
 
 Эквивалент для PowerShell:
 
 ```powershell
 New-Item -ItemType Directory -Force assets/dat | Out-Null
-Copy-Item ../libXray/dat/* assets/dat/ -Force
+Copy-Item third_party/libXray/dat/* assets/dat/ -Force
 ```
 
 `assets/dat/` не отслеживается Git. Без этих файлов приложение из свежего клона не сможет подготовить стандартные данные маршрутизации. Скрипт упаковки приложения для Windows уже выполняет это копирование.

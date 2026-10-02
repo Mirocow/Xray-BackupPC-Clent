@@ -32,7 +32,6 @@ go version
 
 ```shell
 git clone https://github.com/OneXray/OneXray.git
-git clone https://github.com/XTLS/libXray.git
 cd OneXray
 ```
 
@@ -41,21 +40,21 @@ cd OneXray
 ```text
 workspace/
 ├── OneXray/    # Flutter App，当前目录
-├── libXray/    # 原生库与 GeoData
+│   └── third_party/libXray/   # 内置于仓库的原生内核源码（已含 backuppc 补丁）
 └── VCore/      # 仅 Windows 需要
 ```
 
-依赖版本应与当前 App 代码匹配；CI 使用的依赖引用见 [Build workflow](../.github/workflows/build.yml)。不要将旧原生库与新的 App API 混用。标准 libXray 构建不需要另行 clone Xray-core。
+原生内核已内置于本仓库（`third_party/libXray`，已包含 backuppc 补丁）；上游基准提交记录在 `third_party/libXray/manifest.json`（参见 [Build workflow](../.github/workflows/build.yml)）。不要将旧原生库与新的 App API 混用。标准 libXray 构建不需要另行 clone Xray-core。
 
 ## 3. 准备原生库与 GeoData
 
-只执行目标平台对应的小节。以下 libXray 命令会解析 Go 依赖并准备 `../libXray/dat/`，不会构建或发布 App。
+只执行目标平台对应的小节。以下 libXray 命令会解析 Go 依赖并准备 `third_party/libXray/dat/`，不会构建或发布 App。
 
 ### iOS / macOS
 
 ```shell
-python3 ../libXray/build/main.py apple go
-rsync -a --delete ../libXray/LibXray.xcframework/ swift/All/LibXray.xcframework/
+python3 third_party/libXray/build/main.py apple go
+rsync -a --delete third_party/libXray/LibXray.xcframework/ swift/All/LibXray.xcframework/
 ```
 
 两个平台共用该 framework，其中包含模拟器架构。同步只替换生成的 framework，保留 `swift/All/` 中的其他文件。
@@ -65,9 +64,9 @@ Xcode 工程使用 [Swift Package Manager](https://docs.flutter.dev/packages-and
 ### Android
 
 ```shell
-python3 ../libXray/build/main.py android
+python3 third_party/libXray/build/main.py android
 mkdir -p android/app/libs
-cp ../libXray/libXray.aar ../libXray/libXray-sources.jar android/app/libs/
+cp third_party/libXray/libXray.aar third_party/libXray/libXray-sources.jar android/app/libs/
 ```
 
 上述命令使用 macOS/Linux shell；Windows 请使用对应的 Python、PowerShell 构建与复制命令。App 支持 arm64-v8a 和 x86_64，不支持 32 位 ARM。本地 Debug 使用 debug keystore，不需要 Play 服务账号或上传密钥。
@@ -79,10 +78,10 @@ Debian / Ubuntu 先安装构建与运行依赖：
 ```shell
 sudo apt-get update
 sudo apt-get install -y build-essential clang libclang-dev cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libblkid-dev libsecret-1-dev libayatana-appindicator3-dev libcap2-bin procps file
-python3 ../libXray/build/main.py linux
+python3 third_party/libXray/build/main.py linux
 mkdir -p linux/app
-cp ../libXray/linux_so/libXray.so linux/app/
-cp ../libXray/bin/xray linux/app/OneXrayCore
+cp third_party/libXray/linux_so/libXray.so linux/app/
+cp third_party/libXray/bin/xray linux/app/OneXrayCore
 chmod +x linux/app/OneXrayCore
 ```
 
@@ -113,14 +112,14 @@ uv run --project build_scripts python build_scripts/main.py OneXray windows
 
 ```shell
 mkdir -p assets/dat
-cp -R ../libXray/dat/. assets/dat/
+cp -R third_party/libXray/dat/. assets/dat/
 ```
 
 PowerShell 对应命令：
 
 ```powershell
 New-Item -ItemType Directory -Force assets/dat | Out-Null
-Copy-Item ../libXray/dat/* assets/dat/ -Force
+Copy-Item third_party/libXray/dat/* assets/dat/ -Force
 ```
 
 `assets/dat/` 被 Git 忽略。首次 clone 后缺少这些文件时，App 无法初始化默认路由数据。Windows App 打包脚本已包含此复制步骤。

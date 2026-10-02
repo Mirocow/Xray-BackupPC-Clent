@@ -4,11 +4,12 @@
 
 ## Release provenance / 发布溯源
 
-- `Build` resolves `LIBXRAY_REF` and `VCORE_REF` once in the metadata job. Every
-  platform checks out those same full commit SHAs; the requested refs are stored
-  separately. `LIBXRAY_REF` is pinned to the revision vendored in
-  `third_party/libXray` (git bundle + `manifest.json`); update the pin, the
-  bundle, and the patch anchors together (see `third_party/libXray/UPSTREAM.md`).
+- `Build` resolves `VCORE_REF` once in the metadata job; every platform checks
+  out that same full commit SHA, and the requested ref is stored separately.
+  libXray is **vendored as patched source in `third_party/libXray`** — there is
+  no CI pin and no external checkout: the metadata job reads the upstream base
+  commit from `third_party/libXray/manifest.json`, and both local and CI builds
+  compile exactly the committed tree (see `third_party/libXray/UPSTREAM.md`).
   A local libXray commit is **not** assumed to exist in `XTLS/libXray`:
   publish the required dependency changes to the configured repository before
   selecting them for CI. This change does not push dependencies or start CI.
@@ -17,9 +18,10 @@
   actual tool versions, dependency-lock hashes, copied native/GeoData hashes, and
   package SHA-256. Commands that cannot report a version are explicitly marked
   unavailable, not replaced with `stable` or another requested version.
-  `sourceDirty` records each checkout's initial tracked/untracked changes (ignored
-  files excluded), before script-controlled source changes. It contains only
-  booleans and does not prevent local development builds with uncommitted work.
+  `sourceDirty` records each source's initial tracked/untracked changes (ignored
+  files excluded), before script-controlled source changes: for the app checkout
+  as a whole, and for the vendored `third_party/libXray` path inside it. It contains
+  only booleans and does not prevent local development builds with uncommitted work.
 - Windows receipts additionally include `windowsMode` and use
   `provenance-windows-<architecture>-<mode>.json`, keeping EXE and MSIX builds separate.
 - Windows additionally requires VCore integration
@@ -72,20 +74,27 @@ outputs. libXray resolves Xray-core from its Go module dependencies.
 
 ### Workspace layout
 
-OneXray and libXray must be sibling directories. Windows builds also require a VCore checkout; set `VCORE_DIR` when it is not at `workspace/VCore`. Build artifacts are written to the sibling `output` directory. libXray does not need to be cloned manually: the verified upstream revision is vendored in `third_party/libXray` as a git bundle — run `make bootstrap-libxray` from the OneXray root to materialize the sibling `libXray` checkout offline (the backuppc patch is applied by the same command; see `third_party/libXray/UPSTREAM.md`).
+The Xray-core library is vendored as patched source in
+`third_party/libXray` of this repository — the build compiles it in place,
+so no sibling libXray checkout is needed. Windows builds also require a VCore
+checkout; set `VCORE_DIR` when it is not at `workspace/VCore`. Build artifacts
+are written to the sibling `output` directory; the vendored tree's own build
+outputs (`bin/`, `linux_so/`, `windows_dll/`, `dat/`, …) are git-ignored
+inside `third_party/libXray`.
 
 ```text
 workspace/
-├── OneXray/
-├── libXray/
-├── VCore/         # Windows only
-└── output/        # created automatically
+├── OneXray/           # contains third_party/libXray (the core source)
+├── VCore/              # Windows only
+└── output/             # created automatically
 ```
 
-The scripts use the currently checked-out libXray and VCore revisions. VCore
-artifacts are copied only after their integration revision, architecture,
-identity, file set, and SHA-256 manifest pass. The Xray-core version is pinned
-by libXray's Go module; a sibling Xray-core checkout is not used.
+The scripts use the currently committed vendored libXray tree (its upstream
+base revision is recorded in `third_party/libXray/manifest.json`) and the
+checked-out VCore revision. VCore artifacts are copied only after their
+integration revision, architecture, identity, file set, and SHA-256 manifest
+pass. The Xray-core version is pinned by the vendored libXray's Go module; a
+sibling Xray-core checkout is not used.
 
 ### Prerequisites
 
@@ -178,19 +187,18 @@ OneXray App，并生成各平台对应的安装包。Xray-core 由 libXray 的 G
 
 ### 工作区结构
 
-OneXray 和 libXray 必须位于同一级目录。Windows 构建还需要 VCore；不在 `workspace/VCore` 时通过 `VCORE_DIR` 指定。构建产物写入同级 `output` 目录。libXray 无需手动 clone：已验证的上游版本以 git bundle 形式内置于 `third_party/libXray`，在 OneXray 根目录运行 `make bootstrap-libxray` 即可离线生成同级 `libXray` checkout（同一命令会一并应用 backuppc 补丁；见 `third_party/libXray/UPSTREAM.md`）。
+Xray-core 库以已打补丁的源码形式内置于本仓库的 `third_party/libXray`，构建直接在该目录内编译，无需同级的 libXray checkout。Windows 构建还需要 VCore；不在 `workspace/VCore` 时通过 `VCORE_DIR` 指定。构建产物写入同级 `output` 目录；vendored 树自身的构建输出（`bin/`、`linux_so/`、`windows_dll/`、`dat/` 等）在 `third_party/libXray` 内被 git 忽略。
 
 ```text
 workspace/
-├── OneXray/
-├── libXray/
-├── VCore/         # 仅 Windows
-└── output/        # 自动创建
+├── OneXray/           # 内含 third_party/libXray（内核源码）
+├── VCore/              # 仅 Windows
+└── output/             # 自动创建
 ```
 
-构建使用 libXray 和 VCore 当前检出的版本。VCore 产物只有在 integration revision、
+构建使用当前已提交的 vendored libXray 树（上游基准提交记录在 `third_party/libXray/manifest.json`）以及当前检出的 VCore 版本。VCore 产物只有在 integration revision、
 架构、identity、文件集合和 SHA-256 manifest 全部通过后才复制。Xray-core 版本由
-libXray 的 Go module 锁定，不使用同级目录下的 Xray-core checkout。
+vendored libXray 的 Go module 锁定，不使用同级目录下的 Xray-core checkout。
 
 ### 前置条件
 
@@ -275,20 +283,27 @@ FFI-привязки Flutter, собирают приложение OneXray и �
 
 ### Структура рабочего каталога
 
-OneXray и libXray должны находиться в соседних каталогах. Для Windows также нужен VCore; если он находится не в `workspace/VCore`, задайте `VCORE_DIR`. Результаты записываются в соседний каталог `output`. libXray не нужно клонировать вручную: проверенная версия upstream вендорена в `third_party/libXray` в виде git-bundle — запустите `make bootstrap-libxray` из корня OneXray, и соседний checkout `libXray` будет создан офлайн (backuppc-патч применяется той же командой; см. `third_party/libXray/UPSTREAM.md`).
+Библиотека Xray-core вендорена как патченный исходник в `third_party/libXray`
+этого репозитория — сборка компилирует её прямо на месте, соседний checkout
+libXray не нужен. Для Windows также нужен VCore; если он находится не в
+`workspace/VCore`, задайте `VCORE_DIR`. Результаты записываются в соседний
+каталог `output`; собственные выводы сборки вендоренного дерева (`bin/`,
+`linux_so/`, `windows_dll/`, `dat/`, …) игнорируются git внутри
+`third_party/libXray`.
 
 ```text
 workspace/
-├── OneXray/
-├── libXray/
-├── VCore/         # только Windows
-└── output/        # создаётся автоматически
+├── OneXray/           # внутри — third_party/libXray (исходник ядра)
+├── VCore/              # только Windows
+└── output/             # создаётся автоматически
 ```
 
-Сборка использует текущие версии libXray и VCore. Артефакты VCore копируются
+Сборка использует закоммиченное вендоренное дерево libXray (upstream-коммит
+основы записан в `third_party/libXray/manifest.json`) и текущую версию VCore.
+Артефакты VCore копируются
 только после проверки integration revision, архитектуры, identity, набора файлов
-и SHA-256 manifest. Версия Xray-core закреплена Go-модулем libXray; соседний
-checkout Xray-core не используется.
+и SHA-256 manifest. Версия Xray-core закреплена Go-модулем вендоренного libXray;
+соседний checkout Xray-core не используется.
 
 ### Требования
 

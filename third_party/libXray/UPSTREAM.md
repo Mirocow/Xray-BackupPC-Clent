@@ -1,69 +1,76 @@
-# Vendored: XTLS/libXray @ `3c694b2` — ядро для сборки OneXray
+# Vendored (patched source): XTLS/libXray @ `3c694b2` — ядро OneXray
 
 Upstream: https://github.com/XTLS/libXray
 (commit `3c694b23290f9849fe52284a345ebd4343bc90cd`, ветка `main`,
 30.09.2026, «ci: refresh build toolchains and pin Ubuntu 24.04 (#161)»).
 Версия Xray-core, закреплённая go.mod: `v1.260327.1-0.20260930074004-b26a91de4f32`
-(= Xray 26.3.27). Лицензия MIT — в checkout внутри bundle.
+(= Xray 26.3.27). Лицензия MIT — `LICENSE` в этом каталоге.
 
-## Зачем это в репозитории
+## Что здесь лежит
 
-Приложение OneXray собирает нативное ядро из checkout libXray, который
-должен лежать **соседним каталогом** (`../libXray`, см.
-`build_scripts/README.md`). Раньше его получали `git clone`-ом с
-плавающей ветки `main`, а «проверенный ref» был записан только в
-`core/README.md`: при каждом новом клоне приходилось вспоминать/искать
-какой коммит брать, и any drift `main` ломал якоря `patch.py`.
+**Полный исходник libXray с уже встроенным протоколом backuppc** —
+не bundle и не «чистый upstream + патч на лету». Правки backuppc
+(6 файлов, см. [PATCHES.md](PATCHES.md)) живут прямо в этом дереве:
+их можно дописывать и коммитить как обычный код этого репозитория,
+без якорных патчей и bootstrap-скриптов.
 
-Теперь проверенная версия libXray хранится прямо в этом репозитории:
+- Сборка ядра идёт **из этого каталога**: `build_scripts` вызывает
+  `python build/main.py <system>` с cwd = `third_party/libXray`
+  (см. [core/README.md](../../core/README.md)).
+- `go.mod` ссылается на модули этого репозитория относительными
+  replace-путями (`../../core`, `../../backuppc`) — дерево можно
+  свободно перемещать вместе с репозиторием, CI и локальная сборка
+  компилируют ровно закоммиченный код.
+- Артефакты сборки (`bin/`, `linux_so/`, `windows_dll/`, `dat/`,
+  `*.aar`, `*.jar`, `*.xcframework/`) игнорируются `.gitignore`
+  этого каталога — дерево остаётся чистым.
+- Provenance: у дерева нет собственного `.git`; upstream-коммит
+  recorded в `manifest.json` (`commit`), «грязность» проверяется
+  `git status` по пути `third_party/libXray` в корневом репозитории.
 
-- **`libXray-3c694b2…bundle`** — git-bundle с полной историей до
-  указанного коммита (~810 КиБ). `git clone` из bundle воспроизводит
-  репозиторий с **точным upstream-SHA** — `provenance.py`
-  (`source_revision`) видит настоящий коммит XTLS, а не локальную
-  заглушку. Полная история внутри — чтобы checkout был обычным git-репо
-  (сравнимо с `third_party/http2`, который тоже вендорится целиком).
-
-## Как использовать (ничего искать не нужно)
-
-```bash
-make bootstrap-libxray
-# эквивалентно:
-bash core/libxray/bootstrap.sh            # → ../libXray из bundle + patch.py
-bash core/libxray/bootstrap.sh --dest /somewhere/libXray --no-patch
-```
-
-Скрипт идемпотентен: если `../libXray` уже стоит на ожидаемом коммите,
-он пропускает клонирование; повторный запуск `patch.py` — no-op.
-Дальше — штатная сборка: `uv run --project build_scripts python
-build_scripts/main.py OneXray <system>`.
-
-Проверка bundle без клонирования:
+Проверка сборки вендоренного дерева (быстрая, без gomobile):
 
 ```bash
-git bundle verify third_party/libXray/libXray-*.bundle
+cd third_party/libXray
+go build ./... && go vet ./... && go test ./share/... ./xray/...
 ```
 
-## Как обновлять на новую версию
+## Как обновлять на новую версию upstream
+
+Обновление = подставить новое дерево и перенести в него наши правки
+(больше не «обновить якоря», а обычный three-way merge):
 
 1. Склонируйте свежий upstream и выберите коммит:
-   `git clone https://github.com/XTLS/libXray.git /tmp/libXray && git -C /tmp/libXray checkout <ref>`
-2. Проверьте, что якоря ещё живы (без сети):
-   `python3 core/libxray/patch.py --libxray-dir /tmp/libXray --skip-tidy`
-   — при несовпадении обновите якоря в `core/libxray/patch.py` и шаблон
-   `files/share_backuppc.go.template`.
-3. Пересоберите bundle и метаданные (обязателен HEAD, чтобы clone
-   выбирал ветку):
-   `git -C /tmp/libXray bundle create third_party/libXray/libXray-<sha>.bundle HEAD main`
-4. Обновите `manifest.json` (commit, даты, `bundle_sha256`,
-   `xray_core` из go.mod) и запись ниже.
-5. В CI `.github/workflows/build.yml` смените `LIBXRAY_REF` на новый SHA
-   (и `make bootstrap-libxray` переклонирует `../libXray`, либо
-   удалите каталог — скрипт пересоздаст).
-6. Проверьте: `bash core/libxray/bootstrap.sh --force` затем сборка/тесты.
+   `git clone https://github.com/XTLS/libXray.git /tmp/libXray-new`
+   `git -C /tmp/libXray-new checkout <ref>`
+2. Снимите текущие локальные изменения (для сверки/переноса):
+   ```bash
+   git clone https://github.com/XTLS/libXray.git /tmp/libXray-old
+   git -C /tmp/libXray-old checkout 3c694b23290f9849fe52284a345ebd4343bc90cd
+   diff -ru --exclude=.git /tmp/libXray-old third_party/libXray > /tmp/our.patch
+   ```
+   (или просто держите [PATCHES.md](PATCHES.md) перед глазами — 6 файлов)
+3. Скопируйте новое дерево вместо этого каталога (без `.git`):
+   ```bash
+   rsync -a --delete --exclude=.git /tmp/libXray-new/ third_party/libXray/
+   # вернуть служебные файлы вендоринга:
+   git checkout HEAD -- third_party/libXray/manifest.json \
+                          third_party/libXray/UPSTREAM.md \
+                          third_party/libXray/PATCHES.md
+   ```
+4. Перенесите правки backuppc в новое дерево (наши 6 файлов из
+   `/tmp/our.patch`; конфликтующие куски — вручную по PATCHES.md).
+5. Обновите `manifest.json`: `commit`, `commit_subject`, `commit_date`,
+   `xray_core` (из go.mod нового дерева), `vendored_date`.
+6. Проверьте и закоммитьте:
+   ```bash
+   cd third_party/libXray
+   go mod tidy && go build ./... && go vet ./... && go test ./share/... ./xray/...
+   ```
+   затем полная сборка/тесты приложения (`make test`, `make e2e-ref`).
 
 ## Журнал версий
 
 | Коммит | Дата | Xray-core | Заметки |
 |---|---|---|---|
-| `3c694b23290f9849fe52284a345ebd4343bc90cd` | 2026-09-30 | `v1.260327.1-…-b26a91de4f32` | исходный проверенный ref: все 8 якорей patch.py, E2E backuppc-green |
+| `3c694b23290f9849fe52284a345ebd4343bc90cd` | 2026-09-30 | `v1.260327.1-…-b26a91de4f32` | исходный проверенный ref: все правки backuppc перенесены в исходник, E2E backuppc-green |

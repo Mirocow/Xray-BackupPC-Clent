@@ -20,7 +20,6 @@ PYTHON ?= python3
 DARTPKG := backuppc_dart
 CORE_BIN := core/bin/backuppc-xray
 DEPLOY := deploy
-LIBXRAY_DIR ?= ../libXray
 
 .PHONY: help \
 	analyze analyze-lib test test-dart test-app e2e-dart \
@@ -28,7 +27,7 @@ LIBXRAY_DIR ?= ../libXray
 	build-windows build-linux verify-release release-router \
 	debug-download debug-upload layer-bench debug-tools \
 	test-ref test-ref-race vet-ref fmt-ref fmt-ref-check lint-ref \
-	build-core patch-libxray e2e-ref e2e-stack loadtest \
+	build-core e2e-ref e2e-stack loadtest \
 	docker-build-core docker-release-router docker-test-ref \
 	docker-test-dart docker-e2e-dart \
 	docker-build docker-up docker-down docker-stack \
@@ -133,12 +132,6 @@ build-core: $(CORE_BIN) ## Безголовое ядро Xray с backuppc-outbou
 
 $(CORE_BIN):
 	cd core && $(GO) build -trimpath -ldflags="-s -w" -o bin/backuppc-xray ./cmd/backuppc-xray
-
-bootstrap-libxray: ## Материализует ../libXray из third_party/libXray (bundle, офлайн) + patch.py
-	bash core/libxray/bootstrap.sh --dest $(LIBXRAY_DIR)
-
-patch-libxray: ## Патч checkout libXray (LIBXRAY_DIR=../libXray)
-	$(PYTHON) core/libxray/patch.py --libxray-dir $(abspath $(LIBXRAY_DIR))
 
 e2e-ref: ## Живой прогон нативного ядра (эталон)
 	cd core && ./e2e_native.sh

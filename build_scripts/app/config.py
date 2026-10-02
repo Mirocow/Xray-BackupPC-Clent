@@ -1,7 +1,7 @@
 PROJECT_CONFIG = {
     "OneXray": {
         "build_number.base": 400,
-        "core.dir": "libXray",
+        "core.dir": "third_party/libXray",
         "core.lib.src.files.ios": ["LibXray.xcframework"],
         "core.lib.src.files.macos": ["LibXray.xcframework"],
         "core.lib.src.files.android": ["libXray-sources.jar", "libXray.aar"],

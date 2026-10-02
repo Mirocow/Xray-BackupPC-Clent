@@ -97,8 +97,12 @@ GUI-приложение (Flutter, все платформы) собираетс
 6. **Нагрузка** — `make loadtest`: гигабайты с заданным лимитом чанка,
    количество ротаций и скорость в отчете; Dart-транспорт — `make
    layer-bench MODE=h2|tls` (профиль скорости по слоям).
-7. **Патч libXray** — верифицируется сборкой и собственными тестами
-   libXray (см. `core/libxray/README.md`), затем `make e2e-ref`.
+7. **Вендоренный libXray** — исходник ядра лежит в
+   `third_party/libXray` (патчи backuppc уже в коде, см.
+   `third_party/libXray/PATCHES.md`); верифицируется сборкой и
+   собственными тестами libXray
+   (`cd third_party/libXray && go build ./... && go test ./share/... ./xray/...`),
+   затем `make e2e-ref`.
 
 ## Отладка
 

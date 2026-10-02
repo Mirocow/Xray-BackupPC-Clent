@@ -1,21 +1,19 @@
 {
   "name": "libXray",
-  "description": "Go bindings + gomobile build system for Xray-core; OneXray builds its native core from this checkout (patched by core/libxray/patch.py).",
+  "description": "Go bindings + gomobile build system for Xray-core, vendored as PATCHED SOURCE: the backuppc protocol is already embedded in this tree, and the app builds its native core directly from here (no external checkout, no patching step).",
   "upstream": "https://github.com/XTLS/libXray",
   "upstream_ref": "main",
   "commit": "3c694b23290f9849fe52284a345ebd4343bc90cd",
   "commit_subject": "ci: refresh build toolchains and pin Ubuntu 24.04 (#161)",
   "commit_date": "2026-09-30T20:26:40+08:00",
-  "branch": "main",
-  "bundle": "libXray-3c694b23290f9849fe52284a345ebd4343bc90cd.bundle",
-  "bundle_sha256": "d6a1150d27ff8a3cbf1298fb2409adffab608cc5d8b340e0f97b98cb66c25de9",
   "xray_core": "v1.260327.1-0.20260930074004-b26a91de4f32",
   "go_version": "1.27.1",
-  "license": "MIT (see LICENSE inside the bundle checkout)",
-  "vendored_date": "2026-10-02",
+  "license": "MIT (see LICENSE in this directory)",
+  "vendored_date": "2026-10-03",
+  "local_changes": "PATCHES.md — 6 files carry the backuppc integration: xray/xray.go, share/parse_share.go, share/backuppc.go (new), share/validate_outbound.go, share/marshal_share.go, go.mod",
   "verified": {
-    "patch_py_anchors": "OK — all 8 anchors apply (2026-10-02)",
-    "notes": "Commit equals the previously verified ref in core/README.md; clone from the bundle reproduces the exact upstream SHA, so provenance source_revision reports the real upstream commit."
+    "go_build_vet": "OK — go build ./..., go vet ./... and go test ./share/... ./xray/... pass from this directory (2026-10-03)",
+    "notes": "The tree is the upstream commit plus the documented local changes; diff it against the upstream commit to see exactly what differs."
   },
   "update_procedure": "See UPSTREAM.md"
 }

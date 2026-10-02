@@ -82,23 +82,21 @@ class BuilderTest(unittest.TestCase):
         )
 
     def test_core_binary_is_copied_from_libxray(self):
-        workspace = self.root_dir / "workspace"
-        source = workspace / "libXray" / "bin" / "xray.exe"
+        source = self.root_dir / "third_party/libXray" / "bin" / "xray.exe"
         source.parent.mkdir(parents=True)
         source.write_bytes(b"libXray Core")
 
-        self.builder.workspace_dir = str(workspace)
-        self.builder.project_dir = str(workspace / "OneXray" / "windows")
+        self.builder.project_dir = str(self.root_dir / "windows")
         self.builder.system = "windows"
         self.builder.project_config = {
-            "core.dir": "libXray",
+            "core.dir": "third_party/libXray",
             "core.bin.src.file.windows": "bin/xray.exe",
             "core.bin.dst.file.windows": "app/OneXrayCore.exe",
         }
 
         self.builder.build_core_binary()
 
-        destination = workspace / "OneXray" / "windows" / "app" / "OneXrayCore.exe"
+        destination = self.root_dir / "windows" / "app" / "OneXrayCore.exe"
         self.assertEqual(destination.read_bytes(), b"libXray Core")
 
     def test_core_build_copies_artifacts_without_metadata(self):
@@ -107,21 +105,19 @@ class BuilderTest(unittest.TestCase):
             ("macos", [sys.executable, "build/main.py", "apple", "go"]),
         ):
             with self.subTest(system=system):
-                workspace = self.root_dir / system
-                lib_dir = workspace / "libXray"
+                lib_dir = self.root_dir / "third_party/libXray"
                 library_name = "LibXray.xcframework" if system == "macos" else "libXray.so"
                 library_file = f"{library_name}/libXray.a" if system == "macos" else library_name
                 library = lib_dir / library_file
-                library.parent.mkdir(parents=True)
+                library.parent.mkdir(parents=True, exist_ok=True)
                 library.write_bytes(b"fixture library")
                 geodata = lib_dir / "dat" / "geoip.dat"
-                geodata.parent.mkdir()
+                geodata.parent.mkdir(exist_ok=True)
                 geodata.write_bytes(b"fixture geodata")
-                self.builder.workspace_dir = str(workspace)
                 self.builder.system = system
-                self.builder.project_dir = str(workspace / "OneXray" / system)
+                self.builder.project_dir = str(self.root_dir / system)
                 self.builder.project_config = {
-                    "core.dir": "libXray",
+                    "core.dir": "third_party/libXray",
                     f"core.lib.dst.dir.{system}": "app",
                     f"core.lib.src.files.{system}": [library_name],
                     "core.dat.dst.dir": "assets/dat",
@@ -136,9 +132,8 @@ class BuilderTest(unittest.TestCase):
                 self.assertFalse((lib_dir / "build").exists())
 
     def test_core_build_failure_propagates_before_copying_artifacts(self):
-        self.builder.workspace_dir = str(self.root_dir)
         self.builder.system = "linux"
-        self.builder.project_config = {"core.dir": "libXray"}
+        self.builder.project_config = {"core.dir": "third_party/libXray"}
         failure = subprocess.CalledProcessError(1, ["core-build"])
         with (
             mock.patch("app.builder.run_command", side_effect=failure),
