@@ -150,9 +150,9 @@ make release-router    # core/bin/xray-linux-arm32-v7a + xray-linux-arm64-v8a
 Развёртывание на роутере (SSH):
 
 ```bash
-cp /opt/bin/xray /opt/bin/xray.orig        # бэкап оригинального ядра
-scp core/bin/xray-linux-arm64-v8a root@router:/opt/bin/xray   # по arch
-chmod 0755 /opt/bin/xray
+cp /opt/sbin/xray /opt/sbin/xray.orig    # бэкап оригинального ядра
+scp core/bin/xray-linux-arm64-v8a root@router:/opt/sbin/xray   # по arch
+chmod 0755 /opt/sbin/xray
 sh /jffs/scripts/xrayui restart
 ```
 
