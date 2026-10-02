@@ -73,8 +73,11 @@ cat > "$WORK/app.json" <<EOF
   ]
 }
 EOF
+# легаси-стиль (OneXray, скрипты) + стиль xray (контракт роутера xrayui)
 "$WORK/backuppc-xray" test -config "$WORK/app.json" >/dev/null
-"$WORK/backuppc-xray" run -config "$WORK/app.json" > "$WORK/core.log" 2>&1 &
+"$WORK/backuppc-xray" -c "$WORK/app.json" -test >/dev/null
+"$WORK/backuppc-xray" version | head -1
+"$WORK/backuppc-xray" -c "$WORK/app.json" > "$WORK/core.log" 2>&1 &
 CORE_PID=$!
 sleep 1
 
