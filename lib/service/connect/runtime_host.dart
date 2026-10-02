@@ -14,7 +14,9 @@ import 'package:onexray/core/pigeon/host_api.dart';
 import 'package:onexray/core/pigeon/messages.g.dart';
 import 'package:onexray/core/pigeon/model.dart';
 import 'package:onexray/core/pigeon/model_writer.dart';
+import 'package:onexray/core/tools/logger.dart';
 import 'package:onexray/service/advanced/platform_policy.dart';
+import 'package:onexray/service/connect/backuppc/tunnel_service.dart';
 import 'package:onexray/service/connect/runtime.dart';
 import 'package:onexray/service/connect/settings.dart';
 import 'package:onexray/service/connect/traffic.dart';
@@ -198,11 +200,27 @@ class ConnectionRuntimeHost {
     final platform = observedStatus == null
         ? await _status()
         : (status: observedStatus, permission: null, message: null);
+    final runtime = platform.status == VpnStatus.disconnected
+        ? null
+        : knownRuntimes.firstOrNull;
+    // Восстановление Dart-туннелей backuppc: нативный VPN пережил
+    // перезапуск приложения, а изолят туннеля — нет. Идемпотентно по
+    // идентичности (спокойно вызывается из периодического refresh).
+    if (runtime != null && runtime.backuppcTunnels.isNotEmpty) {
+      final service = BackupPcTunnelService.instance;
+      if (service.runningIdentity != runtime.identity) {
+        unawaited(
+          service
+              .ensureStarted(runtime.identity, runtime.backuppcTunnels)
+              .catchError((Object error) {
+            ygLogger('backuppc tunnel restore failed: $error');
+          }),
+        );
+      }
+    }
     return HostConnection(
       platform.status,
-      runtime: platform.status == VpnStatus.disconnected
-          ? null
-          : knownRuntimes.firstOrNull,
+      runtime: runtime,
       permission: platform.permission,
     );
   }
@@ -254,6 +272,15 @@ class ConnectionRuntimeHost {
     if (result.status != VpnStatus.connected) {
       throw ConnectionHostException('startNotConfirmed', cause: result.message);
     }
+    // Dart-туннели backuppc: SOCKS5-фронтенды для socks-outbound'ов
+    // ядра. Поднимаются ПОСЛЕ успешного старта нативного VPN и живут
+    // до остановки (stop/restore управляются жизненным циклом).
+    if (runtime.backuppcTunnels.isNotEmpty) {
+      await BackupPcTunnelService.instance.ensureStarted(
+        runtime.identity,
+        runtime.backuppcTunnels,
+      );
+    }
     return HostConnection(
       result.status!,
       runtime: runtime,
@@ -269,6 +296,8 @@ class ConnectionRuntimeHost {
     if (result.status != VpnStatus.disconnected) {
       throw ConnectionHostException('stopNotConfirmed', cause: result.message);
     }
+    // Dart-туннели backuppc гаснут вместе с VPN (изолят с сокетами).
+    await BackupPcTunnelService.instance.stopAll(reason: 'vpn-stop');
     return HostConnection(result.status!, permission: result.permission);
   }
 }

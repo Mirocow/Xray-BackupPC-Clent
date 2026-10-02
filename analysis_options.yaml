@@ -14,3 +14,6 @@ analyzer:
     - windows/**
     - macos/**
     - linux/**
+    # вендорный форк http2: собственный analysis_options и package:test
+    # из своих dev-зависимостей (см. third_party/http2/PATCHES.md)
+    - third_party/**

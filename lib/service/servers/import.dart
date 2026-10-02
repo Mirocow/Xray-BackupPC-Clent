@@ -10,12 +10,12 @@ import 'package:onexray/core/db/database/database.dart';
 import 'package:onexray/core/network/client.dart';
 import 'package:onexray/core/pigeon/host_api.dart';
 import 'package:onexray/service/shared/db/config_writer.dart';
+import 'package:onexray/service/connect/backuppc/validation.dart';
 import 'package:onexray/service/connect/raw/editor.dart';
 import 'package:onexray/service/advanced/xray/geodata/service.dart';
 import 'package:onexray/service/advanced/xray/geodata/model.dart';
 import 'package:onexray/service/advanced/xray/geodata/validator.dart';
 import 'package:onexray/service/shared/ping/service.dart';
-import 'package:onexray/service/shared/xray/validation.dart';
 import 'package:onexray/service/shared/share/app_link_model.dart';
 import 'package:onexray/service/shared/share/app_link_parser.dart';
 import 'package:onexray/service/shared/share/service.dart';
@@ -325,7 +325,7 @@ class ServerImportService {
               link.xrayJson,
               nameAlias: link.name.isEmpty ? null : link.name,
             );
-            final error = await _validate(XrayValidation.nodes([outbound]));
+            final error = await validateOutboundsMixed([outbound], _validate);
             if (error.isNotEmpty) {
               throw AppFailure(
                 FailureCategory.configuration,
@@ -411,8 +411,9 @@ class ServerImportService {
         (json['outbounds'] as List).isEmpty) {
       throw const FormatException('A non-empty outbounds array is required');
     }
-    final error = await _validate(
-      XrayValidation.nodes(json['outbounds'] as List),
+    final error = await validateOutboundsMixed(
+      json['outbounds'] as List,
+      _validate,
     );
     if (error.isNotEmpty) {
       throw AppFailure(

@@ -16,9 +16,13 @@ import 'package:onexray/service/shared/ping/state.dart';
 import 'package:onexray/service/shared/command_serial_executor.dart';
 import 'package:onexray/service/servers/outbound/map.dart';
 import 'package:onexray/service/servers/outbound/state_db.dart';
+import 'package:onexray/service/connect/backuppc/outbound.dart';
+import 'package:onexray/service/connect/backuppc/ping.dart';
 
 class PingService {
   static final PingService _singleton = PingService._internal();
+
+  static const Duration _pingBackuppcTimeout = Duration(seconds: 6);
 
   factory PingService() => _singleton;
 
@@ -193,32 +197,72 @@ class PingService {
       if (_pingQueue.isPaused || (isCancelled?.call() ?? false)) break;
       final batchRows = <CoreConfigData>[];
       final sources = <PingBatchSource>[];
+      final backuppcRows = <CoreConfigData>[];
       for (final row in rowSlice) {
+        // backuppc пингуется на чистом Dart (нативный testXray не знает
+        // протокола): TCP-латентность до VPN-сервера узла
+        Map<String, dynamic>? outbound;
+        try {
+          outbound = readOutboundFromDbData(row);
+        } catch (_) {}
+        if (outbound != null && isBackupPcOutbound(outbound)) {
+          backuppcRows.add(row);
+          continue;
+        }
         final source = _makePingSource(row);
         if (source != null) {
           batchRows.add(row);
           sources.add(source);
         }
       }
-      final results = await (_batchOverride ?? PingBatchRunner.run)(
-        sources,
-        pingState,
-      );
+      final results = <(CoreConfigData, PingBatchResult)>[];
+      if (sources.isNotEmpty) {
+        final native = await (_batchOverride ?? PingBatchRunner.run)(
+          sources,
+          pingState,
+        );
+        for (var index = 0; index < native.length; index++) {
+          results.add((batchRows[index], native[index]));
+        }
+      }
+      for (final row in backuppcRows) {
+        results.add((row, await _pingBackuppc(row, isCancelled: isCancelled)));
+      }
       await db.transaction(() async {
-        for (var index = 0; index < results.length; index++) {
-          final result = results[index];
+        for (final (row, result) in results) {
           final delay = result.success
               ? result.delay
               : result.delay == PingDelayConstants.timeout
               ? PingDelayConstants.timeout
               : PingDelayConstants.error;
-          await _updateRow(db, batchRows[index], delay, result.countryCode);
+          await _updateRow(db, row, delay, result.countryCode);
         }
       });
       AppEventBus.instance.updatePingResults({
-        for (var index = 0; index < results.length; index++)
-          batchRows[index].id: results[index],
+        for (final (row, result) in results) row.id: result,
       });
+    }
+  }
+
+  Future<PingBatchResult> _pingBackuppc(
+    CoreConfigData row, {
+    bool Function()? isCancelled,
+  }) async {
+    try {
+      if (isCancelled?.call() ?? false) {
+        return PingBatchResult.failed('cancelled');
+      }
+      final outbound = readOutboundFromDbData(row);
+      final delay = await backuppcPingOutbound(outbound).timeout(
+        _pingBackuppcTimeout,
+        onTimeout: () => throw TimeoutException('backuppc ping'),
+      );
+      if (delay == null) {
+        return PingBatchResult.failed('not backuppc');
+      }
+      return PingBatchResult(true, delay, '');
+    } catch (error) {
+      return PingBatchResult.failed('${error.runtimeType}');
     }
   }
 

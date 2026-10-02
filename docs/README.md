@@ -13,6 +13,7 @@
 - [连接配置备份](backup.md)：单文件协议、平台存储、自动备份、离线恢复与安全边界。
 - [Windows 构建](windows-build.md)：EXE / MSIX 运行模式、EXE / ZIP / MSIX 打包、本地签名和 CI。
 - [验证边界](refactor-validation.md)：按改动选择检查项、平台验证限制和验证数据隔离。
+- [BackupPC 协议（backuppc-dart 实现）](backuppc-protocol.md)：`//backuppc` 备用协议 — 纯 Dart 实现、集成架构、分享链接与测试金字塔。
 
 维护要求见 [文档规则](AGENTS.md)，仓库操作与审查要求见 [工程约定](../AGENTS.md)。
 [旧原型](../../references/onexray-app-prototype/) 仅供历史视觉参考，不覆盖当前合同，

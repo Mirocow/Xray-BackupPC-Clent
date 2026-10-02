@@ -200,4 +200,54 @@ void main() {
     expect(stored['tag'], 'vless');
     expect(stored, isNot(contains('name')));
   });
+
+  group('backuppc links are split before the native converter', () {
+    test('backuppc lines become outbounds, other lines stay native', () {
+      final (outbounds, native) = XrayShareReader().splitBackupPcLinks(
+        'vless://00000000-0000-0000-0000-000000000000@example.com:443\n'
+        'backuppc://52724a0e-6d3a-4b1c-9f2e-8a7c3d5b1e90@backup.example.com:8443'
+        '?host=cdn.example.com&endpoints=/backuppc.BackupService/BackupStream'
+        '#Office%20Backup\n'
+        '\n',
+      );
+
+      expect(outbounds, hasLength(1));
+      expect(outbounds.single['protocol'], 'backuppc');
+      final settings = outbounds.single['settings'] as Map<String, dynamic>;
+      expect(settings['serverAddr'], 'backup.example.com:8443');
+      expect(settings['uuid'], '52724a0e-6d3a-4b1c-9f2e-8a7c3d5b1e90');
+      expect(settings['host'], 'cdn.example.com');
+      expect(settings['endpointPaths'], <String>[
+        '/backuppc.BackupService/BackupStream',
+      ]);
+      expect(outbounds.single['tag'], 'Office Backup');
+      expect(native, isNot(contains('backuppc://')));
+      expect(native.trim(), 'vless://00000000-0000-0000-0000-000000000000@example.com:443');
+    });
+
+    test('input without backuppc links stays whole', () {
+      final text = 'vless://id@example.com:443\nvmess://base64';
+      final (outbounds, native) = XrayShareReader().splitBackupPcLinks(text);
+
+      expect(outbounds, isEmpty);
+      expect(native, text);
+    });
+
+    test('a broken backuppc link rejects the input', () {
+      expect(
+        () => XrayShareReader().splitBackupPcLinks(
+          'backuppc://not-a-uuid@host?fp=zz',
+        ),
+        throwsFormatException,
+      );
+    });
+
+    test('backuppc-only input keeps the native part empty', () {
+      final (outbounds, native) = XrayShareReader().splitBackupPcLinks(
+        'backuppc://uuid@example.com:443#Node',
+      );
+      expect(outbounds.single['settings']['serverAddr'], 'example.com:443');
+      expect(native.trim(), isEmpty);
+    });
+  });
 }

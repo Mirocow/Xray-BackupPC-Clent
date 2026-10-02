@@ -98,3 +98,7 @@ macos_se/fastlane/AuthKey.p8
 # ai
 .cursor/
 .ai/
+
+# backuppc: артефакты живых прогонов (креды тестовых серверов)
+admin-token.txt
+users.json

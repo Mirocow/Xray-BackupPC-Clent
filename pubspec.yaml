@@ -29,6 +29,10 @@ dependencies:
   #---------- dart.dev plugin
   # core
   path: ^1.9.1
+
+  # backuppc protocol (pure Dart — all OneXray platforms build)
+  backuppc_dart:
+    path: backuppc_dart
   collection: ^1.19.1
   crypto: ^3.0.7
   pub_semver: ^2.2.1
@@ -134,6 +138,7 @@ ffigen:
   description: Generated native bindings for libXray and VCore.
   llvm-path:
     - "C:\Program Files\LLVM"
+    - "/home/z/tools"
   output: "lib/core/ffi/generated_bindings.dart"
   compiler-opts:
     - "-D_WIN32"
