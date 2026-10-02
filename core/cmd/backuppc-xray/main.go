@@ -149,7 +149,11 @@ func withConfigs(args []string, action func(config []byte) error, xrayStyle bool
 		return 1
 	}
 
-	if xrayStyle && *testOnly {
+	// -test означает «валидировать и выйти» в любом стиле аргументов:
+	// и в xray-стиле (xrayui: xray -c a [-c b] -test), и в подкоманде
+	// run (failover-скрипты xrayui: xray run -test -config f). Без этого
+	// run -test запускал бы настоящий демон и ждал сигналы вечно.
+	if *testOnly {
 		return execValidate(config)
 	}
 	if err := action(config); err != nil {
