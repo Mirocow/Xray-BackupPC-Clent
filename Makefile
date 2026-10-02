@@ -28,6 +28,8 @@ DEPLOY := deploy
 	debug-download debug-upload layer-bench debug-tools \
 	test-ref test-ref-race vet-ref fmt-ref fmt-ref-check lint-ref \
 	build-core patch-libxray e2e-ref e2e-stack loadtest \
+	docker-build-core docker-release-router docker-test-ref \
+	docker-test-dart docker-e2e-dart \
 	docker-build docker-up docker-down docker-stack \
 	debug-run clean distclean
 
@@ -144,6 +146,40 @@ loadtest: ## Нагрузка через нативный туннель (SIZE=5
 	scripts/loadtest.sh
 
 # ─── Docker ───────────────────────────────────────────────────────────
+
+# ── Контейнерная сборка (требование: все сборки — в контейнерах) ──────
+# Тулчейны Go/Dart на хосте не нужны; артефакты выгружаются buildx --output.
+# Требуется Docker 23+ / buildx (BuildKit).
+
+BUILDX ?= docker buildx
+DOCKERFILE_BUILD ?= docker/Dockerfile
+DOWN ?= 64
+UP ?= 16
+
+docker-build-core: ## Контейнерная сборка ядра -> core/bin/backuppc-xray
+	@mkdir -p core/bin
+	$(BUILDX) build --target export-core -o $(CURDIR)/core/bin \
+		-f $(DOCKERFILE_BUILD) --progress=plain .
+
+docker-release-router: ## Контейнерные бинарники роутеров -> core/bin/xray-linux-*
+	@mkdir -p core/bin
+	$(BUILDX) build --target export-router -o $(CURDIR)/core/bin \
+		-f $(DOCKERFILE_BUILD) --progress=plain .
+	@ls -lh core/bin/xray-linux-*
+
+docker-test-ref: ## Контейнерные тесты Go-эталона (backuppc/ + core/)
+	$(BUILDX) build --target test-ref -f $(DOCKERFILE_BUILD) --progress=plain .
+
+docker-test-dart: ## Контейнерные тесты протокола (dart test, 52 теста)
+	$(BUILDX) build --target test-dart -f $(DOCKERFILE_BUILD) --progress=plain .
+
+docker-e2e-dart: ## Живой e2e в контейнере: Go-сервер <-> Dart-клиент (нужен ../xray-backuppc)
+	$(BUILDX) build --target e2e-dart -f docker/Dockerfile.e2e \
+		--build-context serverrepo=../xray-backuppc \
+		--build-arg DOWN_MB=$(DOWN) --build-arg UP_MB=$(UP) \
+		--progress=plain .
+
+# ── Образы рантайма ───────────────────────────────────────────────────
 
 docker-build: ## Образ безголового клиента (backuppc-client)
 	docker build -f $(DEPLOY)/Dockerfile -t backuppc-client .
