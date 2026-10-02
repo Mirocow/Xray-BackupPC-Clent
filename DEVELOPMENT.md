@@ -44,6 +44,36 @@ make e2e-ref         # живой прогон: сервер + ядро + curl (
 Go ≥ 1.22 (ядро `core/` — 1.26 по `go.mod`). GUI-сборка — `build_scripts/`
 (секреты и требования — там же).
 
+## Сборка в контейнерах (основной способ)
+
+Ядро, бинарники роутеров и все тесты протокола собираются **в
+контейнерах** — тулчейны Go/Dart на хосте не нужны. Рецепты —
+`docker/Dockerfile`, артефакты выгружаются `buildx --output`
+(требуется Docker 23+ / buildx):
+
+```bash
+make docker-build-core      # core/bin/backuppc-xray (linux/amd64)
+make docker-release-router  # core/bin/xray-linux-arm{32-v7a,64-v8a}
+make docker-test-ref        # go test: библиотека + ядро
+make docker-test-dart       # dart pub get + analyze + test (52 теста)
+make docker-e2e-dart        # живой e2e в контейнере (см. ниже)
+```
+
+Цели дают те же артефакты, что хостовые `build-core` /
+`release-router`; хостовые остаются для локальной итерации под
+отладчиком. Образ безголового клиента — `make docker-build`
+(`deploy/Dockerfile`).
+
+Живой e2e (`make docker-e2e-dart [DOWN=…] [UP=…]`) собирает Go-сервер
+из **соседнего** репозитория через дополнительный контекст сборки
+(`--build-context serverrepo=../xray-backuppc`, нужен buildx v0.12+);
+сертификат, сервер, таргет и SOCKS-туннель поднимаются внутри образа
+(`scripts/e2e_dart_container.sh`), упавший e2e = упавшая сборка.
+
+GUI-приложение (Flutter, все платформы) собирается по-прежнему
+`build_scripts/` — на машинах с готовыми SDK; контейнерный прогон
+протокола и ядра от него не зависит.
+
 ## Тестовая пирамида
 
 1. **Юнит-тесты библиотеки** — `make test-dart`: фрейминг (`conn_test`),
