@@ -54,6 +54,8 @@ Cross-platform Flutter Xray-core client. Current contracts are indexed in
   Before packaging, read [build scripts](build_scripts/README.md) and, for Windows,
   [Windows builds](docs/windows-build.md). Apple/Android release scripts may
   upload to stores; they are not local validation commands.
+- BackupPC protocol (`//backuppc`) transport, tools, Makefile targets or
+  cross-repo E2E: read [DEVELOPMENT.md](DEVELOPMENT.md) first.
 
 ## GitHub and reviews
 
