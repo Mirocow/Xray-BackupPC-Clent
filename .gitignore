@@ -102,3 +102,6 @@ macos_se/fastlane/AuthKey.p8
 # backuppc: артефакты живых прогонов (креды тестовых серверов)
 admin-token.txt
 users.json
+
+# Кросс-сборки ядра для роутеров (make release-router)
+/core/bin/
