@@ -12,6 +12,8 @@
 //	    xray version                                  # «Xray 26.3.27 …»
 //	несколько -c сливаются: объекты — рекурсивно, массивы (outbounds,
 //	inbounds, rules) — конкатенацией, как в multi-json загрузчике Xray;
+//	плюс подкоманды официального CLI: api (rmo/ado/statsquery — hot-swap
+//	и «клиенты онлайн»), tls (ech/ping), uuid, convert, x25519, wg, help;
 //
 //	прежний стиль (совместимость, OneXray/скрипты):
 //	    backuppc-xray run  -config app.json        # запуск (до SIGINT/SIGTERM)
@@ -38,6 +40,7 @@ import (
 	"backuppc-core/preprocess"
 
 	"github.com/xtls/xray-core/core"
+	"github.com/xtls/xray-core/main/commands/base"
 	_ "github.com/xtls/xray-core/main/distro/all"
 )
 
@@ -79,17 +82,32 @@ func run(args []string) int {
 		printVersion()
 		return 0
 	case "help", "-help", "--help", "-h":
-		usage()
-		return 0
-	default:
-		// Стиль xray: xray -c file [-c file2] [-test] — запуск без -test
+		return delegateSubcommand([]string{"help"})
+	}
+	// Стиль xray: xray -c file [-c file2] [-test] — запуск без -test.
+	if strings.HasPrefix(args[0], "-") {
 		return withConfigs(args, startAndWait, true)
 	}
+	// Подкоманды официального CLI: api (rmo/ado/statsquery — XRAYUI
+	// hot-swap и «клиенты онлайн»), tls (ech/ping), uuid, convert, x25519,
+	// wg… — штатный каркас команд Xray.
+	return delegateSubcommand(args)
+}
+
+// delegateSubcommand передаёт подкоманду официальному каркасу Xray.
+// base.Execute завершает процесс штатным кодом возврата (os.Exit),
+// как это делает официальный бинарник.
+func delegateSubcommand(args []string) int {
+	os.Args = append([]string{os.Args[0]}, args...)
+	base.RootCommand.Long = "Xray is a platform for building proxies."
+	base.Execute()
+	return 0 // недостижимо: Execute завершает процесс
 }
 
 func usage() {
 	fmt.Fprintln(os.Stderr, "использование: xray <run|test|version> -config <xray.json>")
 	fmt.Fprintln(os.Stderr, "          или: xray -c <xray.json> [-c <extra.json>…] [-test]  (стиль xray)")
+	fmt.Fprintln(os.Stderr, "          или: xray <api|tls|uuid|convert|x25519|wg|help> …   (подкоманды Xray)")
 }
 
 func printVersion() {
