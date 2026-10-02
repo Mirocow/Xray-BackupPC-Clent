@@ -69,7 +69,9 @@ concurrency:
 
 env:
   NDK_VERSION: r29
-  LIBXRAY_REF: main
+  # Пин = vendored third_party/libXray (manifest.json); обновлять вместе
+  # с bundle (см. third_party/libXray/UPSTREAM.md).
+  LIBXRAY_REF: 3c694b23290f9849fe52284a345ebd4343bc90cd
   VCORE_REPOSITORY: OneVCore/VCore
   VCORE_REF: main
   BUILD_NUMBER: ${{ github.run_number }}
