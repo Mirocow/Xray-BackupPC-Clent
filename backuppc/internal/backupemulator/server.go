@@ -376,10 +376,13 @@ func (s *Server) handleChunkStream(w http.ResponseWriter, r *http.Request, sess 
 		return
 	}
 
-	// upload-насос: gRPC-сообщения тела запроса → пайп сессии
+	// upload-насос: gRPC-сообщения тела запроса → пайп сессии.
+	// linkUploadChain ДО запуска: звено цепи встает до любых блокировок
+	// (vlessHandshake чанка 0), порядок звеньев = порядок чанков.
 	emuU := NewEmulatedConn(reqStream{r: &grpcMsgReader{r: r.Body}}, sess.cfg)
 	uploadDone := make(chan struct{})
-	go sess.pumpUpload(emuU, uploadDone, idx)
+	prevUpload := sess.linkUploadChain(uploadDone)
+	go sess.pumpUpload(emuU, uploadDone, idx, prevUpload)
 
 	if idx == 0 {
 		// VLESS-хендшейк до записи статуса: валидный хендшейк = 200,

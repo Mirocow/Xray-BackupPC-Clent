@@ -64,6 +64,13 @@ type logicalSession struct {
 	pumpDone chan struct{} // done-канал последнего зарегистрированного pump
 	pumps    int32         // активные чанк-хендлеры
 
+	// uploadChain — done-канал последнего зарегистрированного
+	// upload-насоса: эстафета ПОРЯДКА payload (зеркало pumpDone).
+	// Преемник не пишет в пайп сессии, пока предшественник не дочитает
+	// своё тело запроса. Без этого насосы соседних чанков перемешивают
+	// байты: счетчик сходится, SHA-256 — нет.
+	uploadChain chan struct{}
+
 	idleTimer *time.Timer
 
 	createdAt time.Time
@@ -75,21 +82,24 @@ type logicalSession struct {
 func newLogicalSession(srv *Server, id string) *logicalSession {
 	ctx, cancel := context.WithCancel(context.Background())
 	sess := &logicalSession{
-		id:         id,
-		cfg:        &srv.cfg.TransportConfig,
-		srv:        srv,
-		logger:     srv.logger.With("session", shortSessionID(id)),
-		ctx:        ctx,
-		cancel:     cancel,
-		queue:      make(chan []byte, downloadQueueCap),
-		sessionEOF: make(chan struct{}),
-		relayDone:  make(chan struct{}),
-		pumpDone:   make(chan struct{}),
-		lastChunk:  -1,
-		createdAt:  time.Now(),
+		id:          id,
+		cfg:         &srv.cfg.TransportConfig,
+		srv:         srv,
+		logger:      srv.logger.With("session", shortSessionID(id)),
+		ctx:         ctx,
+		cancel:      cancel,
+		queue:       make(chan []byte, downloadQueueCap),
+		sessionEOF:  make(chan struct{}),
+		relayDone:   make(chan struct{}),
+		pumpDone:    make(chan struct{}),
+		uploadChain: make(chan struct{}),
+		lastChunk:   -1,
+		createdAt:   time.Now(),
 	}
 	// начальный pumpDone закрыт: чанк 0 не ждет предшественника
 	close(sess.pumpDone)
+	// начальное звено upload-цепи закрыто: upload-насос чанка 0 не ждет
+	close(sess.uploadChain)
 	// upload-пайп: payload кадров → target
 	sess.uploadR, sess.uploadW = io.Pipe()
 	// idle-таймер: логическая сессия без чанков закрывается без RST
@@ -153,6 +163,20 @@ func (s *logicalSession) registerPump() (myDone, prevDone, successor chan struct
 	s.pumpDone = myDone
 	atomic.AddInt32(&s.pumps, 1)
 	return myDone, prevDone, successor, true
+}
+
+// linkUploadChain — звено эстафеты upload-насосов: возвращает done-канал
+// ПРЕДШЕСТВЕННИКА и регистрирует наш. Вызывается из handleChunkStream до
+// запуска насоса и до любых блокировок: порядок звеньев строго совпадает с
+// порядком чанков (последовательность гарантирует accept под mu — запрос
+// чанка N+1 физически не может прийти раньше, чем хендлер N дошел до
+// этого места).
+func (s *logicalSession) linkUploadChain(done chan struct{}) <-chan struct{} {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	prev := s.uploadChain
+	s.uploadChain = done
+	return prev
 }
 
 // successorRegistered — принял ли уже эстафету чанк с индексом больше
@@ -224,8 +248,23 @@ func (s *logicalSession) gc() {
 // регистрации преемника (эстафета уже у него), это штатная уборка
 // ротации — END_STREAM мог не успеть покинуть буферы клиента, и сессию
 // гасить нельзя (иначе ротация превращалась бы в обрыв на каждом чанке).
-func (s *logicalSession) pumpUpload(emu *EmulatedConn, uploadDone chan<- struct{}, idx uint32) {
+//
+// prevUpload — done-канал upload-насоса предшествующего чанка: пока он
+// не закрыт, СВОЕ тело писать в пайп нельзя (эстафета порядка). Иначе
+// payload чанков N и N+1 перемешивается — байты дойдут все, но не по
+// порядку: под backpressure target насос N может отставать на несколько
+// кадров, а насос N+1 уже читает свежее тело. Ожидание ограничено
+// жизнью сессии (idle-таймер/finish гасят зависшие тела).
+func (s *logicalSession) pumpUpload(emu *EmulatedConn, uploadDone chan<- struct{}, idx uint32, prevUpload <-chan struct{}) {
 	defer close(uploadDone)
+	if prevUpload != nil {
+		select {
+		case <-prevUpload:
+			// предшественник дочитал своё тело — порядок гарантирован
+		case <-s.ctx.Done():
+			return // сессия погашена: тело неважно
+		}
+	}
 	for {
 		payload, err := emu.ReadPayloadFrame()
 		if err != nil {
@@ -391,11 +430,18 @@ func (s *logicalSession) pump(emu *EmulatedConn, chunkUpload <-chan struct{}, su
 			handoffC = handoffTimer.C
 
 		case <-successor:
-			// преемник зарегистрирован — мгновенная передача очереди
+			// преемник зарегистрирован — передаем очередь, но НЕ
+			// раньше, чем дочитано СВОЕ тело запроса: выход хендлера
+			// с недочитанным телом = h2-сервер шлет RST NO_ERROR,
+			// и хвост payload чанка теряется (эстафета upload-
+			// порядка преемника строится на этом теле).
+			s.awaitOwnUpload(uploadDone)
 			return ""
 
 		case <-handoffC:
-			// преемник не пришел за окно — клиент ушел без ротации
+			// преемник не пришел за окно — клиент ушел без ротации;
+			// тело все равно должно быть дочитано (иначе RST/потеря)
+			s.awaitOwnUpload(uploadDone)
 			return ""
 
 		case <-s.sessionEOF:
@@ -412,6 +458,22 @@ func (s *logicalSession) pump(emu *EmulatedConn, chunkUpload <-chan struct{}, su
 		case <-s.ctx.Done():
 			return s.drainFinal(emu, "idle-timeout")
 		}
+	}
+}
+
+// awaitOwnUpload — дождаться дочитывания СВОЕГО тела запроса до выхода
+// хендлера чанка. Go http2-сервер отменяет тело запроса (RST NO_ERROR),
+// как только хендлер вернул управление, — недочитанный хвост payload
+// был бы потерян, а вместе с ним и порядок эстафеты upload-насосов.
+// uploadDone==nil — тело уже дочитано (насос завершился) или финальный
+// режим; ожидание также снимается смертью сессии.
+func (s *logicalSession) awaitOwnUpload(uploadDone <-chan struct{}) {
+	if uploadDone == nil {
+		return
+	}
+	select {
+	case <-uploadDone:
+	case <-s.ctx.Done():
 	}
 }
 
