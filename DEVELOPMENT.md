@@ -21,38 +21,51 @@
 ## Быстрый старт
 
 ```bash
-# Dart-реализация (продукт)
-(cd backuppc_dart && dart test)     # 52 теста транспорта
-flutter analyze                     # весь код приложения
-flutter test                        # 1092 теста, вкл. интеграцию
-scripts/e2e_dart.sh                 # живой прогон: Go-сервер ↔ Dart-клиент
+make help            # список всех целей
+
+# Продукт: протокол //backuppc (Dart)
+make test            # analyze + 52 теста транспорта (dart)
+make analyze         # flutter analyze: весь код приложения
+make test-app        # flutter test: ~1092 теста, вкл. интеграцию
+make e2e-dart        # живой прогон: Go-сервер ↔ Dart-клиент (DOWN/UP, МиБ)
+
+# Сборка приложения — все платформы OneXray (build_scripts/)
+make build-android   # также: build-ios build-macos build-macos-se
+                     #        build-windows (WINDOWS_MODE=exe|msix) build-linux
+make verify-release  # проверка релизных артефактов
 
 # Go-эталон (контрактные тесты/bench)
-make help            # список целей
-make test            # все Go-тесты (библиотека + ядро)
+make test-ref        # все Go-тесты (библиотека + ядро)
 make build-core      # core/bin/backuppc-xray
-make e2e             # живой прогон: сервер + ядро + curl (SHA-256)
+make e2e-ref         # живой прогон: сервер + ядро + curl (SHA-256)
 ```
 
-Требуется Go ≥ 1.26 и Dart/Flutter SDK по `readme/FIRST_RUN.md`
-(для сборки приложения — `build_scripts/`).
+Требуется Dart/Flutter SDK по `readme/FIRST_RUN.md`; для Go-эталона —
+Go ≥ 1.22 (ядро `core/` — 1.26 по `go.mod`). GUI-сборка — `build_scripts/`
+(секреты и требования — там же).
 
 ## Тестовая пирамида
 
-1. **Юнит-тесты библиотеки** — `make test-go`: фрейминг (`conn_test`),
-   балансировщик, gRPC-обвязка, эмуляция заданий BackupPC.
+1. **Юнит-тесты библиотеки** — `make test-dart`: фрейминг (`conn_test`),
+   балансировщик, gRPC-обвязка, эмуляция заданий BackupPC, share-ссылки.
 2. **E2E библиотеки** — там же: сервер+клиент in-process, ротации,
-   анти-пробинг, псевдо-бэкапы, SHA-256 целостность, `-race` (`make test-race`).
-3. **E2E нативного ядра** — `make test-core`: живой инстанс Xray
-   (socks-in + backuppc-outbound) против сервера из библиотеки
-   (`core/preprocess/e2e_xray_test.go`), включая регресс «обычные
-   конфиги не затронуты».
-4. **Сквозной стек** — `make e2e-stack`: сервер `xray-backuppc` +
-   безголовое ядро + HTTP-таргет, 64+ МиБ, SHA-256, метрики сессий.
-5. **Нагрузка** — `make loadtest`: гигабайты с заданным лимитом чанка,
-   количество ротаций и скорость в отчете.
-6. **Патч libXray** — верифицируется сборкой и собственными тестами
-   libXray (см. `core/libxray/README.md`), затем `make e2e`.
+   анти-пробинг, псевдо-бэкапы, SHA-256 целостность.
+3. **Приложение** — `make analyze` + `make test-app`: весь Flutter-сьют
+   (~1092 теста), вкл. импорт/валидацию/экспорт `backuppc://` и
+   компиляцию узла в socks-outbound.
+4. **Живой E2E Dart ↔ Go-сервер** — `make e2e-dart`: реальный сервер
+   соседнего репо, wire-совместимость (ALPN h2, `X-Backup-*`, HMAC,
+   VLESS), SHA-256, ротации; объёмы — `DOWN=64 UP=16` (МиБ).
+5. **Go-эталон** — `make test-ref` / `make test-ref-race` (контракт и
+   гонки), включая живой инстанс Xray (socks-in + backuppc-outbound)
+   против сервера библиотеки (`core/preprocess/e2e_xray_test.go`,
+   регресс «обычные конфиги не затронуты»);
+   `make e2e-stack` — полный стек сервер+ядро+таргет, 64+ МиБ, SHA-256.
+6. **Нагрузка** — `make loadtest`: гигабайты с заданным лимитом чанка,
+   количество ротаций и скорость в отчете; Dart-транспорт — `make
+   layer-bench MODE=h2|tls` (профиль скорости по слоям).
+7. **Патч libXray** — верифицируется сборкой и собственными тестами
+   libXray (см. `core/libxray/README.md`), затем `make e2e-ref`.
 
 ## Отладка
 
@@ -73,14 +86,14 @@ go tool pprof http://127.0.0.1:6060/debug/pprof/profile?seconds=30
 контейнере: `docker exec backuppc-client ...` + `BACKUPPC_PPROF`
 пробрасывается через переменные compose.
 
-### Библиотека (transport)
+### Библиотека (Go-эталон, transport)
 
 - ключевые горутины: релей (`serveSocks`), джиттер-пинги
   (`spawnJitterKeepAlive`), балансировщик (`spawnTrafficBalancer`),
   планировщик псевдо-бэкапов (`spawnBackupPCJobs`), ротация
   (`performRotation` — писательский и читательский пути);
 - логи: `slog` с компонентами `client`/`server`/`outbound`;
-- гонки: `make test-race` (обязательно после правок hub.go/session.go);
+- гонки: `make test-ref-race` (обязательно после правок hub.go/session.go);
 - при диагностике обрывов смотреть пары: клиент `session rotated` ↔
   сервер `session finished reason=...` (`ok`, `upstream-closed`,
   `client-closed`, `idle-timeout`).
@@ -89,21 +102,29 @@ go tool pprof http://127.0.0.1:6060/debug/pprof/profile?seconds=30
 
 - туннель — изолят: журналы приходят в общий лог с префиксом
   `backuppc tunnel:`;
-- `backuppc_dart/tool/`: `debug_download.dart` / `debug_upload.dart`
-  (прогон объёма против сервера с верификацией), `layer_bench.dart`
-  (профиль скорости по слоям: TLS / H2 / кадры / VLESS),
-  `hash_bench.dart`, `det_stream.dart` (детерминированный поток для
-  отладки сдвигов), `direct_check.dart`;
+- `make debug-tools` — список инструментов `backuppc_dart/tool/`;
+- прогоны объёма против сервера (CONFIG — JSON конфига клиента,
+  формат — как в `scripts/e2e_dart.sh`):
+  ```bash
+  make debug-download CONFIG=client.json DOWN=64   # SHA-256 верификация
+  make debug-upload   CONFIG=client.json UP=16     # эхо-таргет
+  make layer-bench    MODE=h2 MIB=256              # профиль слоёв TLS/H2
+  ```
+- прочее: `hash_bench.dart` (эталон скорости SHA-256), `det_stream.dart`
+  (детерминированный поток для отладки сдвигов), `direct_check.dart`,
+  `diff_analyze.dart` (поиск первой расходимости дампов);
 - отладка флоу-контроля — `third_party/http2/PATCHES.md` (эффект
   патчей и как его замерять);
-- при падении e2e: поднять сервер вручную (`make e2e-stack` в серверном
-  репо) и гонять `debug_download` с живыми логами обеих сторон.
+- при падении e2e: поднять сервер вручную (`make run` в серверном
+  репо — напечатает адреса, токен и ссылку `backuppc://`) и гонять
+  `make debug-download` с живыми логами обеих сторон.
 
 ### Сервер и панель
 
-Сервер — соседний репозиторий (`make e2e-stack` поднимает его с
-панелью на :18444). Токен админа печатается в журнал сервера. Оттуда
-же берется ссылка `backuppc://…` для клиента (кнопка «Конфиг клиента»).
+Сервер — соседний репозиторий: `make run` в нём поднимает dev-сервер с
+панелью на :18444, pprof на :6060 и печатает токен админа + готовую
+ссылку `backuppc://…` (или кнопка «Конфиг клиента» в панели).
+Инструменты сервера (bench, delve, покрытие) — `docs/DEVELOPER.md` там.
 
 ## Тюнинг под большие объемы
 
@@ -122,12 +143,14 @@ go tool pprof http://127.0.0.1:6060/debug/pprof/profile?seconds=30
 ## Релизная проверка (чек-лист)
 
 ```bash
-make lint          # vet + gofmt
-make test          # все тесты
-make test-race     # гонки
-make e2e           # нативный живой прогон
-make e2e-stack     # полный стек
-make loadtest SIZE=1G CHUNK=64M   # ротации + целостность
+make analyze       # flutter analyze: весь код приложения
+make test          # тесты протокола (анализ + 52 теста)
+make test-app      # полный сьют приложения (~1092)
+make e2e-dart      # живой Dart ↔ Go-сервер (SHA-256, ротации)
+make lint-ref      # vet + gofmt эталона
+make test-ref      # контрактные тесты Go-эталона
+make e2e-stack     # полный стек (сервер + ядро + таргет)
+make loadtest SIZE=1G CHUNK=64M   # ротации + целостность (эталон)
 ```
 
 Docker: `make docker-build && make docker-stack` (полный стек:
