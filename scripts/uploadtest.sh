@@ -112,7 +112,7 @@ end=$(date +%s.%N)
 
 bytes="$(echo "$resp" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("bytes",0))')"
 sha_dst="$(echo "$resp" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("sha256",""))')"
-elapsed="$(python3 -c "print(f'{$end-$start:.1f}')"
+elapsed="$(python3 -c "print(f'{max($end-$start, 0.01):.2f}')"
 )"
 mbps="$(python3 -c "print(f'{$size_bytes/1048576/$elapsed:.1f}')")"
 rotations="$(grep -c 'session rotated' "$WORK/core.log" || true)"
