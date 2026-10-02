@@ -29,6 +29,17 @@ PORT_SRV=18445
 PORT_TARGET=18081
 WORK="$(mktemp -d /tmp/backuppc-load.XXXXXX)"
 
+# Порт уже слушается (осиротевший процесс прошлого прогона) → молча
+# занятый порт и ложный результат замера. Проверяем до старта.
+port_busy() { (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null; }
+for p in "$PORT_TARGET" "$PORT_SOCKS" "$PORT_SRV"; do
+  if port_busy "$p"; then
+    echo "FATAL: порт $p уже слушается — осиротевший процесс прошлого прогона?" >&2
+    echo "       найдите и завершите его: ss -ltnp | grep :$p" >&2
+    exit 1
+  fi
+done
+
 cleanup() {
   [[ -n "${CORE_PID:-}" ]] && kill "$CORE_PID" 2>/dev/null || true
   [[ -n "${SRV_PID:-}" ]] && kill "$SRV_PID" 2>/dev/null || true
@@ -51,8 +62,15 @@ esac
 # /dev/urandom по объему + sha256 на лету
 head -c "$bytes" /dev/urandom > "$WORK/www/file.bin"
 sha_target="$(sha256sum "$WORK/www/file.bin" | cut -d' ' -f1)"
-(cd "$WORK/www" && python3 -m http.server "$PORT_TARGET" --bind 127.0.0.1 >/dev/null 2>&1) &
+# напрямую с --directory: TGT_PID — PID самого python3, cleanup его завершит
+python3 -m http.server "$PORT_TARGET" --bind 127.0.0.1 --directory "$WORK/www" >/dev/null 2>&1 &
 TGT_PID=$!
+sleep 0.5
+# доступность таргета (HEAD): полный SHA-прогон не делаем — объемы большие
+curl -fsSI --max-time 10 "http://127.0.0.1:$PORT_TARGET/file.bin" >/dev/null || {
+  echo "FATAL: HTTP-таргет не отвечает (порт $PORT_TARGET занят или не стартовал)" >&2
+  exit 1
+}
 
 cat > "$WORK/server.json" <<EOF
 {

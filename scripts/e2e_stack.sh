@@ -22,6 +22,17 @@ PORT_PANEL=18444
 PORT_TARGET=18080
 WORK="$(mktemp -d /tmp/backuppc-stack.XXXXXX)"
 
+# Порт уже слушается (осиротевший процесс прошлого прогона) → молча
+# занятый порт и ложный FAIL: curl получит чужой файл. Проверяем до старта.
+port_busy() { (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null; }
+for p in "$PORT_TARGET" "$PORT_SOCKS" "$PORT_SRV" "$PORT_PANEL"; do
+  if port_busy "$p"; then
+    echo "FATAL: порт $p уже слушается — осиротевший процесс прошлого прогона?" >&2
+    echo "       найдите и завершите его: ss -ltnp | grep :$p" >&2
+    exit 1
+  fi
+done
+
 cleanup() {
   [[ -n "${CORE_PID:-}" ]] && kill "$CORE_PID" 2>/dev/null || true
   [[ -n "${SRV_PID:-}" ]] && kill "$SRV_PID" 2>/dev/null || true
@@ -38,8 +49,16 @@ echo "==> HTTP-таргет ($PORT_TARGET): файл ${SIZE} МиБ"
 mkdir -p "$WORK/www"
 head -c $((SIZE * 1048576)) /dev/urandom > "$WORK/www/file.bin"
 sha_target="$(sha256sum "$WORK/www/file.bin" | cut -d' ' -f1)"
-(cd "$WORK/www" && python3 -m http.server "$PORT_TARGET" --bind 127.0.0.1 >/dev/null 2>&1) &
+# напрямую с --directory: TGT_PID — PID самого python3, cleanup его завершит
+python3 -m http.server "$PORT_TARGET" --bind 127.0.0.1 --directory "$WORK/www" >/dev/null 2>&1 &
 TGT_PID=$!
+sleep 0.5
+# прямая проба таргета ДО туннеля: таргет поднялся и отдаёт именно наш файл
+sha_probe="$(curl -fsS --max-time 30 "http://127.0.0.1:$PORT_TARGET/file.bin" | sha256sum | cut -d' ' -f1)"
+if [[ "$sha_probe" != "$sha_target" ]]; then
+  echo "FATAL: HTTP-таргет не отдаёт наш файл (порт $PORT_TARGET занят или не стартовал)" >&2
+  exit 1
+fi
 
 echo "==> backuppc-server (транспорт :$PORT_SRV, панель :$PORT_PANEL)"
 cat > "$WORK/server.json" <<EOF
