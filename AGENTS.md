@@ -50,7 +50,9 @@ Cross-platform Flutter Xray-core client. Current contracts are indexed in
   [product model](../references/onexray-app-prototype/PRODUCT-MODEL.md) is historical:
   current App contracts take precedence; do not restore retired features from it.
 - Native contracts: `lib/core/pigeon/`, `pigeon/message.dart`, `swift/`,
-  Android's Kotlin bridge, and [libXray API](../libXray/README.md#api).
+  Android's Kotlin bridge, and [libXray API](third_party/libXray/README.md#api).
+  The libXray source is vendored and patched in `third_party/libXray`
+  (see its `UPSTREAM.md`/`PATCHES.md`); build scripts compile it in place.
   Before packaging, read [build scripts](build_scripts/README.md) and, for Windows,
   [Windows builds](docs/windows-build.md). Apple/Android release scripts may
   upload to stores; they are not local validation commands.

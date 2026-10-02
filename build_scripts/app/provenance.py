@@ -56,24 +56,43 @@ def source_revision(path: Path, expected: str | None = None) -> str:
     return revision
 
 
+def vendored_revision(path: Path, expected: str | None = None) -> str:
+    """Revision of a source tree vendored inside this repository.
+
+    The tree has no .git of its own: its upstream base commit is recorded in
+    the manifest.json sitting next to the vendored sources.
+    """
+    manifest = path / "manifest.json"
+    try:
+        revision = json.loads(manifest.read_text(encoding="utf-8"))["commit"]
+    except (OSError, ValueError, KeyError) as error:
+        raise ValueError(f"Vendored source manifest has no commit: {path.name}") from error
+    if not _SHA.fullmatch(revision) or (expected and revision != expected):
+        raise ValueError(f"Unexpected vendored revision: {path.name}")
+    return revision
+
+
 def begin_build(builder, target: str) -> dict:
     root = Path(builder.root_dir)
-    workspace = Path(builder.workspace_dir)
+    lib_dir = root / builder.project_config["core.dir"]
     sources = {
         "app": source_revision(root, os.environ.get("GITHUB_SHA")),
-        "libXray": source_revision(
-            workspace / builder.project_config["core.dir"],
-            os.environ.get("ONEXRAY_LIBXRAY_SHA"),
-        ),
+        "libXray": vendored_revision(lib_dir, os.environ.get("ONEXRAY_LIBXRAY_SHA")),
     }
-    source_paths = {
-        "app": root,
-        "libXray": workspace / builder.project_config["core.dir"],
+    # The vendored tree is tracked by this repository, so its dirtiness is
+    # the dirtiness of the vendored path inside the app checkout itself.
+    dirty_status = {
+        "app": (["git", "status", "--porcelain", "--untracked-files=normal"], root),
+        "libXray": ([
+            "git", "status", "--porcelain", "--untracked-files=normal",
+            "--", str(builder.project_config["core.dir"]),
+        ], root),
     }
     if target == "windows":
-        source_paths["VCore"] = Path(builder.builder._vcore_dir())
+        vcore = Path(builder.builder._vcore_dir())
+        dirty_status["VCore"] = (["git", "status", "--porcelain", "--untracked-files=normal"], vcore)
         sources["VCore"] = source_revision(
-            source_paths["VCore"], os.environ.get("ONEXRAY_VCORE_SHA"),
+            vcore, os.environ.get("ONEXRAY_VCORE_SHA"),
         )
     return {
         "formatVersion": 1,
@@ -95,8 +114,8 @@ def begin_build(builder, target: str) -> dict:
         # Capture before version rewriting, macOS SE preparation, or core builds.
         # Only booleans leave this process, never source paths or diff contents.
         "sourceDirty": {
-            name: bool(_output(["git", "status", "--porcelain", "--untracked-files=normal"], path))
-            for name, path in source_paths.items()
+            name: bool(_output(list(command), path))
+            for name, (command, path) in dirty_status.items()
         },
         "sourceVersion": builder.read_version(),
     }

@@ -7,7 +7,9 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
-from app.provenance import begin_build, finish_build, source_revision, sha256, verify_release
+from app.provenance import (
+    begin_build, finish_build, sha256, source_revision, vendored_revision, verify_release,
+)
 
 
 class ProvenanceTest(unittest.TestCase):
@@ -242,10 +244,25 @@ class ProvenanceTest(unittest.TestCase):
             self.assertEqual(source_revision(Path("fixture"), "a" * 40), "a" * 40)
             with self.assertRaises(ValueError):
                 source_revision(Path("fixture"), "b" * 40)
+        vendored = self.artifacts / "OneXray"
+        (vendored / "third_party/libXray").mkdir(parents=True)
+        (vendored / "third_party/libXray" / "manifest.json").write_text(
+            json.dumps({"commit": "b" * 40})
+        )
+        self.assertEqual(vendored_revision(vendored / "third_party/libXray"), "b" * 40)
+        self.assertEqual(vendored_revision(vendored / "third_party/libXray", "b" * 40), "b" * 40)
+        with self.assertRaises(ValueError):
+            vendored_revision(vendored / "third_party/libXray", "c" * 40)
+        (vendored / "third_party/libXray" / "manifest.json").write_text("{}")
+        with self.assertRaises(ValueError):
+            vendored_revision(vendored / "third_party/libXray")
         builder = SimpleNamespace(
-            root_dir=str(self.artifacts / "OneXray"), workspace_dir=str(self.artifacts),
-            project_config={"core.dir": "libXray"}, builder=SimpleNamespace(),
+            root_dir=str(vendored), workspace_dir=str(self.artifacts),
+            project_config={"core.dir": "third_party/libXray"}, builder=SimpleNamespace(),
             read_version=lambda: "26.9.1+1",
+        )
+        (vendored / "third_party/libXray" / "manifest.json").write_text(
+            json.dumps({"commit": "b" * 40})
         )
         for app_status in ("", " M local-source.dart\n?? new-source.dart"):
             with (
@@ -254,6 +271,7 @@ class ProvenanceTest(unittest.TestCase):
                 mock.patch("app.provenance._output", side_effect=[app_status, ""]),
             ):
                 receipt = begin_build(builder, "linux")
+            self.assertEqual(receipt["sources"], {"app": "a" * 40, "libXray": "b" * 40})
             self.assertEqual(receipt["sourceDirty"], {"app": bool(app_status), "libXray": False})
             self.assertNotIn("local-source.dart", json.dumps(receipt))
             self.assertNotIn("new-source.dart", json.dumps(receipt))
@@ -262,8 +280,13 @@ class ProvenanceTest(unittest.TestCase):
         workflows = Path(__file__).resolve().parents[2] / ".github/workflows"
         build = (workflows / "build.yml").read_text()
         self.assertEqual(build.count("needs: release_metadata"), 6)
-        self.assertEqual(build.count("ref: ${{ env.LIBXRAY_REF }}"), 1)
-        self.assertEqual(build.count("ref: ${{ needs.release_metadata.outputs.libxray_sha }}"), 6)
+        # libXray is vendored as source in this repository: no external
+        # checkout and no CI pin — the base revision comes from the manifest.
+        self.assertNotIn("XTLS/libXray", build)
+        self.assertNotIn("LIBXRAY_REF", build)
+        self.assertIn("third_party/libXray/manifest.json", build)
+        self.assertEqual(build.count("ref: ${{ needs.release_metadata.outputs.vcore_sha }}"), 1)
+        self.assertEqual(build.count("ONEXRAY_LIBXRAY_SHA: ${{ needs.release_metadata.outputs.libxray_sha }}"), 6)
         self.assertEqual(build.count("name: Upload build provenance"), 6)
         for name in ("publish.yml", "publish-microsoft-store.yml"):
             content = (workflows / name).read_text()
@@ -327,12 +350,15 @@ class ProvenanceTest(unittest.TestCase):
         compiler.write_bytes(b"compiler fixture")
         for extension in ("msix", "exe", "zip"):
             (output / f"OneXray-windows-amd64.{extension}").write_bytes(extension.encode())
+        vendored = root / "third_party/libXray"
+        vendored.mkdir(parents=True)
+        (vendored / "manifest.json").write_text(json.dumps({"commit": "b" * 40}))
         builder = SimpleNamespace(
             root_dir=str(root), output_dir=str(output), workspace_dir=str(self.artifacts),
             project_dir=str(root / "windows"), system="windows", build_number=401,
             builder=SimpleNamespace(package_suffix="windows-amd64", target_architecture="x64",
                                     _vcore_dir=lambda: str(vcore), msix_version=lambda: "26.9.1.0"),
-            project_config={"core.dir": "libXray", "core.lib.dst.dir.windows": "app",
+            project_config={"core.dir": "third_party/libXray", "core.lib.dst.dir.windows": "app",
                             "core.lib.src.files.windows": ["libXray.dll"]},
             read_version=lambda: "26.9.1+401",
         )

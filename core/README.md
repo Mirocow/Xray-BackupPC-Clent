@@ -45,7 +45,6 @@ byte-for-byte без изменений — поведение стоковой 
 | `outbound/` | хендлер `proxy.Outbound` (Process: LogicalConn + buf.Copy + полузакрытие), регистрация в ядре, JSON-settings ↔ protobuf ↔ ClientConfig библиотеки |
 | `preprocess/` | NormalizeJSON / Apply / BuildConfig — конвейер конфигурации |
 | `link/` | share-ссылки `backuppc://uuid@host:port/?host=&fp=#tag` → outbound JSON и обратно |
-| `libxray/` | патч-инфраструктура для checkout XTLS/libXray (см. ниже) |
 | `cmd/backuppc-xray/` | настольное ядро с нативным backuppc (`run`/`test`) для локальных прогонов |
 
 Зависимости: `github.com/xtls/xray-core` (как библиотека) и модуль
@@ -94,41 +93,40 @@ backuppc://<uuid>@<server>:<port>/?host=<домен-донор>&fp=<sha256>&inse
 Ручной импорт: приложение → Импорт → JSON-узел (вставить outbound
 выше) либо ссылка `backuppc://` в поле ссылок.
 
-## Сборка ядра для OneXray (патч libXray)
+## Сборка ядра для OneXray (вендоренный libXray)
 
-Приложение собирает ядро из checkout **XTLS/libXray** (артефакты:
-`libXray.aar`, `libXray.so`, `libXray.dll`, `LibXray.xcframework`,
-`bin/xray`). Протокол встраивается в этот checkout якорным патчем:
+Приложение собирает ядро из **вендоренного исходника**
+`third_party/libXray` — это патченное дерево XTLS/libXray, лежащее
+прямо в репозитории (артефакты сборки: `libXray.aar`, `libXray.so`,
+`libXray.dll`, `LibXray.xcframework`, `bin/xray`). Протокол backuppc
+уже встроен в дерево — никаких патчей при сборке не применяется,
+локальная и CI-сборки компилируют ровно закоммиченный код:
 
 ```bash
-# Ядро собирается из checkout XTLS/libXray (соседний каталог).
-# Проверенная версия вендорена в third_party/libXray (git-bundle,
-# офлайн, точный upstream-SHA) — ветку/тег искать не нужно:
-make bootstrap-libxray                    # → ../libXray из bundle + patch.py
-# дальше штатная сборка ядра
-(cd ../libXray && python build/main.py <android|apple|windows|linux>)
+# Сборка ядра — из third_party/libXray (внутри репозитория):
+uv run --project build_scripts python build_scripts/main.py OneXray <system>
+# или прямо сборка libXray (артефакты появятся в third_party/libXray/,
+# каталоги вывода игнорируются git):
+(cd third_party/libXray && python build/main.py <android|apple|windows|linux>)
 ```
 
-Эквивалент без make: `bash core/libxray/bootstrap.sh [--dest <dir>]`.
-Проверенный ref (он же — в `third_party/libXray/manifest.json` и в пине
-`LIBXRAY_REF` CI): `3c694b23290f9849fe52284a345ebd4343bc90cd`.
-
-Патч вносит (все правки проверяются по точным якорям, скрипт
-идемпотентен):
+Изменения относительно upstream (коммит — в
+`third_party/libXray/manifest.json`, описание — в
+`third_party/libXray/PATCHES.md`):
 
 - `xray/xray.go` — конвейер `newXrayInstance` (RunXray, TestXray и
   desktop-бинарь OneXrayCore проходят через него);
 - `share/parse_share.go` + `share/backuppc.go` — парсинг `backuppc://`;
 - `share/validate_outbound.go`, `share/marshal_share.go` — валидация и
   проекция backuppc-outbound при импорте ссылок/подписок;
-- `go.mod` — `require backuppc-core` + `replace` на `core/` и
-  `backuppc/` этого репозитория.
+- `go.mod` — `require backuppc-core` + `replace` на `../../core` и
+  `../../backuppc` этого репозитория (пути относительны вендоренному
+  дереву — правьте код прямо в `third_party/libXray` и коммитьте).
 
-Проверенный ref libXray зафиксирован в репозитории:
-`third_party/libXray/` (bundle + manifest, обновление — по процедуре
-из `third_party/libXray/UPSTREAM.md`). При обновлении версии скрипт
-откажется работать, если якоря изменились, — обновите шаблоны в
-`core/libxray/patch.py`.
+Процедура обновления на новую версию upstream — в
+`third_party/libXray/UPSTREAM.md`: новое дерево подставляется в
+`third_party/libXray`, изменения backuppc переносятся в него, коммит
+upstream обновляется в `manifest.json`.
 
 ## Совместимость
 

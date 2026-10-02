@@ -60,11 +60,18 @@ class Builder:
         machine = platform.machine().lower()
         self.package_suffix = f"{platform.system().lower()}-{machine}"
 
+    def _lib_dir(self) -> str:
+        """The vendored Xray-core source tree inside this repository."""
+        # third_party/libXray is committed here (patched with the backuppc
+        # protocol), so every build — local or CI — compiles exactly the
+        # committed tree.
+        return os.path.join(self.root_dir, self.project_config["core.dir"])
+
     def before_build(self):
         check_and_create_dir(self.output_dir)
 
     def build_core(self):
-        lib_dir = os.path.join(self.workspace_dir, self.project_config["core.dir"])
+        lib_dir = self._lib_dir()
         cmd_system = "apple" if self.system in ("macos", "ios") else self.system
         cmd = [sys.executable, "build/main.py", cmd_system]
         if cmd_system == "apple":
@@ -99,7 +106,7 @@ class Builder:
         if src_key not in self.project_config or dst_key not in self.project_config:
             return
 
-        lib_dir = os.path.join(self.workspace_dir, self.project_config["core.dir"])
+        lib_dir = self._lib_dir()
         src_path = os.path.join(lib_dir, self.project_config[src_key])
         dst_path = os.path.join(self.project_dir, self.project_config[dst_key])
         check_and_create_dir(os.path.dirname(dst_path))
