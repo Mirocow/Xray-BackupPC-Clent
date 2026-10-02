@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:onexray/core/pigeon/model.dart';
+import 'package:onexray/service/connect/backuppc/tunnel_service.dart';
 import 'package:onexray/service/connect/compiler.dart';
 import 'package:onexray/service/advanced/platform_policy.dart';
 import 'package:onexray/service/connect/settings.dart';
@@ -67,6 +68,10 @@ class ConnectionRuntime {
   final String? notice;
   final DateTime startedAt;
 
+  /// Dart-туннели backuppc этого рантайма (порт + конфиг транспорта).
+  /// Восстанавливаются после перезапуска приложения из metadataJson.
+  final List<BackupPcTunnelProfile> backuppcTunnels;
+
   ConnectionRuntime._({
     required this.configuration,
     required this.platform,
@@ -76,6 +81,7 @@ class ConnectionRuntime {
     required this.finalExit,
     required this.startedAt,
     this.notice,
+    this.backuppcTunnels = const [],
   });
 
   factory ConnectionRuntime.create({
@@ -100,6 +106,10 @@ class ConnectionRuntime {
       'configuration': configuration.toJson(),
       'entries': [for (final entry in entries) entry.toJson()],
       'finalExit': finalExit?.toJson(),
+      'backuppcTunnels': [
+        for (final tunnel in compiled.backuppcTunnels)
+          {'port': tunnel.port, 'config': tunnel.config},
+      ],
     });
     final storedRequest = StartVpnRequest(
       request.tun,
@@ -118,6 +128,10 @@ class ConnectionRuntime {
       finalExit: finalExit,
       notice: notice,
       startedAt: startedAt,
+      backuppcTunnels: List.unmodifiable([
+        for (final tunnel in compiled.backuppcTunnels)
+          BackupPcTunnelProfile(port: tunnel.port, config: tunnel.config),
+      ]),
     );
   }
 
@@ -147,6 +161,13 @@ class ConnectionRuntime {
     if (run.xrayJson == null) {
       throw const FormatException('Invalid runtime request');
     }
+    final tunnelsRaw = metadata['backuppcTunnels'];
+    final tunnels = <BackupPcTunnelProfile>[
+      if (tunnelsRaw is List)
+        for (final value in tunnelsRaw)
+          if (value is Map<String, dynamic>)
+            BackupPcTunnelProfile.fromJson(value),
+    ];
     return ConnectionRuntime._(
       configuration: ConnectionConfiguration.fromJson(
         metadata['configuration'] as Map<String, dynamic>,
@@ -167,6 +188,7 @@ class ConnectionRuntime {
       finalExit: metadata['finalExit'] == null
           ? null
           : RuntimeNode.fromJson(metadata['finalExit'] as Map<String, dynamic>),
+      backuppcTunnels: List.unmodifiable(tunnels),
     );
   }
 

@@ -1,27 +1,41 @@
 # Разработка и отладка (DEVELOPMENT)
 
 Инструментарий для работы над протоколом `xray-vless-backuppc` в этом
-репозитории. Краткая карта кода:
+репозитории. Продуктовая реализация — **чистый Dart** (`backuppc_dart/` +
+интеграция в `lib/`), все платформы OneXray. Краткая карта кода:
 
 | Компонент | Где | Что |
 |---|---|---|
-| Библиотека транспорта (слои 1–2) | `backuppc/internal/backupemulator/` | фрейминг, gRPC-несущий канал, VLESS, ротация чанков, эмуляция BackupPC |
-| Нативное ядро Xray (слой 3) | `core/` (модуль `backuppc-core`) | backuppc-outbound в реестре Xray, препроцессор JSON, share-ссылки |
+| **Транспорт (Dart, продукт)** | `backuppc_dart/` | фрейминг, gRPC-несущий, VLESS, ротация чанков, эмуляция BackupPC, SOCKS5, share-ссылки |
+| вендорный HTTP/2 | `third_party/http2` | форк с патчами флоу-контроля (`PATCHES.md`): окно 32 МиБ + батчинг WINDOW_UPDATE |
+| Интеграция приложения | `lib/service/connect/backuppc/`, `lib/service/connect/compiler.dart` | туннель в изоляте, компиляция узла в socks-outbound, пинг, валидация |
+| Go-эталон (тесты/bench) | `backuppc/` | та же библиотека на Go: контрактные тесты, нагрузочные инструменты |
+| Нативное ядро Xray | `core/` (модуль `backuppc-core`) | альтернативный путь: backuppc-outbound в ядре (экспериментальный) |
 | Безголовое ядро | `core/cmd/backuppc-xray/` | CLI: `run`/`test`, pprof-хук |
-| Патч libXray | `core/libxray/patch.py` | интеграция протокола в OneXray (desktop-бинарь) |
 | Контейнеры | `deploy/` | Dockerfile клиента + compose-стеки |
-| Сервер | соседний репозиторий `xray-backuppc` | серверная часть + панель + bench |
+| Сервер | соседний репозиторий `xray-backuppc` | серверная часть + панель + bench + `docs/PROTOCOL.md` (wire-спецификация) |
+
+Архитектура и пользовательский контур Dart-реализации —
+`docs/backuppc-protocol.md`.
 
 ## Быстрый старт
 
 ```bash
+# Dart-реализация (продукт)
+(cd backuppc_dart && dart test)     # 52 теста транспорта
+flutter analyze                     # весь код приложения
+flutter test                        # 1092 теста, вкл. интеграцию
+scripts/e2e_dart.sh                 # живой прогон: Go-сервер ↔ Dart-клиент
+
+# Go-эталон (контрактные тесты/bench)
 make help            # список целей
 make test            # все Go-тесты (библиотека + ядро)
 make build-core      # core/bin/backuppc-xray
 make e2e             # живой прогон: сервер + ядро + curl (SHA-256)
 ```
 
-Требуется Go ≥ 1.26 (тулчейн скачивается автоматически), для Flutter-сборки — `build_scripts/`.
+Требуется Go ≥ 1.26 и Dart/Flutter SDK по `readme/FIRST_RUN.md`
+(для сборки приложения — `build_scripts/`).
 
 ## Тестовая пирамида
 
@@ -70,6 +84,20 @@ go tool pprof http://127.0.0.1:6060/debug/pprof/profile?seconds=30
 - при диагностике обрывов смотреть пары: клиент `session rotated` ↔
   сервер `session finished reason=...` (`ok`, `upstream-closed`,
   `client-closed`, `idle-timeout`).
+
+### Dart-реализация (backuppc_dart)
+
+- туннель — изолят: журналы приходят в общий лог с префиксом
+  `backuppc tunnel:`;
+- `backuppc_dart/tool/`: `debug_download.dart` / `debug_upload.dart`
+  (прогон объёма против сервера с верификацией), `layer_bench.dart`
+  (профиль скорости по слоям: TLS / H2 / кадры / VLESS),
+  `hash_bench.dart`, `det_stream.dart` (детерминированный поток для
+  отладки сдвигов), `direct_check.dart`;
+- отладка флоу-контроля — `third_party/http2/PATCHES.md` (эффект
+  патчей и как его замерять);
+- при падении e2e: поднять сервер вручную (`make e2e-stack` в серверном
+  репо) и гонять `debug_download` с живыми логами обеих сторон.
 
 ### Сервер и панель
 

@@ -1,5 +1,7 @@
 import 'dart:convert';
+import 'dart:io';
 
+import 'package:backuppc_dart/backuppc_dart.dart' show ClientConfig;
 import 'package:onexray/core/db/database/database.dart';
 import 'package:onexray/core/ffi/windows/mode.dart';
 import 'package:onexray/core/model/xray_json.dart';
@@ -12,6 +14,7 @@ import 'package:onexray/service/connect/routing/custom/state.dart';
 import 'package:onexray/service/connect/routing/custom/configuration.dart';
 import 'package:onexray/service/connect/routing/custom/advanced.dart';
 import 'package:onexray/service/connect/routing/dns.dart';
+import 'package:onexray/service/connect/backuppc/outbound.dart';
 import 'package:onexray/service/servers/outbound/map.dart';
 import 'package:onexray/service/servers/outbound/state_db.dart';
 import 'package:onexray/service/shared/xray/runtime_inbounds.dart';
@@ -104,13 +107,19 @@ class CompiledConnection {
   final ResolvedServer? finalExit;
   final Map<String, int> nodeTags;
 
+  /// Dart-туннели backuppc: локальный SOCKS5-порт + конфиг клиента
+  /// транспорта (на порт указывает socks-outbound соответствующего узла).
+  final List<({int port, Map<String, dynamic> config})> backuppcTunnels;
+
   CompiledConnection({
     required this.xrayJson,
     required Iterable<ResolvedServer> entries,
     required this.finalExit,
     required Map<String, int> nodeTags,
+    List<({int port, Map<String, dynamic> config})> backuppcTunnels = const [],
   }) : entries = List.unmodifiable(entries),
-       nodeTags = Map.unmodifiable(nodeTags);
+       nodeTags = Map.unmodifiable(nodeTags),
+       backuppcTunnels = List.unmodifiable(backuppcTunnels);
 
   Map<String, dynamic> get config =>
       jsonDecode(xrayJson) as Map<String, dynamic>;
@@ -192,8 +201,11 @@ class ConnectionCompiler {
     RoutingConfiguration? custom,
     required RegionCatalog regions,
     required RuntimeOptions options,
+    List<int> backuppcPorts = const [],
   }) {
     final nodeTags = <String, int>{};
+    final backuppcTunnels = <({int port, Map<String, dynamic> config})>[];
+    final backuppcPortIt = backuppcPorts.iterator;
     late final Map<String, dynamic> config;
     if (settings.expert) {
       if (raw == null || entries.isNotEmpty || finalExit != null) {
@@ -201,7 +213,7 @@ class ConnectionCompiler {
           'Raw configuration is required without normal nodes',
         );
       }
-      config = _rawRuntimeMap(raw, options);
+      config = _transformRawBackuppc(raw, backuppcPortIt, backuppcTunnels, options);
     } else {
       final required = settings.requiredEntries(
         customEntryCount: custom?.entryCount,
@@ -226,11 +238,20 @@ class ConnectionCompiler {
         final outbounds = <Map<String, dynamic>>[];
         for (final (index, entry) in entries.indexed) {
           final tag = 'app-entry-$index';
-          outbounds.add(_node(entry, tag));
+          outbounds.add(
+            _nodeWithTunnels(entry, tag, backuppcPortIt, backuppcTunnels),
+          );
           nodeTags[tag] = entry.id;
         }
         _applyOutboundPolicy(outbounds, options, raw: false);
         final template = custom.fillSlots(outbounds);
+        if (backuppcTunnels.isNotEmpty) {
+          _prependBackuppcDirectRules(
+            template,
+            backuppcTunnels,
+            [for (final e in entries) e, ?finalExit],
+          );
+        }
         final inbounds = _objects(template, 'inbounds');
         for (var index = 0; index < inbounds.length; index++) {
           if (inbounds[index]['tag'] == 'tunIn') {
@@ -249,6 +270,7 @@ class ConnectionCompiler {
           entries: entries,
           finalExit: null,
           nodeTags: nodeTags,
+          backuppcTunnels: backuppcTunnels,
         );
       }
       final ordinary = custom is RoutingProfileState ? custom : null;
@@ -266,14 +288,24 @@ class ConnectionCompiler {
       final selector = <String>[];
       for (final (index, entry) in entries.indexed) {
         final entryTag = 'app-entry-$index';
-        final outbound = _node(entry, entryTag);
+        final outbound = _nodeWithTunnels(
+          entry,
+          entryTag,
+          backuppcPortIt,
+          backuppcTunnels,
+        );
         nodeTags[entryTag] = entry.id;
         entriesOutbounds.add(outbound);
         if (finalExit == null) {
           selector.add(entryTag);
         } else {
           final exitTag = 'app-exit-$index';
-          final exit = _node(finalExit, exitTag);
+          final exit = _nodeWithTunnels(
+            finalExit,
+            exitTag,
+            backuppcPortIt,
+            backuppcTunnels,
+          );
           setOutboundDialerProxy(exit, entryTag);
           nodeTags[exitTag] = finalExit.id;
           exits.add(exit);
@@ -285,6 +317,12 @@ class ConnectionCompiler {
         if (finalExit != null) ...entriesOutbounds,
       ];
       _applyOutboundPolicy(outbounds, options, raw: false);
+      final backuppcDirectRules = backuppcTunnels.isEmpty
+          ? const <XrayRoutingRule>[]
+          : _backuppcDirectRules(
+              backuppcTunnels,
+              [for (final e in entries) e, ?finalExit],
+            );
       outbounds.addAll([
         createFreedomOutbound(
           tag: 'direct',
@@ -366,6 +404,7 @@ class ConnectionCompiler {
               port: '853',
               balancerTag: 'proxy',
             ),
+            ...backuppcDirectRules,
             ...rules,
           ],
         ),
@@ -377,7 +416,138 @@ class ConnectionCompiler {
       entries: entries,
       finalExit: finalExit,
       nodeTags: nodeTags,
+      backuppcTunnels: backuppcTunnels,
     );
+  }
+
+  /// Узлы backuppc → Dart-туннель (SOCKS5 на 127.0.0.1): каждому узлу
+  /// выделяется порт из [backuppcPorts], outbound в Xray-конфиге —
+  /// обычный socks. Идём по списку порт-итератором.
+  static ({
+    Map<String, dynamic> outbound,
+    ({int port, Map<String, dynamic> config})? tunnel,
+  }) _backuppcNode(
+    Map<String, dynamic> outbound,
+    String tag,
+    Iterator<int> ports,
+  ) {
+    if (!ports.moveNext()) {
+      throw const FormatException(
+        'Не выделен локальный порт для туннеля backuppc',
+      );
+    }
+    final port = ports.current;
+    final cfg = backuppcClientConfig(outbound);
+    if (cfg == null) {
+      throw const FormatException(
+        'backuppc: ожидается settings.serverAddr и settings.uuid',
+      );
+    }
+    final socks = <String, dynamic>{
+      'tag': tag,
+      'protocol': 'socks',
+      'settings': {
+        'servers': [
+          {'address': '127.0.0.1', 'port': port},
+        ],
+      },
+    };
+    final stream = outbound['streamSettings'];
+    if (stream is Map<String, dynamic>) {
+      socks['streamSettings'] = JsonTool.copyMap(stream);
+    }
+    return (outbound: socks, tunnel: (port: port, config: cfg.toJson()));
+  }
+
+  /// Анти-петлевые правила: адреса VPN-сервера backuppc → direct,
+  /// иначе TUN заворачивает трафик Dart-туннеля обратно в прокси.
+  static List<XrayRoutingRule> _backuppcDirectRules(
+    List<({int port, Map<String, dynamic> config})> tunnels,
+    List<ResolvedServer> nodes,
+  ) {
+    final domains = <String>{};
+    final ips = <String>{};
+    for (final node in nodes) {
+      final (nodeIps, nodeDomains) = backuppcServerRoutes(node.outbound);
+      ips.addAll(nodeIps);
+      domains.addAll(nodeDomains);
+    }
+    // также адреса из конфигов туннелей (финальный источник правды)
+    for (final tunnel in tunnels) {
+      final cfg = ClientConfig.fromJson(tunnel.config);
+      final (host, _) = cfg.splitServerAddr();
+      if (host.isEmpty) continue;
+      final ip = InternetAddress.tryParse(host);
+      if (ip != null) {
+        ips.add(host);
+      } else {
+        domains.add(host);
+      }
+      if (cfg.transport.host.trim().isNotEmpty) {
+        domains.add(cfg.transport.host.trim());
+      }
+    }
+    return [
+      if (domains.isNotEmpty)
+        XrayRoutingRule(
+          ruleTag: 'app-backuppc-direct-domain',
+          domain: domains.toList()..sort(),
+          outboundTag: 'direct',
+        ),
+      if (ips.isNotEmpty)
+        XrayRoutingRule(
+          ruleTag: 'app-backuppc-direct-ip',
+          ip: ips.toList()..sort(),
+          outboundTag: 'direct',
+        ),
+    ];
+  }
+  /// Raw-режим: backuppc-outbound'ы пользователя → socks на локальные
+  /// туннели (порт из итератора); туннели регистрируются для рантайма.
+  /// Анти-петлевые правила в raw не добавляются — конфиг эксперта
+  /// неприкосновенен (см. документацию).
+  static Map<String, dynamic> _transformRawBackuppc(
+    Map<String, dynamic> raw,
+    Iterator<int> ports,
+    List<({int port, Map<String, dynamic> config})> tunnels,
+    RuntimeOptions options,
+  ) {
+    final config = JsonTool.copyMap(raw);
+    final outbounds = _objects(config, 'outbounds');
+    for (var i = 0; i < outbounds.length; i++) {
+      final outbound = outbounds[i];
+      if (!isBackupPcOutbound(outbound)) {
+        continue;
+      }
+      final tag = outbound['tag'] is String ? outbound['tag'] as String : '';
+      if (tag.isEmpty) {
+        throw const FormatException(
+          'backuppc outbound in Raw requires a tag',
+        );
+      }
+      final replaced = _backuppcNode(outbound, tag, ports);
+      outbounds[i] = replaced.outbound;
+      tunnels.add(replaced.tunnel!);
+    }
+    config['outbounds'] = outbounds;
+    return _rawRuntimeMap(config, options);
+  }
+
+  /// Вставка анти-петлевых правил в начало routing.rules шаблона custom.
+  static void _prependBackuppcDirectRules(
+    Map<String, dynamic> template,
+    List<({int port, Map<String, dynamic> config})> tunnels,
+    List<ResolvedServer> nodes,
+  ) {
+    final routing = _object(template, 'routing');
+    final rules = (routing['rules'] as List? ?? [])
+        .whereType<Map<String, dynamic>>()
+        .toList();
+    final prepended = [
+      for (final rule in _backuppcDirectRules(tunnels, nodes)) rule.toJson(),
+      ...rules,
+    ];
+    routing['rules'] = prepended;
   }
 
   static Map<String, dynamic> _node(ResolvedServer node, String tag) {
@@ -391,6 +561,23 @@ class ConnectionCompiler {
     return outbound
       ..remove('name')
       ..['tag'] = tag;
+  }
+
+  /// _node с трансформацией backuppc: узел → socks-outbound на локальный
+  /// Dart-туннель; туннель регистрируется в [tunnels].
+  static Map<String, dynamic> _nodeWithTunnels(
+    ResolvedServer node,
+    String tag,
+    Iterator<int> ports,
+    List<({int port, Map<String, dynamic> config})> tunnels,
+  ) {
+    final outbound = _node(node, tag);
+    if (!isBackupPcOutbound(outbound)) {
+      return outbound;
+    }
+    final replaced = _backuppcNode(outbound, tag, ports);
+    tunnels.add(replaced.tunnel!);
+    return replaced.outbound;
   }
 
   static Map<String, dynamic> _object(Map<String, dynamic> parent, String key) {

@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:backuppc_dart/backuppc_dart.dart' show BackupPcLink;
 import 'package:onexray/core/db/database/database.dart';
 import 'package:onexray/core/pigeon/host_api.dart';
 import 'package:onexray/core/tools/logger.dart';
@@ -10,11 +11,43 @@ class XrayShareReader {
     String text, {
     String? ageSecretKey,
   }) async {
-    final outbounds = await AppHostApi().convertShareLinksToXrayJson(
-      text,
-      ageSecretKey: ageSecretKey,
-    );
+    // backuppc:// парсится чистым Dart (нативный конвертер его не знает).
+    final (backuppcOutbounds, nativeText) = splitBackupPcLinks(text);
+    final outbounds = <Map<String, dynamic>>[...backuppcOutbounds];
+    if (nativeText.trim().isNotEmpty) {
+      outbounds.addAll(
+        await AppHostApi().convertShareLinksToXrayJson(
+          nativeText,
+          ageSecretKey: ageSecretKey,
+        ),
+      );
+    }
     return readXrayJsonOutbounds({'outbounds': outbounds});
+  }
+
+  /// Разделяет ввод: строки `backuppc://` → outbound-ы, остальное —
+  /// нативному конвертеру. Некорректная backuppc-ссылка — ошибка ввода
+  /// (нативный конвертер так же поступает с битыми vless/vmess).
+  @visibleForTesting
+  (List<Map<String, dynamic>>, String) splitBackupPcLinks(String text) {
+    final backuppcOutbounds = <Map<String, dynamic>>[];
+    final other = <String>[];
+    for (final line in text.split('\n')) {
+      final trimmed = line.trim();
+      final scheme = trimmed.isEmpty
+          ? ''
+          : Uri.tryParse(trimmed)?.scheme.toLowerCase() ?? '';
+      if (scheme == 'backuppc') {
+        final link = BackupPcLink.tryParse(trimmed);
+        if (link == null) {
+          throw const FormatException('Invalid backuppc link');
+        }
+        backuppcOutbounds.add(link.toOutboundJson());
+      } else {
+        other.add(line);
+      }
+    }
+    return (backuppcOutbounds, other.join('\n'));
   }
 
   @visibleForTesting

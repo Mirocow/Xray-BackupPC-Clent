@@ -6,6 +6,7 @@ import 'package:onexray/core/db/database/database.dart';
 import 'package:onexray/core/pigeon/constants.dart';
 import 'package:onexray/core/pigeon/host_api.dart';
 import 'package:onexray/core/pigeon/model.dart';
+import 'package:onexray/service/connect/backuppc/outbound.dart';
 import 'package:onexray/service/connect/compiler.dart';
 import 'package:onexray/service/advanced/platform_policy.dart';
 import 'package:onexray/service/advanced/xray/geodata/service.dart';
@@ -22,12 +23,13 @@ import 'package:path/path.dart' as p;
 Future<List<int>> allocateRuntimePorts(
   List<dynamic> rawInbounds, {
   Future<List<int>> Function(int count)? getFreePorts,
+  int count = 2,
 }) async {
   final allocate = getFreePorts ?? AppHostApi().getFreePorts;
   for (var attempt = 0; attempt < 5; attempt++) {
-    final candidates = await allocate(2);
-    if (candidates.length == 2 &&
-        candidates.toSet().length == 2 &&
+    final candidates = await allocate(count);
+    if (candidates.length == count &&
+        candidates.toSet().length == count &&
         candidates.every((port) => port > 0 && port <= 65535) &&
         !rawInbounds.any(
           (entry) =>
@@ -164,7 +166,15 @@ class ConnectionPreparation {
     }
     final ports = await allocateRuntimePorts(
       userInbounds.cast<Map<String, dynamic>>(),
+      count: 2 + _backuppcTunnelCount(
+        settings: settings,
+        entries: entries,
+        finalExit: finalExit,
+        rawConfig: rawConfig,
+        custom: custom,
+      ),
     );
+    final backuppcPorts = ports.sublist(2);
     final compiled = ConnectionCompiler.compile(
       settings: settings,
       entries: entries,
@@ -186,6 +196,7 @@ class ConnectionPreparation {
         dnsLog: policy.recordDns,
         maskAddress: policy.maskAddress,
       ),
+      backuppcPorts: backuppcPorts,
     );
     await GeoDataService().requireDependencies(
       geoDataReferences(jsonDecode(compiled.xrayJson) as Map<String, dynamic>),
@@ -223,5 +234,32 @@ class ConnectionPreparation {
       request: request,
       notice: notice,
     );
+  }
+
+  /// Сколько локальных SOCKS-портов выделить под Dart-туннели backuppc.
+  static int _backuppcTunnelCount({
+    required ConnectionSettings settings,
+    required List<ResolvedServer> entries,
+    required ResolvedServer? finalExit,
+    Map<String, dynamic>? rawConfig,
+    RoutingConfiguration? custom,
+  }) {
+    // raw: считаем backuppc-outbound'ы прямо в конфиге пользователя
+    if (settings.expert) {
+      final outbounds = rawConfig?['outbounds'];
+      if (outbounds is! List) return 0;
+      return outbounds
+          .whereType<Map<String, dynamic>>()
+          .where(isBackupPcOutbound)
+          .length;
+    }
+    // custom (advanced): узлы попадают в слоты шаблона
+    var count = entries
+        .where((entry) => isBackupPcOutbound(entry.outbound))
+        .length;
+    if (finalExit != null && isBackupPcOutbound(finalExit.outbound)) {
+      count += 1;
+    }
+    return count;
   }
 }

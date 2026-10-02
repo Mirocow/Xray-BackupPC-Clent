@@ -14,6 +14,7 @@ import 'package:onexray/l10n/localizations/app_localizations.dart';
 import 'package:onexray/pages/shared/share/params.dart';
 import 'package:onexray/pages/shared/alert.dart';
 import 'package:onexray/pages/shared/page_cubit.dart';
+import 'package:onexray/service/connect/backuppc/outbound.dart';
 import 'package:onexray/service/settings/language/service.dart';
 import 'package:onexray/service/shared/share/app_link_share_service.dart';
 import 'package:onexray/service/servers/outbound/map.dart';
@@ -127,9 +128,12 @@ class ShareController extends PageCubit<SharePageState> {
       ),
     );
     final outbound = readOutboundFromDbData(config);
-    final url = await AppHostApi().convertXrayJsonToShareLinks({
-      'outbounds': [outbound],
-    });
+    // backuppc:// генерируется чистым Dart (нативный конвертер его не знает).
+    final url =
+        backuppcShareLink(outbound) ??
+        (await AppHostApi().convertXrayJsonToShareLinks({
+          'outbounds': [outbound],
+        }));
     if (url.trim().isEmpty) {
       _finishLinkError();
       return;

@@ -1,0 +1,14 @@
+name: http2
+version: 3.1.0+backuppc.1
+description: >-
+  A HTTP/2 implementation in Dart (vendored fork for backuppc_dart
+  with flow-control performance patches, see PATCHES.md).
+repository: https://github.com/dart-lang/http/tree/master/pkgs/http2
+
+environment:
+  sdk: ^3.7.0
+
+dependencies:
+  collection: ^1.19.0
+  meta: ^1.15.0
+  pool: ^1.5.0
