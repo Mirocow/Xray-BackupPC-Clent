@@ -1,0 +1,23 @@
+# Локальные артефакты не входят в контекст сборки (герметичность:
+# всё собирается внутри образов, ничего не берётся с хоста).
+.git
+**/node_modules
+**/.dart_tool
+core/bin
+core/.tmp
+.tmp-e2e*
+# GUI-платформы Flutter не участвуют в контейнерной сборке ядра/протокола
+android
+ios
+macos
+windows
+linux
+web
+build
+swift
+assets
+readme
+# секреты никогда не попадают в контекст
+*.env
+**/*.jks
+**/*.keystore

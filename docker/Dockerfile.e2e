@@ -1,0 +1,39 @@
+# syntax=docker/dockerfile:1
+# Живой E2E в контейнере: Go-сервер xray-backuppc ↔ Dart-клиент backuppc_dart.
+#
+#   make docker-e2e-dart [DOWN=64] [UP=16]
+#
+# Особенность: сервер — из СОСЕДНЕГО репозитория (дополнительный контекст
+# сборки, BuildKit 1.7+/buildx v0.12+):
+#
+#   --build-context serverrepo=../xray-backuppc
+#
+# Вся связка (сертификат, сервер, HTTP-таргет, SOCKS-туннель, SHA-256)
+# поднимается внутри одного образа на этапе сборки — упало = сборка упала.
+# Контейнерный аналог scripts/e2e_dart.sh.
+
+# ── Сборка Go-сервера из соседнего репозитория ─────────────────────────
+FROM golang:1.26-alpine AS e2e-server
+WORKDIR /src
+COPY --from=serverrepo go.mod ./
+COPY --from=serverrepo cmd/ ./cmd/
+COPY --from=serverrepo internal/ ./internal/
+# панель сервера не в git: go:embed нужен placeholder
+RUN mkdir -p internal/admin/dist && touch internal/admin/dist/.keep
+RUN go build -trimpath -o /out/backuppc-server ./cmd/backuppc-server
+
+# ── Dart-клиент + сервер в одном образе; e2e гоняется при сборке ───────
+FROM dart:3.13 AS e2e-dart
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends curl openssl \
+ && rm -rf /var/lib/apt/lists/*
+WORKDIR /src
+COPY third_party/http2/ ./third_party/http2/
+COPY backuppc_dart/ ./backuppc_dart/
+RUN cd backuppc_dart && dart pub get
+COPY --from=e2e-server /out/backuppc-server /usr/local/bin/backuppc-server
+COPY scripts/e2e_dart_container.sh /usr/local/bin/e2e-dart
+ARG DOWN_MB=64
+ARG UP_MB=16
+ENV DOWN_MB=${DOWN_MB} UP_MB=${UP_MB}
+RUN e2e-dart
