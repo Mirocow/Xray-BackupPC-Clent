@@ -6,7 +6,10 @@
 
 - `Build` resolves `LIBXRAY_REF` and `VCORE_REF` once in the metadata job. Every
   platform checks out those same full commit SHAs; the requested refs are stored
-  separately. A local libXray commit is **not** assumed to exist in `XTLS/libXray`:
+  separately. `LIBXRAY_REF` is pinned to the revision vendored in
+  `third_party/libXray` (git bundle + `manifest.json`); update the pin, the
+  bundle, and the patch anchors together (see `third_party/libXray/UPSTREAM.md`).
+  A local libXray commit is **not** assumed to exist in `XTLS/libXray`:
   publish the required dependency changes to the configured repository before
   selecting them for CI. This change does not push dependencies or start CI.
 - Each successful build writes `../output/provenance-<target>-<architecture>.json`:
@@ -69,7 +72,7 @@ outputs. libXray resolves Xray-core from its Go module dependencies.
 
 ### Workspace layout
 
-OneXray and libXray must be sibling directories. Windows builds also require a VCore checkout; set `VCORE_DIR` when it is not at `workspace/VCore`. Build artifacts are written to the sibling `output` directory.
+OneXray and libXray must be sibling directories. Windows builds also require a VCore checkout; set `VCORE_DIR` when it is not at `workspace/VCore`. Build artifacts are written to the sibling `output` directory. libXray does not need to be cloned manually: the verified upstream revision is vendored in `third_party/libXray` as a git bundle — run `make bootstrap-libxray` from the OneXray root to materialize the sibling `libXray` checkout offline (the backuppc patch is applied by the same command; see `third_party/libXray/UPSTREAM.md`).
 
 ```text
 workspace/
@@ -175,7 +178,7 @@ OneXray App，并生成各平台对应的安装包。Xray-core 由 libXray 的 G
 
 ### 工作区结构
 
-OneXray 和 libXray 必须位于同一级目录。Windows 构建还需要 VCore；不在 `workspace/VCore` 时通过 `VCORE_DIR` 指定。构建产物写入同级 `output` 目录。
+OneXray 和 libXray 必须位于同一级目录。Windows 构建还需要 VCore；不在 `workspace/VCore` 时通过 `VCORE_DIR` 指定。构建产物写入同级 `output` 目录。libXray 无需手动 clone：已验证的上游版本以 git bundle 形式内置于 `third_party/libXray`，在 OneXray 根目录运行 `make bootstrap-libxray` 即可离线生成同级 `libXray` checkout（同一命令会一并应用 backuppc 补丁；见 `third_party/libXray/UPSTREAM.md`）。
 
 ```text
 workspace/
@@ -272,7 +275,7 @@ FFI-привязки Flutter, собирают приложение OneXray и �
 
 ### Структура рабочего каталога
 
-OneXray и libXray должны находиться в соседних каталогах. Для Windows также нужен VCore; если он находится не в `workspace/VCore`, задайте `VCORE_DIR`. Результаты записываются в соседний каталог `output`.
+OneXray и libXray должны находиться в соседних каталогах. Для Windows также нужен VCore; если он находится не в `workspace/VCore`, задайте `VCORE_DIR`. Результаты записываются в соседний каталог `output`. libXray не нужно клонировать вручную: проверенная версия upstream вендорена в `third_party/libXray` в виде git-bundle — запустите `make bootstrap-libxray` из корня OneXray, и соседний checkout `libXray` будет создан офлайн (backuppc-патч применяется той же командой; см. `third_party/libXray/UPSTREAM.md`).
 
 ```text
 workspace/

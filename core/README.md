@@ -101,12 +101,17 @@ backuppc://<uuid>@<server>:<port>/?host=<домен-донор>&fp=<sha256>&inse
 `bin/xray`). Протокол встраивается в этот checkout якорным патчем:
 
 ```bash
-# соседние каталоги: onexray-репо и checkout libXray
-git clone https://github.com/XTLS/libXray.git ../libXray
-python3 core/libxray/patch.py --libxray-dir ../libXray
+# Ядро собирается из checkout XTLS/libXray (соседний каталог).
+# Проверенная версия вендорена в third_party/libXray (git-bundle,
+# офлайн, точный upstream-SHA) — ветку/тег искать не нужно:
+make bootstrap-libxray                    # → ../libXray из bundle + patch.py
 # дальше штатная сборка ядра
 (cd ../libXray && python build/main.py <android|apple|windows|linux>)
 ```
+
+Эквивалент без make: `bash core/libxray/bootstrap.sh [--dest <dir>]`.
+Проверенный ref (он же — в `third_party/libXray/manifest.json` и в пине
+`LIBXRAY_REF` CI): `3c694b23290f9849fe52284a345ebd4343bc90cd`.
 
 Патч вносит (все правки проверяются по точным якорям, скрипт
 идемпотентен):
@@ -119,9 +124,11 @@ python3 core/libxray/patch.py --libxray-dir ../libXray
 - `go.mod` — `require backuppc-core` + `replace` на `core/` и
   `backuppc/` этого репозитория.
 
-Проверенный ref libXray: `3c694b23290f9849fe52284a345ebd4343bc90cd`
-(при обновлении REF скрипт откажется работать, если якоря изменились, —
-обновите шаблоны в `core/libxray/patch.py`).
+Проверенный ref libXray зафиксирован в репозитории:
+`third_party/libXray/` (bundle + manifest, обновление — по процедуре
+из `third_party/libXray/UPSTREAM.md`). При обновлении версии скрипт
+откажется работать, если якоря изменились, — обновите шаблоны в
+`core/libxray/patch.py`.
 
 ## Совместимость
 
