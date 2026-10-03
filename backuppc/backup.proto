@@ -32,6 +32,59 @@ service BackupService {
   rpc UploadStream(stream Chunk) returns (stream Chunk);
 }
 
+// ChunkService — прием чанков/блоков (алиасы ротации, 1.4.0).
+service ChunkService {
+  rpc PutChunk(stream Chunk) returns (stream Chunk);
+  rpc StreamChunks(stream Chunk) returns (stream Chunk);
+}
+
+// StorageService — запись потока в хранилище (алиасы, 1.4.0).
+service StorageService {
+  rpc UploadStream(stream Chunk) returns (stream Chunk);
+  rpc WriteStream(stream Chunk) returns (stream Chunk);
+  rpc PutBlocks(stream Chunk) returns (stream Chunk);
+}
+
+// SnapshotService — передача снапшотов (алиасы, 1.4.0).
+service SnapshotService {
+  rpc SendSnapshot(stream Chunk) returns (stream Chunk);
+  rpc SnapshotStream(stream Chunk) returns (stream Chunk);
+}
+
+// RsyncService — rsync-подобная дельта-передача (алиасы, 1.4.0).
+service RsyncService {
+  rpc DeltaStream(stream Chunk) returns (stream Chunk);
+  rpc RsyncTransfer(stream Chunk) returns (stream Chunk);
+}
+
+// ArchiveService — архивирование (алиасы, 1.4.0).
+service ArchiveService {
+  rpc PutArchive(stream Chunk) returns (stream Chunk);
+  rpc ArchiveStream(stream Chunk) returns (stream Chunk);
+}
+
+// DedupService — дедупликация блоков (алиас, 1.4.0).
+service DedupService {
+  rpc DedupStream(stream Chunk) returns (stream Chunk);
+}
+
+// ReplicationService — репликация между узлами (алиас, 1.4.0).
+service ReplicationService {
+  rpc ReplicateStream(stream Chunk) returns (stream Chunk);
+}
+
+// CatalogService — индексы/каталог чанков (алиасы, 1.4.0).
+service CatalogService {
+  rpc IndexStream(stream Chunk) returns (stream Chunk);
+  rpc PutIndex(stream Chunk) returns (stream Chunk);
+}
+
+// TransferService — трансфер бэкапов (алиасы, 1.4.0).
+service TransferService {
+  rpc UploadBackup(stream Chunk) returns (stream Chunk);
+  rpc RestoreStream(stream Chunk) returns (stream Chunk);
+}
+
 // Chunk — одно gRPC-сообщение (кадр ТЗ).
 message Chunk {
   // Payload — полезная нагрузка кадра (байты VLESS-потока).
@@ -64,3 +117,303 @@ message Chunk {
 //
 //   400 + {"error":{"code":"InvalidBackupSession","message":"Session token missing or expired"}}
 //   413 + {"status":"error","reason":"Storage node backup-pool-01 allocation failed"}
+//
+// Диал-фейл ≠ зонд: валидный клиент (HMAC/VLESS сошлись) с недоступным
+// таргетом получает тот же 413, но без probe-счетчиков и tarpit;
+// сессия завершается reason=target-unreachable, в отладку пишется
+// событие dial-failed (Path=таргет, Detail=ошибка диала).
+//
+// Idle: активность сессии = любой кадр (payload или padding-only пинг)
+// либо новый чанк; полная тишина дольше idleTimeout (90с) — разрыв
+// тишиной без RST.
+
+// ============================================================================
+// Слой 3 (xray): управление backuppc.AdminService
+// ============================================================================
+//
+// Каналы управления (выбор — настройка managementMode в веб-панели):
+//
+//   gRPC:  POST https://<host>:8443/backuppc.AdminService/<Method>
+//          HTTP/2 + TLS, content-type: application/grpc, te: trailers,
+//          авторизация: authorization: Bearer <adminToken>.
+//          Сообщение: [compressed(1B=0)][length(4B BE)][JSON] (JSON-кодек).
+//          Трейлеры: grpc-status / grpc-message.
+//
+//   WebSocket:  ws://<host>:8444/api/ws?token=<adminToken>
+//          запрос:  {"id":N,"method":"<Method>","params":{...}}
+//          ответ:   {"id":N,"result":...} | {"id":N,"error":"..."}
+//          события: {"event":"stats|sessions|log","data":{...}}
+//
+//   REST (панель): http://<host>:8444/api/* — те же операции в JSON.
+//
+// Многосеансность и клиенты «как в Xray»: динамический реестр
+// email+UUID (AddUser/RemoveUser без перезапуска), сессии, статистика.
+
+package backuppc.admin;
+
+// AdminService — операции управления узлом хранения.
+service AdminService {
+  // Аутентификация панели/менеджера.
+  rpc Login(LoginRequest) returns (LoginResponse);
+  // Снимок метрик + история (спарклайны панели).
+  rpc GetStats(Empty) returns (StatsResponse);
+  // Реестр клиентов (email + UUID, как users в Xray).
+  rpc ListUsers(Empty) returns (ListUsersResponse);
+  rpc AddUser(AddUserRequest) returns (UserResponse);
+  rpc UpdateUser(UpdateUserRequest) returns (UserResponse);
+  rpc RemoveUser(RemoveUserRequest) returns (Empty);
+  // Активные и завершенные сессии.
+  rpc ListSessions(Empty) returns (ListSessionsResponse);
+  // Кольцо завершенных сессий (страница «Недавно завершенные»).
+  rpc ListFinishedSessions(Empty) returns (ListSessionsResponse);
+  rpc KillSession(KillSessionRequest) returns (Empty);
+  // Live-настройки транспорта и режима управления.
+  rpc GetSettings(Empty) returns (SettingsResponse);
+  rpc UpdateSettings(UpdateSettingsRequest) returns (Empty);
+  // Фильтрация таргетов (бан-листы/торренты/реклама) и DNS.
+  rpc GetFilter(Empty) returns (FilterResponse);
+  rpc UpdateFilter(FilterConfigMsg) returns (Empty);
+  rpc RefreshFilter(Empty) returns (Empty);
+  rpc GetDns(Empty) returns (DnsResponse);
+  rpc UpdateDns(DnsConfigMsg) returns (Empty);
+  // TLS: состояние сертификата и горячая замена файлов.
+  rpc GetTls(Empty) returns (TlsResponse);
+  rpc UpdateTls(TlsFiles) returns (TlsResponse);
+  rpc ReloadTls(Empty) returns (TlsResponse);
+  // Готовый конфиг клиентского модуля (serverAddr+uuid+пиннинг).
+  rpc ClientConfig(ClientConfigRequest) returns (ClientConfigResponse);
+  // Журнал (кольцо последних событий).
+  rpc GetLogs(Empty) returns (GetLogsResponse);
+}
+
+message Empty {}
+
+message LoginRequest { string token = 1; }
+message LoginResponse {
+  bool ok = 1;
+  string error = 2;
+  string version = 3;
+  int64 uptime_ms = 4;
+  string cert_fingerprint = 5;
+}
+
+message StatsResponse {
+  string version = 1;
+  int64 uptime_ms = 2;
+  int32 users = 3;
+  int32 sessions_active = 4;
+  int64 rate_up = 5;   // байт/с
+  int64 rate_down = 6;
+  int64 sessions_total = 7;
+  int64 chunks = 8;
+  int64 probes = 9;
+  int64 bytes_up = 10;
+  int64 bytes_down = 11;
+  repeated Sample history = 12; // последние 120 секунд
+  SysStats sys = 13;  // нагрузка: CPU, load, RSS, горутины, fd (панель)
+  FilterStats filter = 14; // блокировки таргетов по категориям
+  DnsStats dns = 15;       // резолвы таргетов (кэш/ошибки/отклонено)
+}
+message SysStats {
+  double cpu = 1;         // % (дельты /proc/stat, все ядра)
+  int32 cpus = 2;
+  double load1 = 3;       // load average 1/5/15
+  double load5 = 4;
+  double load15 = 5;
+  int64 mem_rss_bytes = 6;   // RSS процесса
+  int64 mem_total_bytes = 7; // память хоста (0 = неизвестно)
+  int32 goroutines = 8;
+  int32 fds = 9;
+}
+message Sample { int64 ts = 1; int64 up = 2; int64 down = 3; }
+
+message User {
+  string email = 1;
+  string uuid = 2;
+  int32 level = 3;
+  int64 expiry_unix = 4;  // 0 = бессрочно
+  int64 quota_bytes = 5;  // 0 = безлимит
+  bool disabled = 6;
+  int64 added_at = 7;
+  int64 used_bytes = 8;
+  // Live-поля (панель, 1.3.0): накопленное + живое по направлениям.
+  int64 up_bytes = 9;    // накопленный аплоад (завершенные сессии)
+  int64 down_bytes = 10; // накопленный даунлоад
+  int64 live_up = 11;    // байты активных сессий (еще не перенесены)
+  int64 live_down = 12;
+  int64 rate_up = 13;    // текущая скорость клиента, байт/с
+  int64 rate_down = 14;
+  int32 live_sessions = 15;
+}
+message ListUsersResponse { repeated User users = 1; }
+message AddUserRequest {
+  string email = 1;    // обязателен, уникален
+  string uuid = 2;     // пусто → генерация
+  int32 level = 3;
+  int64 expiry_unix = 4;
+  int64 quota_bytes = 5;
+}
+message UpdateUserRequest {
+  string email = 1;
+  optional int32 level = 2;
+  optional int64 expiry_unix = 3;
+  optional int64 quota_bytes = 4;
+  optional bool disabled = 5;
+}
+message RemoveUserRequest { string email = 1; }
+message UserResponse { User user = 1; }
+
+message Session {
+  string id = 1;       // задание BackupPC: host.jobnum.nonce
+  string user = 2;     // email владельца
+  string host = 3;
+  string target = 4;
+  int64 chunks = 5;
+  int64 up = 6;
+  int64 down = 7;
+  int64 since_ms = 8;
+  string state = 9;    // active | <terminal reason>
+  int64 rate_up = 10;   // текущая скорость сессии, байт/с (дельты снапшотов)
+  int64 rate_down = 11;
+  string target_host = 12; // таргет с реверс-DNS именем (best-effort, кэш 5 мин)
+  int64 finished_at = 13;  // unix ms; только в истории завершенных
+}
+message ListSessionsResponse { repeated Session sessions = 1; }
+message KillSessionRequest { string id = 1; }
+
+// --- Фильтрация таргетов (1.3.0) ---
+
+message FilterConfigMsg {
+  bool enabled = 1;
+  bool block_torrents = 2;
+  repeated int32 torrent_ports = 3;   // пусто = 6881..6889, 2710, 1337
+  repeated ListSource sources = 4;    // публичные бан-листы
+  repeated string custom_domains = 5; // свои домены (категория custom)
+  repeated string custom_cidrs = 6;   // свои подсети
+  int64 refresh_every_ms = 7;         // дефолт 24h
+}
+message ListSource {
+  string name = 1;
+  string url = 2;
+  string category = 3; // ads | trackers | malware | torrents | custom
+  bool enabled = 4;
+}
+message FilterStats {
+  bool enabled = 1;
+  map<string, int64> blocked = 2; // категория → число блокировок
+  int64 ports = 3;       // детализация: блокировки по портам торрентов
+  int64 handshake = 4;   // детализация: сниф BT-рукопожатий
+  int64 total = 5;
+  int32 domains = 6;     // доменных правил
+  int32 cidrs = 7;
+  int64 next_refresh = 8; // unix ms
+  repeated SourceStatus sources = 9;
+  repeated BlockedEvent recent = 10; // последние события (кольцо 100)
+}
+message SourceStatus {
+  string name = 1;
+  string url = 2;
+  string category = 3;
+  bool enabled = 4;
+  int64 entries = 5;
+  int64 last_update = 6;
+  string last_error = 7;
+  int64 fetch_ms = 8;
+}
+message BlockedEvent {
+  int64 ts = 1;
+  string user = 2;
+  string target = 3;
+  string category = 4;
+  string rule = 5;  // совпавшее правило (домен/порт/handshake)
+}
+message FilterResponse {
+  FilterConfigMsg config = 1;
+  FilterStats stats = 2;
+}
+
+// --- DNS (1.3.0) ---
+
+message DnsConfigMsg {
+  repeated string servers = 1; // пусто = системный резолвер
+  int64 timeout_ms = 2;
+  int64 cache_ttl_ms = 3;
+  int32 cache_size = 4;
+}
+message DnsStats {
+  int64 queries = 1;
+  int64 cache_hits = 2;
+  int64 failures = 3;
+  int64 blocked = 4;    // отклонено фильтром ДО резолва
+  int32 cached = 5;
+  repeated DnsTopEntry top = 6;
+  repeated string servers = 7;
+}
+message DnsTopEntry { string domain = 1; int64 count = 2; }
+message DnsResponse {
+  DnsConfigMsg config = 1;
+  DnsStats stats = 2;
+}
+
+// --- TLS (1.3.0) ---
+
+message TlsFiles {
+  string cert_file = 1; // PEM fullchain
+  string key_file = 2;  // PEM privkey
+}
+message TlsInfo {
+  string mode = 1;         // "real" | "self-signed"
+  string subject = 2;
+  string issuer = 3;
+  repeated string sans = 4;
+  int64 not_before = 5;
+  int64 not_after = 6;
+  double days_left = 7;
+  string fingerprint = 8; // SHA-256 hex (пиннинг клиентов)
+  string cert_file = 9;
+  string key_file = 10;
+}
+message TlsResponse { TlsInfo cert = 1; }
+
+message Settings {
+  // Слой 1: транспорт (поля зеркалят TransportConfig).
+  repeated string endpoint_paths = 1;
+  string host = 2;
+  string user_agent = 3;
+  int32 min_padding_size = 4;
+  int32 max_padding_size = 5;
+  int64 ping_base_interval_ms = 6;
+  int64 ping_jitter_max_ms = 7;
+  int64 balancing_interval_ms = 8;
+  int64 min_tx_threshold = 9;
+  int64 fake_upload_chunk = 10;
+  int64 max_session_duration_ms = 11;
+  int64 max_session_bytes = 12;
+  // Псевдо-бекапы BackupPC.
+  bool backuppc_enabled = 13;
+  bool backuppc_idle_only = 14;
+  int64 incremental_every_ms = 15;
+  // Слой 3: управление.
+  string management_mode = 16; // "ws" | "grpc"
+  string external_addr = 17;
+}
+message SettingsResponse { Settings settings = 1; }
+message UpdateSettingsRequest { Settings settings = 1; }
+
+message ClientConfigRequest { string email = 1; }
+message ClientConfigResponse {
+  string server_addr = 1;
+  string uuid = 2;
+  string host = 3;
+  string socks_listen = 4;
+  string cert_fingerprint = 5;
+  repeated string endpoint_paths = 6;
+}
+
+message LogEvent {
+  int64 ts = 1;
+  string level = 2;
+  string msg = 3;
+  map<string, string> attrs = 4;
+}
+message GetLogsResponse { repeated LogEvent logs = 1; }

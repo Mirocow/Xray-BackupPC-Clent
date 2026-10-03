@@ -213,10 +213,29 @@ class TransportConfig {
        rotationGrace = Duration_(rotationGrace ?? const Duration(milliseconds: 250)),
        rotationHandoff = Duration_(rotationHandoff ?? const Duration(seconds: 3));
 
+  /// Пул несущих gRPC-методов «узла хранения» по умолчанию: 10 сервисов /
+  /// 18 методов. Первые три — исходный пул ранних версий (совместимость:
+  /// ссылки со старым endpoints= продолжают работать против нового пула
+  /// сервера и наоборот).
   static const defaultEndpointPaths = [
     '/backuppc.BackupService/BackupStream',
     '/backuppc.ChunkService/PutChunk',
     '/backuppc.StorageService/UploadStream',
+    '/backuppc.ChunkService/StreamChunks',
+    '/backuppc.StorageService/WriteStream',
+    '/backuppc.StorageService/PutBlocks',
+    '/backuppc.SnapshotService/SendSnapshot',
+    '/backuppc.SnapshotService/SnapshotStream',
+    '/backuppc.RsyncService/DeltaStream',
+    '/backuppc.RsyncService/RsyncTransfer',
+    '/backuppc.ArchiveService/PutArchive',
+    '/backuppc.ArchiveService/ArchiveStream',
+    '/backuppc.DedupService/DedupStream',
+    '/backuppc.ReplicationService/ReplicateStream',
+    '/backuppc.CatalogService/IndexStream',
+    '/backuppc.CatalogService/PutIndex',
+    '/backuppc.TransferService/UploadBackup',
+    '/backuppc.TransferService/RestoreStream',
   ];
 
   /// Случайный несущий gRPC-метод из пула (каждая ротация — новый метод).

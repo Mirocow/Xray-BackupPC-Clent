@@ -1,15 +1,94 @@
 {
-  "serverAddr": "203.0.113.10:8443",
-  "uuid": "52724a0e-6d3a-4b1c-9f2e-8a7c3d5b1e90",
-  "socksListen": "127.0.0.1:1080",
-  "host": "lampa-tv.ru",
+  "listen": "0.0.0.0:8443",
+  "panelListen": "0.0.0.0:8444",
+  "certFile": "",
+  "keyFile": "",
+  "host": "backuppc.corp",
+  "adminToken": "",
+  "managementMode": "ws",
+  "externalAddr": "backuppc.corp:8443",
+  "userStore": "",
+  "users": [
+    {
+      "email": "default",
+      "uuid": "52724a0e-6d3a-4b1c-9f2e-8a7c3d5b1e90",
+      "level": 0
+    }
+  ],
+  "filter": {
+    "enabled": true,
+    "blockTorrents": true,
+    "torrentPorts": [
+      6881,
+      6882,
+      6883,
+      6884,
+      6885,
+      6886,
+      6887,
+      6888,
+      6889,
+      2710,
+      1337
+    ],
+    "sources": [
+      {
+        "name": "StevenBlack (ads+malware)",
+        "url": "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts",
+        "category": "ads",
+        "enabled": true
+      },
+      {
+        "name": "AdGuard DNS filter",
+        "url": "https://adguardteam.github.io/AdGuardDNSFilter/Filters/filter.txt",
+        "category": "ads",
+        "enabled": true
+      },
+      {
+        "name": "URLhaus (malware)",
+        "url": "https://urlhaus.abuse.ch/downloads/domains/",
+        "category": "malware",
+        "enabled": true
+      }
+    ],
+    "customDomains": [
+      "vk-block.corp"
+    ],
+    "customCIDRs": [
+      "10.77.0.0/16"
+    ],
+    "refreshEvery": "24h",
+    "fetchTimeout": "30s"
+  },
+  "dns": {
+    "servers": [
+      "1.1.1.1",
+      "8.8.8.8"
+    ],
+    "timeout": "3s",
+    "cacheTTL": "60s",
+    "cacheSize": 4096
+  },
   "endpointPaths": [
     "/backuppc.BackupService/BackupStream",
     "/backuppc.ChunkService/PutChunk",
-    "/backuppc.StorageService/UploadStream"
+    "/backuppc.StorageService/UploadStream",
+    "/backuppc.ChunkService/StreamChunks",
+    "/backuppc.StorageService/WriteStream",
+    "/backuppc.StorageService/PutBlocks",
+    "/backuppc.SnapshotService/SendSnapshot",
+    "/backuppc.SnapshotService/SnapshotStream",
+    "/backuppc.RsyncService/DeltaStream",
+    "/backuppc.RsyncService/RsyncTransfer",
+    "/backuppc.ArchiveService/PutArchive",
+    "/backuppc.ArchiveService/ArchiveStream",
+    "/backuppc.DedupService/DedupStream",
+    "/backuppc.ReplicationService/ReplicateStream",
+    "/backuppc.CatalogService/IndexStream",
+    "/backuppc.CatalogService/PutIndex",
+    "/backuppc.TransferService/UploadBackup",
+    "/backuppc.TransferService/RestoreStream"
   ],
-  "insecure": true,
-  "certFingerprint": "",
   "minPaddingSize": 32,
   "maxPaddingSize": 1400,
   "pingBaseInterval": "20s",
@@ -18,15 +97,18 @@
   "minTxThreshold": 16384,
   "maxSessionDuration": "30m",
   "maxSessionBytes": 2147483648,
-  "maxWriteChunk": 16384,
+  "maxWriteChunk": 65535,
   "fakeUploadChunk": 524288,
   "idleTimeout": "90s",
   "dialRetries": 3,
   "rotationGrace": "250ms",
   "rotationHandoff": "3s",
+  "debug": {
+    "enabled": true
+  },
   "backuppc": {
     "enabled": true,
-    "idleOnly": true,
+    "idleOnly": false,
     "incrementalEvery": "25m",
     "incrementalMinBytes": 2097152,
     "incrementalMaxBytes": 8388608,

@@ -29,8 +29,13 @@ void main() {
   group('TransportConfig', () {
     test('дефолты соответствуют ТЗ', () {
       final c = TransportConfig();
-      expect(c.endpointPaths, hasLength(3));
+      expect(c.endpointPaths, hasLength(18));
       expect(c.endpointPaths.first, '/backuppc.BackupService/BackupStream');
+      // легаси-тройка остается в пуле (совместимость со старыми серверами)
+      expect(
+          c.endpointPaths.contains('/backuppc.ChunkService/PutChunk'), isTrue);
+      expect(c.endpointPaths
+          .contains('/backuppc.StorageService/UploadStream'), isTrue);
       expect(c.minPaddingSize, 32);
       expect(c.maxPaddingSize, 1400);
       expect(c.maxWriteChunk, 65535);
