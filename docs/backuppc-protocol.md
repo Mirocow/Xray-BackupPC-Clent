@@ -10,7 +10,8 @@ Windows, Linux), а `//backuppc` отображается в интерфейс�
 альтернативный протокол в ряду vless/vmess/trojan/shadowsocks.
 
 Wire-спецификация протокола — `docs/PROTOCOL.md` в серверном репозитории
-`xray-backuppc` (источник истины, обязательный для обеих реализаций).
+`xray-backuppc` (источник истины, v1.1: IPv6-нормализация, idle-пинги,
+диал-фейл≠зонд, кадры 64 КиБ), обязательный для обеих реализаций.
 Серверная часть и веб-панель — там же.
 
 ## Архитектура в приложении
@@ -61,11 +62,12 @@ TUN/системный inbound → Xray-ядро (libXray, FFI)
 ## Скорость (8K-видео, сотни ГиБ)
 
 - пулы буферов `Uint8List` (2K/32K/128K) — без аллокаций на кадр;
-- стриминг кадрами по 16 КиБ, ротация чанков 2 ГиБ/30 мин без
+- стриминг кадрами по 64 КиБ (`maxWriteChunk` 65535, дефолт с MR !19 —
+  −75% сисколов против 16 КиБ), ротация чанков 2 ГиБ/30 мин без
   разрыва VLESS-потока (handoff 3 с);
 - вендорный http2: connection window 32 МиБ + батчинг WINDOW_UPDATE
-  (патчи протокольно-легальны, RFC 7540) — ~54 МиБ/с через один
-  POST-стрим против ~7 у апстрима;
+  (патчи протокольно-легальны, RFC 7540) — ~54 МиБ/с и выше через
+  один POST-стрим против ~7 у апстрима;
 - изолят туннеля: перенос и копирование не пересекаются с UI.
 
 Замеры: `backuppc_dart/tool/layer_bench.dart`, `tool/hash_bench.dart`;
@@ -98,7 +100,16 @@ TUN/системный inbound → Xray-ядро (libXray, FFI)
     "endpointPaths": ["/backuppc.BackupService/BackupStream", "…"],
     "minPaddingSize": 32, "maxPaddingSize": 1400,
     "maxSessionBytes": 2147483648, "maxSessionDuration": "30m",
-    "maxWriteChunk": 16384
+    "maxWriteChunk": 65535
+  },
+  "streamSettings": {
+    "security": "tls",
+    "tlsSettings": {
+      "serverName": "домен-донор",
+      "allowInsecure": false,
+      "pinnedPeerCertificateSha256": ["sha256-hex"],
+      "certFingerprint": "sha256-hex"
+    }
   }
 }
 ```
@@ -107,6 +118,27 @@ TUN/системный inbound → Xray-ядро (libXray, FFI)
 в этот же формат (и наоборот — для экспорта). `endpoints` обязателен:
 без него клиент ротирует чанки по дефолтному пулу путей, который
 сервер отвергает как проб-активность.
+
+### TLS
+
+Несущий канал — HTTP/2+TLS, встроен в протокол: `network` (транспорт)
+не настраивается, редактируется только TLS (`security: "tls"`).
+Поля `settings` (`host`, `insecure`, `certFingerprint`) и
+`streamSettings.tlsSettings` (`serverName`, `allowInsecure`,
+`pinnedPeerCertificateSha256`) — одно и то же: ядро синхронизирует их
+двусторонне при загрузке конфига (preprocess `mergeTLSSettings`),
+явные поля в `settings` выигрывают. Отпечаток сертификата
+(`fp=` в ссылке) — предпочтительный режим доверия; `insecure`
+только для тестов. uTLS-отпечаток клиента не поддерживается —
+TLS-профиль задаёт транспортная библиотека.
+
+### IPv6-таргеты
+
+Адреса вида `[2a00:…]` (формат `ipv6Address.String()` xray-core)
+нормализуются до кодирования в VLESS: скобки снимаются на клиенте,
+сервер дополнительно нормализует «домен-тип», парсящийся как IPv6.
+Иначе сервер оборачивал адрес повторно и диал падал
+(`dial tcp: address [[…]]:443: missing port`).
 
 ## Платформы
 
