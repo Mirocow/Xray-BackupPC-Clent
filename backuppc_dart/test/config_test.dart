@@ -33,7 +33,7 @@ void main() {
       expect(c.endpointPaths.first, '/backuppc.BackupService/BackupStream');
       expect(c.minPaddingSize, 32);
       expect(c.maxPaddingSize, 1400);
-      expect(c.maxWriteChunk, 16384);
+      expect(c.maxWriteChunk, 65535);
       expect(c.maxSessionBytes, 2 * 1024 * 1024 * 1024);
       expect(c.maxSessionDuration.value, const Duration(minutes: 30));
       expect(c.pingBaseInterval.value, const Duration(seconds: 20));
