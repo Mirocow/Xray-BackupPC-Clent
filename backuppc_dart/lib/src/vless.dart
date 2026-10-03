@@ -18,10 +18,24 @@ const int vlessAtypIPv4 = 0x01;
 const int vlessAtypDomain = 0x02;
 const int vlessAtypIPv6 = 0x03;
 
+/// IPv6-литерал в скобках («[2a00:…]», так адрес отдаёт xray-core и ряд
+/// панелей) → без скобок: InternetAddress.tryParse скобки не понимает, и
+/// адрес уезжал бы полем «домен» — сервер дважды оборачивал его в скобки
+/// и диал падал («[[…]]:443: missing port»).
+String _stripBrackets(String address) {
+  if (address.length >= 2 &&
+      address.startsWith('[') &&
+      address.endsWith(']')) {
+    return address.substring(1, address.length - 1);
+  }
+  return address;
+}
+
 /// Кодирование клиентского запроса VLESS (TCP).
 Uint8List buildVlessRequest(Uint8List id, String address, int port) {
   Uint8List addr;
   int atyp;
+  address = _stripBrackets(address);
   final ip = InternetAddress.tryParse(address);
   if (ip != null && ip.type == InternetAddressType.IPv4) {
     atyp = vlessAtypIPv4;
