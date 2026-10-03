@@ -91,7 +91,7 @@ type TransportConfig struct {
 
 	// --- Расширения прототипа (не входили в базовое ТЗ) ---
 
-	MaxWriteChunk int `json:"maxWriteChunk"` // Максимум payload в одном кадре, дефолт: 16384
+	MaxWriteChunk int `json:"maxWriteChunk"` // Максимум payload в одном кадре, дефолт: 65535
 	// FakeUploadChunk — объем фейкового аплоада за одно срабатывание
 	// балансировщика, дефолт: 512 KiB (ТЗ 4.2: 1024*512).
 	FakeUploadChunk int `json:"fakeUploadChunk"`
@@ -164,7 +164,10 @@ func (tc *TransportConfig) ApplyDefaults() {
 		tc.MaxSessionBytes = 2 * 1024 * 1024 * 1024
 	}
 	if tc.MaxWriteChunk == 0 {
-		tc.MaxWriteChunk = 16384
+		// 64 КиБ на кадр: вчетверо меньше gRPC-сообщений/сисколов на байт
+		// при том же фрейминге (кадр ≤ 0xFFFF + паддинг 32..1400);
+		// синхронизировано с дефолтом сервера (xray-backuppc).
+		tc.MaxWriteChunk = 65535
 	}
 	if tc.FakeUploadChunk == 0 {
 		tc.FakeUploadChunk = 512 * 1024

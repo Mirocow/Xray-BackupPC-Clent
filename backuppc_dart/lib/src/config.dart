@@ -197,7 +197,7 @@ class TransportConfig {
     Duration? maxSessionDuration,
     this.maxSessionBytes = 2 * 1024 * 1024 * 1024,
     BackupPCConfig? backuppc,
-    this.maxWriteChunk = 16384,
+    this.maxWriteChunk = 65535,
     this.fakeUploadChunk = 512 * 1024,
     Duration? idleTimeout,
     this.dialRetries = 3,
@@ -294,7 +294,10 @@ class TransportConfig {
       maxSessionDuration = const Duration_(Duration(minutes: 30));
     }
     if (maxSessionBytes == 0) maxSessionBytes = 2 * 1024 * 1024 * 1024;
-    if (maxWriteChunk == 0) maxWriteChunk = 16384;
+    if (maxWriteChunk == 0) {
+      // 64 КиБ на кадр: синхронизировано с Go-библиотекой и сервером.
+      maxWriteChunk = 65535;
+    }
     if (fakeUploadChunk == 0) fakeUploadChunk = 512 * 1024;
     if (idleTimeout.value == Duration.zero) {
       idleTimeout = const Duration_(Duration(seconds: 90));
