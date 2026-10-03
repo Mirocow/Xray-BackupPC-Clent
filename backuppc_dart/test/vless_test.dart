@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:test/test.dart';
@@ -36,6 +37,17 @@ void main() {
       expect(b.length, 1 + 16 + 1 + 1 + 2 + 1 + 16);
       expect(b.sublist(22, 38).sublist(0, 15), equals(List.filled(15, 0)));
       expect(b[37], 1);
+    });
+
+    test('IPv6 target в скобках (формат xray-core) — уходит типом 0x03', () {
+      // xray-core отдаёт ipv6Address.String() в скобках; раньше такой адрес
+      // уезжал полем «домен» и сервер дважды оборачивал его в скобки.
+      final b = buildVlessRequest(id, '[2a00:1450:4010:c0e::5e]', 443);
+      expect(b[21], 0x03);
+      expect(b.length, 1 + 16 + 1 + 1 + 2 + 1 + 16);
+      final ip = InternetAddress.fromRawAddress(
+          Uint8List.fromList(b.sublist(22, 38)));
+      expect(ip.address, '2a00:1450:4010:c0e::5e');
     });
 
     test('parseUUID: с дефисами и без', () {

@@ -42,7 +42,7 @@ func BuildVlessRequest(id [16]byte, address string, port uint16) []byte {
 	// адрес
 	var atyp byte
 	var addr []byte
-	if ip := net.ParseIP(address); ip != nil {
+	if ip := net.ParseIP(stripBrackets(address)); ip != nil {
 		if v4 := ip.To4(); v4 != nil {
 			atyp = vlessAtypIPv4
 			addr = v4
@@ -137,7 +137,18 @@ func ParseVlessRequest(r io.Reader) (*VlessTarget, error) {
 
 // Target — адрес назначения в формате dial.
 func (t *VlessTarget) Target() string {
-	return net.JoinHostPort(t.Address, strconv.Itoa(int(t.Port)))
+	return net.JoinHostPort(stripBrackets(t.Address), strconv.Itoa(int(t.Port)))
+}
+
+// stripBrackets — IPv6-литерал в скобках («[2a00:…]», так его отдаёт
+// xray-core ipv6Address.String) → без скобок: net.ParseIP скобки не
+// понимает, и адрес уезжал бы полем «домен» — сервер дважды оборачивал
+// его в скобки и диал падал («[[…]]:443: missing port»).
+func stripBrackets(address string) string {
+	if len(address) >= 2 && address[0] == '[' && address[len(address)-1] == ']' {
+		return address[1 : len(address)-1]
+	}
+	return address
 }
 
 // BuildVlessResponse — заголовок ответа сервера: [version][addons len=0].

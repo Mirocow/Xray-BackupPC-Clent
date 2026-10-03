@@ -72,6 +72,17 @@ func NormalizeJSON(xrayJSON []byte) ([]byte, []Replacement, error) {
 			autoIndex++
 		}
 
+		// TLS из vless-подобного streamSettings (кнопка «Транспорт»
+		// панели): serverName→host, allowInsecure→insecure,
+		// pinnedPeerCertificates→certFingerprint. Явные поля settings
+		// имеют приоритет; несущий HTTP/2(gRPC)-канал принадлежит
+		// протоколу, сетевые настройки streamSettings не читаются.
+		if settingsMap, ok := entry["settings"].(map[string]any); ok {
+			if stream, ok := entry["streamSettings"].(map[string]any); ok {
+				mergeTLSSettings(settingsMap, stream)
+			}
+		}
+
 		settings, err := json.Marshal(entry["settings"])
 		if err != nil {
 			return nil, nil, fmt.Errorf("backuppc preprocess: outbound %q: %w", tag, err)
@@ -101,6 +112,31 @@ func NormalizeJSON(xrayJSON []byte) ([]byte, []Replacement, error) {
 		return nil, nil, fmt.Errorf("backuppc preprocess: %w", err)
 	}
 	return patched, replacements, nil
+}
+
+// mergeTLSSettings — streamSettings.tlsSettings → настройки backuppc.
+func mergeTLSSettings(settings map[string]any, stream map[string]any) {
+	tls, ok := stream["tlsSettings"].(map[string]any)
+	if !ok {
+		return
+	}
+	if v, _ := tls["serverName"].(string); v != "" {
+		if cur, _ := settings["host"].(string); cur == "" {
+			settings["host"] = v
+		}
+	}
+	if b, _ := tls["allowInsecure"].(bool); b {
+		if _, ok := settings["insecure"]; !ok {
+			settings["insecure"] = true
+		}
+	}
+	if pins, ok := tls["pinnedPeerCertificates"].([]any); ok && len(pins) > 0 {
+		if fp, _ := pins[0].(string); fp != "" {
+			if cur, _ := settings["certFingerprint"].(string); cur == "" {
+				settings["certFingerprint"] = strings.ToLower(fp)
+			}
+		}
+	}
 }
 
 // Apply подменяет blackhole-заполнители в загруженном core.Config
