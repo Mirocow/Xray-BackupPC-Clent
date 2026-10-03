@@ -86,17 +86,17 @@ var backuppcHosts = []string{
 // «дистрибутивы» агентов: perl-скрипты классического BackupPC, Go-агенты
 // современных систем (restic/kopia-стиль), rsync-обертки.
 var backuppcUserAgents = []string{
-	"BackupPC-Agent/4.2.1 (rsync 3.2.7; linux x86_64)",
+	"BackupPC-Agent/4.4.0 (rsync 3.2.7; linux x86_64)",
 	"BackupPC-Transfer/3.3.2 (rsync 3.1.3; linux)",
 	"backup-worker/2.7 (Storage::Chunk; perl 5.36)",
 	"rsync-backup-client/3.2.7 (linux x86_64)",
-	"BackupPC-Agent/4.1.5 (rsync 3.1.4; debian 11)",
-	"BackupPC-Agent/4.3.0 (rsync 3.2.7; ubuntu 22.04)",
+	"BackupPC-Agent/4.3.1 (rsync 3.1.4; debian 11)",
+	"BackupPC-Agent/4.4.0 (rsync 3.2.7; ubuntu 22.04)",
 	"rsync/3.2.7-1ubuntu3 (protocol version 30)",
-	"restic/0.16.4 (linux amd64)",
-	"kopia/0.15.0 (linux amd64)",
-	"borgbackup/1.2.7 (linux amd64)",
-	"storaged-agent/5.3 (chunk-uploader; go1.21.5 linux/amd64)",
+	"restic/0.17.1 (linux amd64)",
+	"kopia/0.16.1 (linux amd64)",
+	"borgbackup/1.4.1 (linux amd64)",
+	"storaged-agent/6.0 (chunk-uploader; go1.24.0 linux/amd64)",
 	"pcbackupd/1.8.2 (x86_64-pc-linux-gnu)",
 }
 
