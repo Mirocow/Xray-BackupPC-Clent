@@ -16,12 +16,25 @@ void main() {
       }
     });
 
-    test('пул UA и хостов фиксирован (wire-контракт)', () {
-      expect(backuppcUserAgents, hasLength(4));
+    test('пул UA и хостов — расширенные пулы 1.4 (wire-контракт)', () {
+      expect(backuppcUserAgents.length, greaterThanOrEqualTo(12));
       expect(backuppcUserAgents.first,
           'BackupPC-Agent/4.2.1 (rsync 3.2.7; linux x86_64)');
-      expect(backuppcHosts, hasLength(20));
+      expect(backuppcHosts.length, greaterThanOrEqualTo(120));
       expect(backuppcHosts.contains('ws-support-04'), isTrue);
+      // все хосты проходят wire-валидацию задания
+      for (final h in backuppcHosts) {
+        expect(validBackupPCSessionID('$h.1174.6f3ac2b1'), isTrue,
+            reason: 'хост $h не проходит валидацию');
+      }
+      // разнообразие: 200 генераций → ≥ 60 разных хостов
+      final seen = <String>{};
+      for (var i = 0; i < 200; i++) {
+        final sid = newBackupPCSessionID();
+        expect(validBackupPCSessionID(sid), isTrue);
+        seen.add(backuppcSessionHost(sid));
+      }
+      expect(seen.length, greaterThanOrEqualTo(60));
     });
 
     test('ночное окно через полночь', () {

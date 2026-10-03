@@ -1,0 +1,20 @@
+name: backuppc_admin
+description: "BackupPC Admin — Android-клиент управления сервером xray-backuppc (панель в кармане)"
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.13.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # профиль подключения хранится локально на устройстве
+  shared_preferences: ^2.5.5
+
+dev_dependencies:
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true

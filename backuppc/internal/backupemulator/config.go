@@ -128,14 +128,37 @@ type ClientConfig struct {
 	CertFingerprint string `json:"certFingerprint"`
 }
 
+// defaultEndpointPaths — пул несущих gRPC-методов «узла хранения» по
+// умолчанию: 10 сервисов / 18 методов (bidi-стримы). Первые три —
+// исходный пул ранних версий (обратная совместимость: ссылки со старым
+// endpoints= и клиенты со старыми дефолтами продолжают работать).
+func defaultEndpointPaths() []string {
+	return []string{
+		"/backuppc.BackupService/BackupStream",
+		"/backuppc.ChunkService/PutChunk",
+		"/backuppc.StorageService/UploadStream",
+		"/backuppc.ChunkService/StreamChunks",
+		"/backuppc.StorageService/WriteStream",
+		"/backuppc.StorageService/PutBlocks",
+		"/backuppc.SnapshotService/SendSnapshot",
+		"/backuppc.SnapshotService/SnapshotStream",
+		"/backuppc.RsyncService/DeltaStream",
+		"/backuppc.RsyncService/RsyncTransfer",
+		"/backuppc.ArchiveService/PutArchive",
+		"/backuppc.ArchiveService/ArchiveStream",
+		"/backuppc.DedupService/DedupStream",
+		"/backuppc.ReplicationService/ReplicateStream",
+		"/backuppc.CatalogService/IndexStream",
+		"/backuppc.CatalogService/PutIndex",
+		"/backuppc.TransferService/UploadBackup",
+		"/backuppc.TransferService/RestoreStream",
+	}
+}
+
 // ApplyDefaults заполняет значения по умолчанию из ТЗ.
 func (tc *TransportConfig) ApplyDefaults() {
 	if len(tc.EndpointPaths) == 0 {
-		tc.EndpointPaths = []string{
-			"/backuppc.BackupService/BackupStream",  // основной bidi-стрим
-			"/backuppc.ChunkService/PutChunk",       // алиас ротации чанков
-			"/backuppc.StorageService/UploadStream", // алиас ночного «бэкапа»
-		}
+		tc.EndpointPaths = defaultEndpointPaths()
 	}
 	// UserAgent: пусто → пул агентов BackupPC (выбор при каждом dial).
 	tc.BackupPC.applyDefaults()
