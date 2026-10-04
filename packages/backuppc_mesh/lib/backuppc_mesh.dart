@@ -43,4 +43,12 @@ export 'src/discovery.dart'
         DiscoveryConfig,
         DiscoveredPeer,
         PeerConfig;
+// Фаза 3.6: ServerChunkConnection — inbound HTTP/2 POST (для hybrid mode)
+export 'src/server_chunk_connection.dart'
+    show
+        ServerChunkConnection,
+        ServerChunkListener,
+        handleInboundChunk,
+        verifyPeerHeaders,
+        parseIncomingChunk0;
 // ignore_for_file: unused_export

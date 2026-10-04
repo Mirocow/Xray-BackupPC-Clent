@@ -82,10 +82,21 @@ class MeshClient {
     // Initialize HopRouter.
     client._router = HopRouter(meshConfig);
 
-    // Hybrid mode: bind TLS listener for inbound peer chunks.
+    // Hybrid mode: bind TLS listener for inbound peer chunks (Фаза 3.6).
     if (meshConfig.role == MeshRole.hybrid ||
         meshConfig.role == MeshRole.server) {
-      log?.call('mesh hybrid: would bind TLS listener for inbound peer chunks (TODO Фаза 3.6)');
+      // v2.1-alpha: stub listener (HTTP/2 server-side требует package:http2)
+      try {
+        final listener = ServerChunkListener(
+          config: meshConfig,
+          keypair: kp,
+          log: log,
+        );
+        await listener.start();
+        log?.call('mesh hybrid: ServerChunkListener started (STUB — HTTP/2 handling TODO)');
+      } catch (e) {
+        log?.call('mesh hybrid: ServerChunkListener failed: $e');
+      }
     }
     return client;
   }
