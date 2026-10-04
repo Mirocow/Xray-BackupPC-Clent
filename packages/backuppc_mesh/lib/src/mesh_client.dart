@@ -154,25 +154,54 @@ class MeshClient {
   /// _chainDial — re-dial pattern для multihop-chain (БЕЗ VLESS addon 0x4D).
   ///
   /// Если chain.length == 1 — single-hop BackupPcLogicalConn.
-  /// Если chain.length > 1 — recursive dial:
-  ///   1. Установить соединение к hop (через BackupPcLogicalConn)
-  ///   2. Установить HTTP/2 с заголовком X-Backup-Next-Hop = next hop UUID
-  ///   3. Peer получает запрос, видит next-hop != self → forward к следующему peer
-  ///   4. Каждый hop терминирует VLESS, открывает новое TCP к следующему peer
+  /// Если chain.length > 1 — multihop-chain через X-Backup-Next-Hop header:
+  ///   1. Установить соединение к gateway (chain[0]) через BackupPcLogicalConn
+  ///   2. На каждом chunk добавляем заголовок X-Backup-Next-Hop: chain[1].peerUUID
+  ///      (gateway видит это → форвардит на chain[1] → chain[1] видит self →
+  ///       обрабатывает локально и dial target)
+  ///   3. Если chain.length > 2 — chain[1] видит X-Backup-Next-Hop: chain[1].peerUUID
+  ///      (= self), обрабатывает локально, но нужно еще forwardить к chain[2].
+  ///      К сожалению, на стороне chain[1] нужно знать весь дальнейший путь.
+  ///      В текущей реализации: multihop цепочка >2 hops требует, чтобы все
+  ///      intermediate peers сами имели route table с X-Backup-Next-Hop rules.
   ///
-  /// ВАЖНО: первый hop в chain — наш шлюз (gateway). Target = request.address.
-  /// Для chain [A, B] с target T:
-  ///   client → A (gateway, X-Backup-Next-Hop: B в запросе)
-  ///   A видит X-Backup-Next-Hop=B, не равный self → forward на B
-  ///   B видит X-Backup-Next-Hop=B == self → обрабатывает локально, dial T
+  /// VLESS addon 0x4D НЕ ИСПОЛЬЗУЕТСЯ (отказались в v2.1 — ломает back-compat).
+  ///
+  /// Privacy (PROTOCOL.md §11.9): gateway не знает final target (только
+  /// X-Backup-Next-Hop UUID для следующего hop). X-Backup-Forwarded-By
+  /// заполняется сервером при forward (для loop detection).
   Future<BackupPcLogicalConn> _chainDial(
     HopConfig gateway,
     String targetAddress,
     int targetPort,
   ) async {
-    // Single-hop path (chain.length == 1 или gateway == first/last hop)
-    if (meshConfig.chain.length == 1) {
-      final hopClientCfg = gateway.toClientConfig(baseTransport);
+    final hopClientCfg = gateway.toClientConfig(baseTransport);
+
+    // Build mesh headers for the chain
+    final meshHeaders = <(String, String)>[];
+
+    // X-Backup-Next-Hop: если chain > 1, указываем следующий hop
+    if (meshConfig.chain.length > 1) {
+      final nextHop = meshConfig.chain[1].peerUUID;
+      meshHeaders.add(('X-Backup-Next-Hop', nextHop));
+      log?.call('mesh multihop: ${meshConfig.chain.length} hops, '
+          'X-Backup-Next-Hop: $nextHop → gateway ${gateway.peerUUID}');
+    }
+
+    // X-Backup-Peer-Sig: подпись от нашего keypair (если есть)
+    // challenge = sid|idx|nonce — но sid ещё не сгенерирован на этом этапе
+    // (sid создаётся внутри BackupPcLogicalConn.dial). В v2.1-alpha: подпись
+    // добавляется на transport-уровне в MeshClient (см. TODO ниже).
+    // Полная реализация — Фаза 3.7: расширить BackupPcLogicalConn чтобы
+    // принимать callback для подписи per-chunk (sid известен только после dial).
+    if (keypair != null) {
+      // STUB: в реальной реализации здесь должна быть подпись challenge.
+      // Сейчас: пропускаем (peer-sig не отправляется).
+      // TODO Фаза 3.7: extend BackupPcLogicalConn with peer-sig callback.
+    }
+
+    if (meshHeaders.isEmpty) {
+      // Single-hop path без mesh-headers (backward-compat)
       return BackupPcLogicalConn.dial(
         cfg: hopClientCfg,
         uuid: parseUUID(gateway.uuid)!,
@@ -182,16 +211,8 @@ class MeshClient {
         log: log,
       );
     }
-    // Multihop-chain: диал на gateway с target = next peer's addr+port.
-    // gateway сам форвардит на next hop через X-Backup-Next-Hop заголовок
-    // (см. server-side RouteNextHop в meshd.go).
-    //
-    // ВАЖНО: BackupPcLogicalConn в v1.4 не поддерживает custom headers на
-    // chunk — это нужно расширить в Фазе 3 (реальная crypto + data-plane).
-    // Сейчас: single-hop fallback + логирование multihop intent.
-    log?.call('mesh multihop: ${meshConfig.chain.length} hops configured, '
-        'using single-hop dial (multihop headers TODO Фаза 3.6)');
-    final hopClientCfg = gateway.toClientConfig(baseTransport);
+
+    // Multihop path с X-Backup-Next-Hop header
     return BackupPcLogicalConn.dial(
       cfg: hopClientCfg,
       uuid: parseUUID(gateway.uuid)!,
@@ -199,6 +220,7 @@ class MeshClient {
       port: targetPort,
       tls: tls,
       log: log,
+      meshHeaders: meshHeaders,
     );
   }
 
