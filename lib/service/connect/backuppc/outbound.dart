@@ -149,3 +149,110 @@ String? backuppcShareLink(Map<String, dynamic> outbound) {
   }
   return result;
 }
+
+/// Per-app routing rules helpers (Фаза 3.3).
+///
+/// Per-app routing управляется на уровне платформы (Android per-app VPN,
+/// Windows split-tunneling via Wintun + PID lookup). MeshConfig.PerAppRules
+/// даёт admin UI управлять этими правилами через backuppc:// share-link
+/// и outbound JSON.
+///
+/// См. docs/PROTOCOL.md §11.6.3 и docs/mesh/MESH_PLAN-v2.1.md §1.6.
+library;
+
+// ignore: unused_import — добавлен для PerAppRule типа (если нужен в будущем)
+import 'package:backuppc_dart/backuppc_dart.dart' show TransportConfig;
+
+/// Извлечь perAppRules из outbound JSON.
+///
+/// Format в settings:
+///   "mesh": {
+///     "perAppRules": [
+///       {"appPackage": "com.example.app", "peerUUID": "...", "isExcluded": false},
+///       {"appPackage": "com.other.app", "isExcluded": true}  // bypass mesh (direct)
+///     ]
+///   }
+List<Map<String, dynamic>> extractPerAppRules(Map<String, dynamic> outbound) {
+  final settings = outbound['settings'];
+  if (settings is! Map<String, dynamic>) return const [];
+  final mesh = settings['mesh'];
+  if (mesh is! Map<String, dynamic>) return const [];
+  final rules = mesh['perAppRules'];
+  if (rules is! List) return const [];
+  return rules.whereType<Map<String, dynamic>>().toList(growable: false);
+}
+
+/// Применить perAppRules к outbound JSON (in-place update).
+void updatePerAppRules(
+  Map<String, dynamic> outbound,
+  List<Map<String, dynamic>> rules,
+) {
+  var settings = outbound['settings'];
+  if (settings is! Map<String, dynamic>) {
+    settings = <String, dynamic>{};
+    outbound['settings'] = settings;
+  }
+  var mesh = settings['mesh'];
+  if (mesh is! Map<String, dynamic>) {
+    mesh = <String, dynamic>{};
+    settings['mesh'] = mesh;
+  }
+  if (rules.isEmpty) {
+    mesh.remove('perAppRules');
+  } else {
+    mesh['perAppRules'] = rules;
+  }
+}
+
+/// Добавить одну per-app rule в outbound JSON.
+void addPerAppRule(
+  Map<String, dynamic> outbound, {
+  required String appPackage,
+  required String peerUUID,
+  bool isExcluded = false,
+}) {
+  final rules = extractPerAppRules(outbound);
+  // Replace if exists, otherwise add
+  final updated = rules.where((r) => r['appPackage'] != appPackage).toList();
+  updated.add({
+    'appPackage': appPackage,
+    'peerUUID': peerUUID,
+    'isExcluded': isExcluded,
+  });
+  updatePerAppRules(outbound, updated);
+}
+
+/// Удалить per-app rule по appPackage.
+void removePerAppRule(Map<String, dynamic> outbound, String appPackage) {
+  final rules = extractPerAppRules(outbound);
+  final updated = rules.where((r) => r['appPackage'] != appPackage).toList();
+  updatePerAppRules(outbound, updated);
+}
+
+/// Проверить — есть ли per-app rules в outbound.
+bool hasPerAppRules(Map<String, dynamic> outbound) {
+  return extractPerAppRules(outbound).isNotEmpty;
+}
+
+/// Найти matching rule для appPackage (для UI выделения активной).
+Map<String, dynamic>? findPerAppRule(
+  Map<String, dynamic> outbound,
+  String appPackage,
+) {
+  final rules = extractPerAppRules(outbound);
+  for (final r in rules) {
+    if (r['appPackage'] == appPackage) return r;
+  }
+  return null;
+}
+
+/// Извлечь список всех уникальных appPackages (для UI списка apps).
+List<String> extractAppPackages(Map<String, dynamic> outbound) {
+  final rules = extractPerAppRules(outbound);
+  return rules
+      .map((r) => r['appPackage'] as String?)
+      .whereType<String>()
+      .where((s) => s.isNotEmpty)
+      .toSet()
+      .toList(growable: false);
+}

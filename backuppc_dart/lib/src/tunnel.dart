@@ -43,6 +43,11 @@ class BackupPcLogicalConn implements ChunkByteReader {
   final CarrierTls tls;
   final void Function(String line)? log;
 
+  /// Mesh-extension (v1.4-mesh): HTTP/2 headers для peer-to-peer routing.
+  /// Применяются ко всем чанкам logical session (включая ротации).
+  /// См. docs/PROTOCOL.md §11.1.
+  final List<(String, String)>? meshHeaders;
+
   final SessionMetrics metrics = SessionMetrics();
 
   final List<ChunkConnection> _chunks = [];
@@ -77,6 +82,7 @@ class BackupPcLogicalConn implements ChunkByteReader {
     required this.tls,
     required ChunkConnection first,
     this.log,
+    this.meshHeaders,
   }) {
     _chunks.add(first);
     _writeCur = first;
@@ -96,6 +102,10 @@ class BackupPcLogicalConn implements ChunkByteReader {
     required int port,
     CarrierTls? tls,
     void Function(String line)? log,
+    /// Mesh-extension (v1.4-mesh, additive): optional extra HTTP/2 headers
+    /// для peer-to-peer routing. Прокидывается в ChunkConnection.dial.
+    /// См. docs/PROTOCOL.md §11.1.
+    List<(String, String)>? meshHeaders,
   }) async {
     final sessionID = newBackupPCSessionID();
     final effectiveTls = tls ?? CarrierTls.fromConfig(cfg);
@@ -114,6 +124,7 @@ class BackupPcLogicalConn implements ChunkByteReader {
           index: 0,
           tls: effectiveTls,
           log: log,
+          extraHeaders: meshHeaders,
         );
         break;
       } catch (error) {
@@ -137,6 +148,7 @@ class BackupPcLogicalConn implements ChunkByteReader {
       tls: effectiveTls,
       first: first,
       log: log,
+      meshHeaders: meshHeaders,
     );
     try {
       // первый payload чанка 0 — запрос VLESS: уходит ДО ожидания
@@ -411,6 +423,7 @@ class BackupPcLogicalConn implements ChunkByteReader {
           index: _index + 1,
           tls: tls,
           log: log,
+          extraHeaders: meshHeaders,
         );
         await fresh.responseHeaders;
         metrics.chunks += 1;

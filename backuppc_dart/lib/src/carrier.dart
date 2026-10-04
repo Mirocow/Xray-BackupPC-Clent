@@ -440,6 +440,11 @@ class ChunkConnection {
     required int index,
     CarrierTls tls = const CarrierTls(),
     void Function(String)? log,
+    /// Mesh-extension (v1.4-mesh, additive): optional extra HTTP/2 headers
+    /// для peer-to-peer routing. Используется backuppc_mesh package:
+    /// 'X-Backup-Next-Hop' (peer-UUID) и 'X-Backup-Peer-Sig' (Ed25519 подпись).
+    /// Если null или пустой — backward-compat (старый single-hop режим).
+    List<(String, String)>? extraHeaders,
   }) async {
     final (host, port) = cfg.splitServerAddr();
     if (host.isEmpty || port <= 0) {
@@ -469,6 +474,11 @@ class ChunkConnection {
         'x-backup-auth',
         backupAuthHeader(uuid, sessionID, index),
       ),
+      // Mesh-extension: добавляем extra HTTP/2 headers если переданы.
+      // См. docs/PROTOCOL.md §11.1 (X-Backup-Next-Hop, X-Backup-Peer-Sig).
+      if (extraHeaders != null)
+        for (final (name, value) in extraHeaders)
+          Header.ascii(name.toLowerCase(), value),
     ];
 
     // --- TCP ---

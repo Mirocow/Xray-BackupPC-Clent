@@ -1,0 +1,21 @@
+name: backuppc_mesh
+description: >-
+  Mesh extension for backuppc_dart (v1.4-mesh): decentralized mesh network
+  with privacy per-hop. Each node knows only its directly-configured peers.
+  Multi-hop chains via re-dial pattern (no VLESS addon 0x4D — back-compat preserved).
+  Ed25519 peer signatures via package:cryptography (FlutterFire, native crypto).
+version: 0.1.0-alpha
+publish_to: none
+
+environment:
+  sdk: ^3.5.0
+
+dependencies:
+  backuppc_dart:
+    path: ../backuppc_dart
+  cryptography: ^2.7.0
+  cryptography_flutter: ^1.0.0
+
+dev_dependencies:
+  test: ^1.25.0
+  lints: ^5.0.0
