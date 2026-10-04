@@ -36,3 +36,10 @@ export 'src/vless_server.dart'
         VlessParseException;
 export 'src/mesh_client.dart' show MeshClient;
 export 'src/keypair.dart' show MeshKeypair;
+// Фаза 1Б: auto-discovery (mDNS + DNS-SD + autoAdd + autoRemove)
+export 'src/discovery.dart'
+    show
+        DiscoveryManager,
+        DiscoveryConfig,
+        DiscoveredPeer,
+        PeerConfig;
