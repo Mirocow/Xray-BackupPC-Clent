@@ -193,27 +193,91 @@ class _MeshPeersPageState extends State<MeshPeersPage> {
                         ],
                       ),
                     )
-                  : ListView.builder(
-                      itemCount: _peers.length,
-                      itemBuilder: (ctx, i) {
-                        final p = _peers[i];
-                        return Card(
-                          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                          child: ListTile(
-                            leading: const CircleAvatar(child: Icon(Icons.router)),
-                            title: Text(p.peerUUID.substring(0, 16) + '…'),
-                            subtitle: Text('${p.serverAddr}'),
-                            trailing: IconButton(
-                              icon: const Icon(Icons.delete_outline, color: Colors.red),
-                              onPressed: () => _removePeer(p.peerUUID),
-                            ),
+                  // Collapsible sections (по запросу: все панели должны
+                  // иметь возможность сворачиваться).
+                  : ListView(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      children: [
+                        // Status summary — collapsible
+                        _CollapsibleSection(
+                          title: 'Статус',
+                          icon: Icons.info_outline,
+                          initiallyExpanded: true,
+                          child: _buildStatusGrid(theme),
+                        ),
+                        // Peers list — collapsible
+                        _CollapsibleSection(
+                          title: 'Peers (${_peers.length})',
+                          icon: Icons.router,
+                          initiallyExpanded: true,
+                          child: Column(
+                            children: _peers.map((p) {
+                              return Card(
+                                margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                child: ListTile(
+                                  leading: const CircleAvatar(child: Icon(Icons.router)),
+                                  title: Text(p.peerUUID.substring(0, 16) + '…'),
+                                  subtitle: Text('${p.serverAddr}'),
+                                  trailing: IconButton(
+                                    icon: const Icon(Icons.delete_outline, color: Colors.red),
+                                    onPressed: () => _removePeer(p.peerUUID),
+                                  ),
+                                ),
+                              );
+                            }).toList(),
                           ),
-                        );
-                      },
+                        ),
+                        // Privacy hint
+                        Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Text(
+                            'Privacy: каждый peer знает только своих directly-configured peers',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              fontStyle: FontStyle.italic,
+                              color: theme.disabledColor,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ],
                     ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showAddPeerDialog(),
         child: const Icon(Icons.add),
+      ),
+    );
+  }
+
+  Widget _buildStatusGrid(ThemeData theme) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Wrap(
+        spacing: 12,
+        runSpacing: 8,
+        children: [
+          _statusCard(theme, 'Total peers', '${_peers.length}'),
+          _statusCard(theme, 'Topology', 'full-mesh'),
+          _statusCard(theme, 'Role', 'client'),
+        ],
+      ),
+    );
+  }
+
+  Widget _statusCard(ThemeData theme, String label, String value) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      constraints: const BoxConstraints(minWidth: 120),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: theme.textTheme.bodySmall),
+          const SizedBox(height: 4),
+          Text(value, style: theme.textTheme.titleMedium),
+        ],
       ),
     );
   }
@@ -285,6 +349,42 @@ class _MeshPeersPageState extends State<MeshPeersPage> {
           ),
         ],
       ),
+    );
+  }
+}
+
+// _CollapsibleSection — простая сворачиваемая секция.
+// Использует ExpansionTile. Production: добавить persist через SharedPreferences.
+class _CollapsibleSection extends StatefulWidget {
+  final String title;
+  final IconData icon;
+  final Widget child;
+  final bool initiallyExpanded;
+
+  const _CollapsibleSection({
+    required this.title,
+    required this.icon,
+    required this.child,
+    this.initiallyExpanded = true,
+  });
+
+  @override
+  State<_CollapsibleSection> createState() => _CollapsibleSectionState();
+}
+
+class _CollapsibleSectionState extends State<_CollapsibleSection> {
+  @override
+  Widget build(BuildContext context) {
+    return ExpansionTile(
+      title: Row(
+        children: [
+          Icon(widget.icon, size: 18),
+          const SizedBox(width: 8),
+          Text(widget.title),
+        ],
+      ),
+      initiallyExpanded: widget.initiallyExpanded,
+      children: [widget.child],
     );
   }
 }
