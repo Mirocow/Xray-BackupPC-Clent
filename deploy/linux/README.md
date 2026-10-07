@@ -36,7 +36,8 @@ curl https://ifconfig.me
 `-socks 127.0.0.1:1080`, `-tun bpc0`, `-mtu 1500`, `-dns 1.1.1.1,8.8.8.8`,
 `-loglevel warning` (`backuppc-client help`).
 
-Журналы: `journalctl -u backuppc-client-tun -f`.
+Журналы: `journalctl -u backuppc-client-tun -f`. Адреса соединений (access-лог)
+в журнал не пишутся — только при `import -loglevel debug`.
 
 ## Как устроен TUN-режим
 

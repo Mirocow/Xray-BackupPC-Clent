@@ -164,3 +164,18 @@ func TestShowMasksUUID(t *testing.T) {
 		t.Errorf("show output:\n%s", s)
 	}
 }
+
+func TestAccessLogOffUnlessDebug(t *testing.T) {
+	for _, tc := range []struct {
+		level, access string
+	}{{"warning", "none"}, {"info", "none"}, {"debug", ""}} {
+		dir := importTo(t, "-loglevel", tc.level, testLink)
+		for _, f := range []string{"socks.json", "tun.json"} {
+			log := readJSON(t, filepath.Join(dir, f))["log"].(map[string]any)
+			got, _ := log["access"].(string)
+			if got != tc.access || log["loglevel"] != tc.level {
+				t.Errorf("%s/%s: log=%v", tc.level, f, log)
+			}
+		}
+	}
+}

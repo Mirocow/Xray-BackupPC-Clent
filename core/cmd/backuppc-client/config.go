@@ -34,6 +34,16 @@ const (
 // и так остаётся мимо туннеля (tun-routes: suppress_prefixlength 0).
 var loopbackCIDRs = []string{"127.0.0.0/8", "::1/128"}
 
+// logSection — журнал ядра. Access-лог (каждое соединение с адресом
+// назначения — история посещений в journald) пишется только при debug.
+func logSection(p Profile) map[string]any {
+	log := map[string]any{"loglevel": p.LogLevel}
+	if p.LogLevel != "debug" {
+		log["access"] = "none"
+	}
+	return log
+}
+
 func (p Profile) validate() error {
 	host, port, err := net.SplitHostPort(p.SocksListen)
 	if err != nil || port == "" {
@@ -81,7 +91,7 @@ func SocksConfig(o *link.Outbound, p Profile) map[string]any {
 	var portNum int
 	fmt.Sscan(port, &portNum)
 	return map[string]any{
-		"log": map[string]any{"loglevel": p.LogLevel},
+		"log": logSection(p),
 		"inbounds": []any{map[string]any{
 			"tag": tagSocks, "protocol": "socks",
 			"listen": host, "port": portNum,
@@ -111,7 +121,7 @@ func TunConfig(o *link.Outbound, p Profile) map[string]any {
 		map[string]any{"tag": tagDNSOut, "protocol": "dns",
 			"settings": map[string]any{"nonIPQuery": "reject"}})
 	return map[string]any{
-		"log": map[string]any{"loglevel": p.LogLevel},
+		"log": logSection(p),
 		"dns": map[string]any{"tag": tagDNSIn, "servers": servers},
 		"inbounds": []any{map[string]any{
 			"tag": tagTun, "protocol": "tun", "port": 0,
