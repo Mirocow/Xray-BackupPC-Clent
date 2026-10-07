@@ -33,6 +33,9 @@ dependencies:
   # backuppc protocol (pure Dart — all OneXray platforms build)
   backuppc_dart:
     path: backuppc_dart
+  # mesh-расширение (MeshSession, MeshPeersPage, MeshPicker)
+  backuppc_mesh:
+    path: packages/backuppc_mesh
   collection: ^1.19.1
   crypto: ^3.0.7
   pub_semver: ^2.2.1

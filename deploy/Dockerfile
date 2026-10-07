@@ -3,8 +3,9 @@
 # В контейнере работает backuppc-xray (ядро Xray с нативным backuppc-
 # outbound): локальный SOCKS5-вход → VLESS → gRPC/HTTP2-TLS → сервер
 # xray-backuppc (маскировка потока периодических бекапов BackupPC).
-# GUI-приложение OneXray (Flutter) использует это же ядро на десктопах,
-# контейнер покрывает серверные/беспроводные сценарии (роутеры, VPS).
+# GUI-приложение (Flutter) этот outbound не использует: узлы backuppc
+# там идут через Dart-туннель (docs/backuppc-protocol.md). Ядро с
+# нативным outbound — путь для безголовых сценариев (Linux, роутеры, VPS).
 #
 # Сборка (контекст — КОРЕНЬ репозитория):
 #   docker build -f deploy/Dockerfile -t backuppc-client .

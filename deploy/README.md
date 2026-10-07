@@ -7,8 +7,10 @@ backuppc-outbound**): локальный SOCKS5 → VLESS → gRPC/HTTP2-TLS →
 (см. `core/`), поэтому контейнер — это полноценный Xray, и обычные
 конфиги (freedom/vless/socks) работают без изменений.
 
-GUI-приложение OneXray (Flutter) использует то же ядро на десктопах;
-контейнер покрывает серверные сценарии: роутеры, VPS, шлюзы, CI.
+GUI-приложение (Flutter) нативный outbound **не использует**: узел
+`backuppc://` там компилируется в socks-outbound на локальный
+Dart-туннель (`docs/backuppc-protocol.md`). Ядро с нативным outbound —
+путь безголового клиента: Linux-хосты, роутеры, VPS, шлюзы, CI.
 
 ## Одиночный клиент
 
