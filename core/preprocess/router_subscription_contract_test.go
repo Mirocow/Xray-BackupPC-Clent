@@ -16,7 +16,7 @@ package preprocess
 import (
 	"testing"
 
-	"backuppc-core/core/outbound"
+	"backuppc-core/outbound"
 )
 
 // TestRouterSubscriptionParseOutputAccepted — JSON, которую генерирует роутер
