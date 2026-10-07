@@ -37,6 +37,8 @@ make verify-release  # проверка релизных артефактов
 # Go-эталон (контрактные тесты/bench)
 make test-ref        # все Go-тесты (библиотека + ядро)
 make build-core      # core/bin/backuppc-xray
+make deb             # безголовый Linux-клиент: dist/backuppc-client_*.deb (deploy/linux/)
+make e2e-tun         # живой прогон пакета в Docker: SOCKS + TUN + DNS
 make e2e-ref         # живой прогон: сервер + ядро + curl (SHA-256)
 ```
 

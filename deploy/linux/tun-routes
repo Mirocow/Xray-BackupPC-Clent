@@ -1,0 +1,108 @@
+#!/bin/sh
+# tun-routes — маршруты и DNS для TUN-режима backuppc-client.
+#
+#   tun-routes up    — после старта ядра (ExecStartPost)
+#   tun-routes down  — после остановки (ExecStopPost); идемпотентно
+#
+# Xray поднимает только сам интерфейс (proxy/tun/README.md), остальное здесь.
+# Схема — policy routing по образцу wg-quick:
+#
+#   pref 7740  uidrange <uid службы>  → main   ядро ходит к серверу напрямую
+#   pref 7741  main suppress_prefixlength 0    LAN и прочие точные маршруты
+#   pref 7742  → таблица 7742: default dev $TUN всё остальное — в туннель
+#
+# Петли нет без знания IP сервера: исключение — по uid процесса ядра.
+# DNS: resolvectl направляет все запросы через $TUN на $TUN_DNS; ядро
+# отвечает на них своим DNS по TCP через туннель (tun.json).
+set -eu
+
+CONF_DIR="${BACKUPPC_CLIENT_DIR:-/etc/backuppc-client}"
+SERVICE_USER="${BACKUPPC_CLIENT_USER:-backuppc-client}"
+TABLE=7742
+PREF_UID=7740
+PREF_SUPPRESS=7741
+PREF_TABLE=7742
+ADDR4=172.19.0.1/30
+ADDR6=fdfe:dcba:9876::1/126
+
+log() { echo "tun-routes: $*" >&2; }
+
+# shellcheck source=/dev/null
+. "$CONF_DIR/tun.env"
+: "${TUN_NAME:?tun.env: нет TUN_NAME}"
+: "${TUN_DNS:?tun.env: нет TUN_DNS}"
+
+families() {
+    echo 4
+    # IPv6 может быть выключен ядром (ipv6.disable=1) — тогда только v4
+    [ -e /proc/net/if_inet6 ] && echo 6
+    return 0
+}
+
+rules_del() {
+    for f in $(families); do
+        for pref in $PREF_UID $PREF_SUPPRESS $PREF_TABLE; do
+            while ip -"$f" rule del pref "$pref" 2>/dev/null; do :; done
+        done
+        ip -"$f" route flush table "$TABLE" 2>/dev/null || true
+    done
+}
+
+dns_up() {
+    # BACKUPPC_CLIENT_DNS=0 — не трогать DNS системы (тестовые стенды)
+    [ "${BACKUPPC_CLIENT_DNS:-1}" = 0 ] && return 0
+    if ! command -v resolvectl >/dev/null 2>&1; then
+        log "resolvectl не найден: DNS системы НЕ направлен в туннель"
+        return 0
+    fi
+    # shellcheck disable=SC2086 # TUN_DNS — список через пробел
+    resolvectl dns "$TUN_NAME" $TUN_DNS
+    resolvectl domain "$TUN_NAME" '~.'
+    resolvectl default-route "$TUN_NAME" true
+    resolvectl flush-caches 2>/dev/null || true
+}
+
+up() {
+    uid=$(id -u "$SERVICE_USER") || { log "нет пользователя $SERVICE_USER"; exit 1; }
+
+    i=0
+    while ! ip link show dev "$TUN_NAME" >/dev/null 2>&1; do
+        i=$((i + 1))
+        [ "$i" -gt 50 ] && { log "интерфейс $TUN_NAME не появился за 10 с"; exit 1; }
+        sleep 0.2
+    done
+
+    rules_del
+    ip addr replace "$ADDR4" dev "$TUN_NAME"
+    ip link set dev "$TUN_NAME" up
+    for f in $(families); do
+        if [ "$f" = 6 ]; then
+            ip -6 addr replace "$ADDR6" dev "$TUN_NAME" 2>/dev/null ||
+                { log "IPv6 на $TUN_NAME недоступен — только IPv4"; continue; }
+        fi
+        ip -"$f" route replace default dev "$TUN_NAME" table "$TABLE"
+        ip -"$f" rule add pref "$PREF_UID" uidrange "$uid-$uid" lookup main
+        ip -"$f" rule add pref "$PREF_SUPPRESS" lookup main suppress_prefixlength 0
+        ip -"$f" rule add pref "$PREF_TABLE" lookup "$TABLE"
+    done
+    dns_up
+    log "$TUN_NAME: весь трафик через туннель, DNS → $TUN_DNS"
+}
+
+down() {
+    rules_del
+    if command -v resolvectl >/dev/null 2>&1 && ip link show dev "$TUN_NAME" >/dev/null 2>&1; then
+        resolvectl revert "$TUN_NAME" 2>/dev/null || true
+    fi
+    command -v resolvectl >/dev/null 2>&1 && resolvectl flush-caches 2>/dev/null || true
+    log "маршруты $TUN_NAME сняты"
+}
+
+case "${1:-}" in
+up) up ;;
+down) down ;;
+*)
+    echo "usage: $0 up|down" >&2
+    exit 64
+    ;;
+esac

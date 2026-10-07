@@ -1,0 +1,29 @@
+#!/bin/sh
+set -e
+if [ "$1" = configure ]; then
+    if ! getent group backuppc-client >/dev/null; then
+        addgroup --system backuppc-client >/dev/null
+    fi
+    if ! getent passwd backuppc-client >/dev/null; then
+        adduser --system --ingroup backuppc-client --no-create-home \
+            --home /nonexistent --shell /usr/sbin/nologin backuppc-client >/dev/null
+    fi
+    install -d -m 0750 -o root -g backuppc-client /etc/backuppc-client
+    for f in link socks.json tun.json tun.env; do
+        [ -e "/etc/backuppc-client/$f" ] && chgrp backuppc-client "/etc/backuppc-client/$f"
+    done
+    if [ -d /run/systemd/system ]; then
+        systemctl daemon-reload >/dev/null || true
+        # обновление: перезапустить то, что уже работало
+        for s in backuppc-client backuppc-client-tun; do
+            systemctl try-restart "$s.service" >/dev/null 2>&1 || true
+        done
+    fi
+    if [ ! -e /etc/backuppc-client/link ]; then
+        echo "backuppc-client: импортируйте ссылку и запустите службу:"
+        echo "  sudo backuppc-client import 'backuppc://…'"
+        echo "  sudo systemctl enable --now backuppc-client       # SOCKS5 127.0.0.1:1080"
+        echo "  sudo systemctl enable --now backuppc-client-tun   # весь трафик через TUN"
+    fi
+fi
+exit 0

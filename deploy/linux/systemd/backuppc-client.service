@@ -1,0 +1,33 @@
+[Unit]
+Description=BackupPC client (SOCKS5 proxy)
+Documentation=file:///usr/share/doc/backuppc-client/README.md
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/etc/backuppc-client/socks.json
+
+[Service]
+Type=simple
+User=backuppc-client
+Group=backuppc-client
+ExecStart=/usr/bin/backuppc-xray run -config /etc/backuppc-client/socks.json
+Restart=on-failure
+RestartSec=3s
+
+# Песочница: ядру нужны только сеть и чтение конфига.
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

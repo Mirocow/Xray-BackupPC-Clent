@@ -1,0 +1,41 @@
+[Unit]
+Description=BackupPC client (system-wide VPN via TUN)
+Documentation=file:///usr/share/doc/backuppc-client/README.md
+After=network-online.target systemd-resolved.service
+Wants=network-online.target
+ConditionPathExists=/etc/backuppc-client/tun.json
+
+[Service]
+Type=simple
+User=backuppc-client
+Group=backuppc-client
+ExecStart=/usr/bin/backuppc-xray run -config /etc/backuppc-client/tun.json
+# «+» — маршруты и DNS ставятся с полными правами, ядро работает без root.
+ExecStartPost=+/usr/lib/backuppc-client/tun-routes up
+ExecStopPost=+/usr/lib/backuppc-client/tun-routes down
+Restart=on-failure
+RestartSec=3s
+
+# Создание TUN-интерфейса — единственная привилегия ядра.
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_RAW
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW
+DeviceAllow=/dev/net/tun rw
+# Ядро резолвит адрес сервера мимо туннеля: настоящие upstream-серверы
+# вместо заглушки resolved (иначе запрос ушёл бы в туннель — петля).
+BindReadOnlyPaths=-/run/systemd/resolve/resolv.conf:/etc/resolv.conf
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target
