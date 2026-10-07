@@ -27,7 +27,7 @@ DEPLOY := deploy
 	build-windows build-linux verify-release release-router \
 	debug-download debug-upload layer-bench debug-tools \
 	test-ref test-ref-race vet-ref fmt-ref fmt-ref-check lint-ref \
-	build-core deb e2e-tun e2e-ref e2e-stack loadtest \
+	build-core deb ipk e2e-tun e2e-ref e2e-stack loadtest \
 	docker-build-core docker-release-router docker-test-ref \
 	docker-test-dart docker-e2e-dart \
 	docker-build docker-up docker-down docker-stack \
@@ -135,6 +135,9 @@ $(CORE_BIN):
 
 deb: ## Пакет безголового Linux-клиента -> dist/backuppc-client_*.deb
 	GO=$(GO) deploy/linux/build-deb.sh
+
+ipk: ## OpenWrt-пакет backuppc-socks (ARCH=aarch64_cortex-a53|mipsel_24kc|arm_cortex-a7|x86_64)
+	GO=$(GO) openwrt/build-ipk.sh $(or $(ARCH),aarch64_cortex-a53)
 
 e2e-tun: ## Живой прогон deb-пакета в Docker: SOCKS + TUN + DNS (SIZE=32)
 	GO=$(GO) deploy/linux/e2e-tun.sh
