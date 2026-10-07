@@ -357,3 +357,15 @@ func socksReply(conn net.Conn, code byte) error {
         _, err := conn.Write([]byte{0x05, code, 0x00, 0x01, 0, 0, 0, 0, 0, 0})
         return err
 }
+
+// SetDialContext — установить кастомный диалер для TCP-соединений к серверу.
+// Вызывается из Xray outbound handler (core/outbound/outbound.go) после
+// создания клиента: в Process() передаётся internet.Dialer с protect().
+//
+// На Android: internet.Dialer.Dial → VpnService.protect() →
+// трафик туннеля не идёт обратно в TUN (нет петли).
+//
+// На Linux/desktop: diater=nil → стандартный net.Dialer (backward compat).
+func (c *Client) SetDialContext(d func(ctx context.Context, network, addr string) (net.Conn, error)) {
+	c.cfg.DialContext = d
+}

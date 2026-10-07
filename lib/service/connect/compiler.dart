@@ -235,11 +235,15 @@ class ConnectionCompiler {
       }
       if (settings.trafficMode == TrafficMode.custom &&
           custom is AdvancedRoutingProfile) {
+        // Android: use native backuppc outbound (no Dart tunnel).
+        // iOS/desktop: use Dart tunnel (useNativeOutbound=false).
+        final useNative = options.platform == ConnectionPlatform.android;
         final outbounds = <Map<String, dynamic>>[];
         for (final (index, entry) in entries.indexed) {
           final tag = 'app-entry-$index';
           outbounds.add(
-            _nodeWithTunnels(entry, tag, backuppcPortIt, backuppcTunnels),
+            _nodeWithTunnels(entry, tag, backuppcPortIt, backuppcTunnels,
+                useNativeOutbound: useNative),
           );
           nodeTags[tag] = entry.id;
         }
@@ -286,6 +290,9 @@ class ConnectionCompiler {
       final entriesOutbounds = <Map<String, dynamic>>[];
       final exits = <Map<String, dynamic>>[];
       final selector = <String>[];
+      // Android: native backuppc outbound (no Dart tunnel).
+      // iOS/desktop: Dart tunnel (useNativeOutbound=false).
+      final useNative = options.platform == ConnectionPlatform.android;
       for (final (index, entry) in entries.indexed) {
         final entryTag = 'app-entry-$index';
         final outbound = _nodeWithTunnels(
@@ -293,6 +300,7 @@ class ConnectionCompiler {
           entryTag,
           backuppcPortIt,
           backuppcTunnels,
+          useNativeOutbound: useNative,
         );
         nodeTags[entryTag] = entry.id;
         entriesOutbounds.add(outbound);
@@ -305,6 +313,7 @@ class ConnectionCompiler {
             exitTag,
             backuppcPortIt,
             backuppcTunnels,
+            useNativeOutbound: useNative,
           );
           setOutboundDialerProxy(exit, entryTag);
           nodeTags[exitTag] = finalExit.id;
@@ -594,14 +603,19 @@ class ConnectionCompiler {
     ResolvedServer node,
     String tag,
     Iterator<int> ports,
-    List<({int port, Map<String, dynamic> config})> tunnels,
-  ) {
+    List<({int port, Map<String, dynamic> config})> tunnels, {
+    bool useNativeOutbound = false,
+  }) {
     final outbound = _node(node, tag);
     if (!isBackupPcOutbound(outbound)) {
       return outbound;
     }
-    final replaced = _backuppcNode(outbound, tag, ports);
-    tunnels.add(replaced.tunnel!);
+    final replaced = _backuppcNode(outbound, tag, ports,
+        useNativeOutbound: useNativeOutbound);
+    // tunnel is null when useNativeOutbound=true (no Dart tunnel needed).
+    if (replaced.tunnel != null) {
+      tunnels.add(replaced.tunnel!);
+    }
     return replaced.outbound;
   }
 
