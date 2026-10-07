@@ -420,17 +420,42 @@ class ConnectionCompiler {
     );
   }
 
-  /// Узлы backuppc → Dart-туннель (SOCKS5 на 127.0.0.1): каждому узлу
-  /// выделяется порт из [backuppcPorts], outbound в Xray-конфиге —
-  /// обычный socks. Идём по списку порт-итератором.
+  /// Узлы backuppc → Dart-туннель (SOCKS5 на 127.0.0.1) или нативный
+  /// outbound ({"protocol":"backuppc"}) — зависит от платформы и настроек.
+  ///
+  /// Android + nativeOutbound=true → нативный backuppc outbound в Xray:
+  ///   - Туннель живёт в VPN foreground service (не убивается Android)
+  ///   - Один проход через TUN (вместо двух)
+  ///   - Go TLS/HTTP2 (быстрее Dart)
+  ///   - protect() вызывается через internet.DialSystem → нет TUN loop
+  ///
+  /// iOS/desktop/nativeOutbound=false → Dart-туннель (SOCKS5):
+  ///   - Каждый узел получает свой порт
+  ///   - outbound в Xray-конфиге — socks
+  ///   - Анти-петлевые правила (_backuppcDirectRules) для TUN
   static ({
     Map<String, dynamic> outbound,
     ({int port, Map<String, dynamic> config})? tunnel,
   }) _backuppcNode(
     Map<String, dynamic> outbound,
     String tag,
-    Iterator<int> ports,
-  ) {
+    Iterator<int> ports, {
+    bool useNativeOutbound = false,
+  }) {
+    // Native backuppc outbound — Xray сам делает backuppc → server.
+    // Не нужен SOCKS5, не нужен Dart-туннель, не нужен порт.
+    if (useNativeOutbound) {
+      // Оставляем outbound как есть (protocol: backuppc),
+      // только убеждаемся что tag правильный.
+      final native = <String, dynamic>{
+        ...outbound,
+        'tag': tag,
+      };
+      // tunnel = null — нет Dart-туннеля, Xray делает всё сам.
+      return (outbound: native, tunnel: null);
+    }
+
+    // Dart-туннель: SOCKS5 на 127.0.0.1 (старый путь).
     if (!ports.moveNext()) {
       throw const FormatException(
         'Не выделен локальный порт для туннеля backuppc',
