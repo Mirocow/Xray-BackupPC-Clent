@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
+import 'package:onexray/core/constants/preferences.dart';
 import 'package:onexray/core/db/database/database.dart';
 import 'package:onexray/core/pigeon/constants.dart';
 import 'package:onexray/core/pigeon/host_api.dart';
@@ -74,6 +75,21 @@ class ConnectionPreparation {
     var settings = input.connection;
     final policy = input.policy;
     final platform = connectionPlatform;
+    // Inject nativeBackuppcOutbound from app-level Preferences into
+    // per-connection ConnectionSettings. This controls whether Android
+    // uses Xray native backuppc outbound (true) or Dart tunnel (false).
+    if (platform == ConnectionPlatform.android) {
+      final nativeOutbound =
+          await PreferencesKey().readNativeBackuppcOutbound();
+      settings = ConnectionSettings.fromJson({
+        ...settings.toJson(),
+        'nativeBackuppcOutbound': nativeOutbound,
+      });
+      configuration = ConnectionConfiguration(
+        connection: settings,
+        policy: policy,
+      );
+    }
     await ConnectionPlatformRequirements(platform: platform)
         .ensureOutboundInterface(policy.xrayOutboundInterfaceName);
     final tun = policy.toTun(platform);
