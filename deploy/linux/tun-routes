@@ -12,6 +12,14 @@
 #   pref 7742  → таблица 7742: default dev $TUN всё остальное — в туннель
 #
 # Петли нет без знания IP сервера: исключение — по uid процесса ядра.
+#
+# Серверный режим (SERVER_MODE=1, import -server-mode): соединения, пришедшие
+# снаружи на интерфейс основного маршрута (uplink), помечаются conntrack-меткой
+# (nftables, таблица inet backuppc_client); ответы на них — по fwmark мимо
+# туннеля, иначе входящие подключения к сервисам хоста и опубликованным портам
+# Docker обрываются. Исходящие соединения хоста и контейнеров — в туннель.
+#
+#   pref 7739  fwmark 0x7743 → main            ответы на входящие (серверный режим)
 # DNS: resolvectl направляет все запросы через $TUN на $TUN_DNS; ядро
 # отвечает на них своим DNS по TCP через туннель (tun.json).
 set -eu
@@ -22,6 +30,9 @@ TABLE=7742
 PREF_UID=7740
 PREF_SUPPRESS=7741
 PREF_TABLE=7742
+PREF_MARK=7739
+MARK=0x7743
+NFT_TABLE=backuppc_client
 # 198.18.0.0/15 (RFC 2544, бенчмарки) — Docker и DHCP его не выдают;
 # 172.16/12 занят сетями Docker (br-*), 10/8 и 192.168/16 — LAN.
 ADDR4=198.18.0.1/30
@@ -43,11 +54,61 @@ families() {
 
 rules_del() {
     for f in $(families); do
-        for pref in $PREF_UID $PREF_SUPPRESS $PREF_TABLE; do
+        for pref in $PREF_MARK $PREF_UID $PREF_SUPPRESS $PREF_TABLE; do
             while ip -"$f" rule del pref "$pref" 2>/dev/null; do :; done
         done
         ip -"$f" route flush table "$TABLE" 2>/dev/null || true
     done
+}
+
+# uplinks — интерфейсы маршрутов по умолчанию (кроме самого TUN).
+uplinks() {
+    for f in $(families); do
+        ip -"$f" route show default table main 2>/dev/null |
+            awk '{for (i = 1; i < NF; i++) if ($i == "dev") print $(i + 1)}'
+    done | grep -vx "$TUN_NAME" | sort -u
+}
+
+server_mode_up() {
+    if ! command -v nft >/dev/null 2>&1; then
+        log "серверный режим: нужен nftables (apt install nftables)"
+        exit 1
+    fi
+    devs=$(uplinks)
+    if [ -z "$devs" ]; then
+        log "серверный режим: нет маршрута по умолчанию — не на чем различать входящие"
+        exit 1
+    fi
+    # shellcheck disable=SC2086 # devs — список через перевод строки
+    devset=$(printf '"%s", ' $devs)
+    # ct mark — на всё соединение, meta mark — на каждый ответный пакет:
+    # prerouting (ответы контейнеров через опубликованные порты), output
+    # (ответы сервисов самого хоста; type route — перемаршрутизация по метке).
+    nft -f - <<NFT
+table inet $NFT_TABLE {
+    chain prerouting {
+        type filter hook prerouting priority mangle; policy accept;
+        iifname { ${devset%, } } ct state new ct mark set $MARK
+        ct mark $MARK meta mark set ct mark
+    }
+    chain output {
+        type route hook output priority mangle; policy accept;
+        ct mark $MARK meta mark set ct mark
+    }
+}
+NFT
+    # строгий rp_filter проверял бы входящие по таблице туннеля; с
+    # src_valid_mark он учитывает метку (так же делает wg-quick)
+    sysctl -q -w net.ipv4.conf.all.src_valid_mark=1 2>/dev/null ||
+        log "src_valid_mark не установлен: при строгом rp_filter=1 входящие могут отбрасываться"
+    for f in $(families); do
+        ip -"$f" rule add pref "$PREF_MARK" fwmark "$MARK" lookup main
+    done
+    log "серверный режим: входящие через $(echo "$devs" | tr '\n' ' ')— мимо туннеля"
+}
+
+server_mode_down() {
+    command -v nft >/dev/null 2>&1 && nft delete table inet "$NFT_TABLE" 2>/dev/null || true
 }
 
 dns_up() {
@@ -82,6 +143,7 @@ up() {
     fi
 
     rules_del
+    server_mode_down
     ip addr replace "$ADDR4" dev "$TUN_NAME"
     ip link set dev "$TUN_NAME" up
     for f in $(families); do
@@ -94,12 +156,14 @@ up() {
         ip -"$f" rule add pref "$PREF_SUPPRESS" lookup main suppress_prefixlength 0
         ip -"$f" rule add pref "$PREF_TABLE" lookup "$TABLE"
     done
+    [ "${SERVER_MODE:-0}" = 1 ] && server_mode_up
     dns_up
     log "$TUN_NAME: весь трафик через туннель, DNS → $TUN_DNS"
 }
 
 down() {
     rules_del
+    server_mode_down
     if command -v resolvectl >/dev/null 2>&1 && ip link show dev "$TUN_NAME" >/dev/null 2>&1; then
         resolvectl revert "$TUN_NAME" 2>/dev/null || true
     fi

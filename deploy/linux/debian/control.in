@@ -4,7 +4,7 @@ Architecture: amd64
 Maintainer: Alexander Musikhin <dth.pto@gmail.com>
 Installed-Size: @SIZE@
 Depends: adduser, iproute2
-Recommends: systemd-resolved
+Recommends: systemd-resolved, nftables
 Section: net
 Priority: optional
 Description: headless client for the xray-backuppc tunnel

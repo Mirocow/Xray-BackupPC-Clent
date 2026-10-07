@@ -101,7 +101,7 @@ func TestTunConfig(t *testing.T) {
 	}
 
 	env, _ := os.ReadFile(filepath.Join(dir, "tun.env"))
-	for _, line := range []string{`TUN_NAME="bpctest"`, `TUN_DNS="9.9.9.9"`, `SERVER_HOST="203.0.113.7"`} {
+	for _, line := range []string{`TUN_NAME="bpctest"`, `TUN_DNS="9.9.9.9"`, `SERVER_HOST="203.0.113.7"`, "SERVER_MODE=0"} {
 		if !strings.Contains(string(env), line) {
 			t.Errorf("tun.env missing %s:\n%s", line, env)
 		}
@@ -177,5 +177,26 @@ func TestAccessLogOffUnlessDebug(t *testing.T) {
 				t.Errorf("%s/%s: log=%v", tc.level, f, log)
 			}
 		}
+	}
+}
+
+func TestServerMode(t *testing.T) {
+	dir := importTo(t, "-server-mode", testLink)
+	cfg := readJSON(t, filepath.Join(dir, "tun.json"))
+	rules := cfg["routing"].(map[string]any)["rules"].([]any)
+	last := rules[len(rules)-1].(map[string]any)
+	if last["network"] != "udp" || last["outboundTag"] != "direct" {
+		t.Errorf("server mode: UDP must go direct, got %v", last)
+	}
+	env, _ := os.ReadFile(filepath.Join(dir, "tun.env"))
+	if !strings.Contains(string(env), "SERVER_MODE=1") {
+		t.Errorf("tun.env:\n%s", env)
+	}
+	var out bytes.Buffer
+	if err := run([]string{"show", "-dir", dir}, nil, &out); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "TUN:      сервер") {
+		t.Errorf("show:\n%s", out.String())
 	}
 }

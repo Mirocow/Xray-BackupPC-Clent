@@ -71,6 +71,8 @@ const usage = `backuppc-client import [флаги] <backuppc://…|->
     -mtu N           MTU TUN (1500)
     -dns IP[,IP]     DNS через туннель, по TCP (1.1.1.1,8.8.8.8)
     -loglevel LEVEL  debug|info|warning|error|none (warning)
+    -server-mode     TUN на сервере: входящие соединения и ответы на них —
+                     мимо туннеля, UDP — напрямую (нужен nftables)
 backuppc-client show [-dir DIR]
 backuppc-client version
 `
@@ -83,6 +85,7 @@ func cmdImport(args []string, stdin io.Reader, stdout io.Writer) error {
 	mtu := fs.Int("mtu", 1500, "")
 	dns := fs.String("dns", "1.1.1.1,8.8.8.8", "")
 	logLevel := fs.String("loglevel", "warning", "")
+	serverMode := fs.Bool("server-mode", false, "")
 	fs.SetOutput(io.Discard)
 	if err := fs.Parse(args); err != nil {
 		return fmt.Errorf("import: %w\n%s", err, usage)
@@ -106,7 +109,7 @@ func cmdImport(args []string, stdin io.Reader, stdout io.Writer) error {
 	}
 	p := Profile{
 		SocksListen: *socks, TunName: *tun, TunMTU: *mtu,
-		DNS: splitList(*dns), LogLevel: *logLevel,
+		DNS: splitList(*dns), LogLevel: *logLevel, ServerMode: *serverMode,
 	}
 	if err := p.validate(); err != nil {
 		return err
@@ -170,8 +173,13 @@ func cmdShow(args []string, stdout io.Writer) error {
 	case fp == "":
 		fp = "нет (системные CA)"
 	}
-	fmt.Fprintf(stdout, "узел:     %s\nсервер:   %s\nuuid:     %s\nhost/SNI: %s\nпиннинг:  %s\n",
-		displayTag(o), o.ServerAddr, maskUUID(o.UUID), orDash(o.Host), fp)
+	mode := "десктоп (весь трафик в туннель, UDP блокируется)"
+	if env, err := os.ReadFile(filepath.Join(*dir, "tun.env")); err == nil &&
+		strings.Contains(string(env), "SERVER_MODE=1") {
+		mode = "сервер (входящие — мимо туннеля, UDP напрямую)"
+	}
+	fmt.Fprintf(stdout, "узел:     %s\nсервер:   %s\nuuid:     %s\nhost/SNI: %s\nпиннинг:  %s\nTUN:      %s\n",
+		displayTag(o), o.ServerAddr, maskUUID(o.UUID), orDash(o.Host), fp, mode)
 	return nil
 }
 

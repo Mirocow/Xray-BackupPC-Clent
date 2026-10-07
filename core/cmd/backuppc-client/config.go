@@ -15,6 +15,9 @@ type Profile struct {
 	TunMTU      int      // MTU TUN-интерфейса
 	DNS         []string // IP DNS-серверов, опрашиваются по TCP через туннель
 	LogLevel    string   // debug|info|warning|error|none
+	// ServerMode — режим для серверов (TUN): входящие соединения и ответы
+	// на них идут мимо туннеля (tun-routes), прочий UDP — напрямую.
+	ServerMode bool
 }
 
 // Теги, на которые опираются правила маршрутизации.
@@ -110,9 +113,15 @@ func SocksConfig(o *link.Outbound, p Profile) map[string]any {
 // ставит tun-routes (Xray поднимает только сам интерфейс).
 //
 // DNS: запросы на порт 53 перехватываются dns-outbound и решаются
-// встроенным DNS Xray по TCP через туннель. Прочий UDP (QUIC и т.п.)
-// блокируется — протокол переносит только TCP, клиенты откатываются на TCP.
+// встроенным DNS Xray по TCP через туннель. Прочий UDP протокол не
+// переносит: на десктопе он блокируется (QUIC откатывается на TCP, нет
+// утечки), в серверном режиме идёт напрямую (TURN, WireGuard-клиенты и т.п.
+// важнее, чем сокрытие UDP).
 func TunConfig(o *link.Outbound, p Profile) map[string]any {
+	udpTag := tagBlock
+	if p.ServerMode {
+		udpTag = tagDirect
+	}
 	servers := make([]any, 0, len(p.DNS))
 	for _, s := range p.DNS {
 		servers = append(servers, "tcp://"+s)
@@ -133,7 +142,7 @@ func TunConfig(o *link.Outbound, p Profile) map[string]any {
 				map[string]any{"inboundTag": []any{tagDNSIn}, "outboundTag": tagProxy},
 				map[string]any{"inboundTag": []any{tagTun}, "network": "udp", "port": 53, "outboundTag": tagDNSOut},
 				map[string]any{"ip": loopbackCIDRs, "outboundTag": tagDirect},
-				map[string]any{"network": "udp", "outboundTag": tagBlock},
+				map[string]any{"network": "udp", "outboundTag": udpTag},
 			},
 		},
 	}
@@ -146,6 +155,13 @@ func TunEnv(o *link.Outbound, p Profile) string {
 		host = o.ServerAddr
 	}
 	return fmt.Sprintf("# сгенерировано backuppc-client import — не править вручную\n"+
-		"TUN_NAME=%q\nTUN_DNS=%q\nSERVER_HOST=%q\n",
-		p.TunName, strings.Join(p.DNS, " "), host)
+		"TUN_NAME=%q\nTUN_DNS=%q\nSERVER_HOST=%q\nSERVER_MODE=%d\n",
+		p.TunName, strings.Join(p.DNS, " "), host, boolInt(p.ServerMode))
+}
+
+func boolInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }

@@ -10,7 +10,10 @@
 #            так же, как systemd-юнит (ambient CAP_NET_ADMIN) + tun-routes.
 #
 # Проверяется: SOCKS5 (SHA-256), TUN (SHA-256 без прокси-настроек), DNS через
-# туннель, обход петли по uid (ядро → сервер мимо туннеля), снятие маршрутов.
+# туннель, обход петли по uid (ядро → сервер мимо туннеля), снятие маршрутов;
+# серверный режим (-server-mode): входящее подключение «из интернета»
+# (10.250.0.9) получает ответ мимо туннеля, исходящие — по-прежнему в туннель,
+# UDP — напрямую. Прямой путь клиент → таргет закрыт правилом nftables (reject) в inet.
 #
 #   deploy/linux/e2e-tun.sh            # SIZE=32 (МиБ), SERVER_REPO=../xray-backuppc
 set -euo pipefail
@@ -62,6 +65,25 @@ while True:
     threading.Thread(target=serve, args=(s.accept()[0],), daemon=True).start()
 EOF
 
+cat > "$WORK/udpecho.py" <<'EOF'
+# UDP-эхо на 10.250.0.9:5300 («внешний» адрес в inet).
+import socket
+s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.bind(("10.250.0.9", 5300))
+while True:
+    d, a = s.recvfrom(2048); s.sendto(d, a)
+EOF
+
+cat > "$WORK/udpq.py" <<'EOF'
+# UDP-запрос к эхо 10.250.0.9:5300 из клиента; код 0 — ответ получен.
+import socket, sys
+s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.settimeout(3)
+s.sendto(b"ping", ("10.250.0.9", 5300))
+try:
+    sys.exit(0 if s.recv(16) == b"ping" else 1)
+except OSError:
+    sys.exit(1)
+EOF
+
 cat > "$WORK/dnsq.py" <<'EOF'
 # UDP-запрос A target.e2e к 10.250.0.53 — в клиенте уходит в TUN.
 import socket, struct, sys
@@ -76,7 +98,7 @@ echo "==> образ $IMG"
 docker build -q -t "$IMG" - >/dev/null <<'EOF'
 FROM ubuntu:24.04
 RUN apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends \
-      iproute2 python3 curl adduser ca-certificates >/dev/null && rm -rf /var/lib/apt/lists/*
+      iproute2 nftables python3 curl adduser ca-certificates >/dev/null && rm -rf /var/lib/apt/lists/*
 EOF
 
 docker network create --subnet 10.231.0.0/24 "$NET" >/dev/null
@@ -90,6 +112,9 @@ client() { docker exec bpc-client bash -c "$*"; }
 echo "==> inet: сервер :18443, таргет 10.250.0.1:18080, DNS 10.250.0.53"
 inet "ip link add svc type dummy && ip link set svc up &&
       ip addr add 10.250.0.1/32 dev svc && ip addr add 10.250.0.53/32 dev svc &&
+      ip addr add 10.250.0.9/32 dev svc &&
+      nft add table inet e2e && nft add chain inet e2e in '{ type filter hook input priority 0; }' &&
+      nft add rule inet e2e in ip saddr 10.231.0.20 ip daddr 10.250.0.1 reject &&
       mkdir -p /srv/www && cp /w/file.bin /srv/www/ &&
       cat > /srv/server.json <<J
 {\"listen\": \"0.0.0.0:18443\", \"uuid\": \"$UUID\",
@@ -97,7 +122,8 @@ inet "ip link add svc type dummy && ip link set svc up &&
 J
       (/w/backuppc-server -config /srv/server.json -data /srv/data >/srv/server.log 2>&1 &)
       (python3 -m http.server 18080 --bind 10.250.0.1 --directory /srv/www >/dev/null 2>&1 &)
-      (python3 /w/dns.py >/srv/dns.log 2>&1 &)"
+      (python3 /w/dns.py >/srv/dns.log 2>&1 &)
+      (python3 /w/udpecho.py >/srv/udp.log 2>&1 &)"
 sleep 1
 
 echo "==> client: установка пакета, import"
@@ -107,6 +133,12 @@ EPS="%2Fbackuppc.BackupService%2FBackupStream,%2Fbackuppc.ChunkService%2FPutChun
 client "backuppc-client import -dns 10.250.0.53 \
   'backuppc://$UUID@10.231.0.10:18443/?host=backup.local&insecure=1&endpoints=$EPS#e2e' &&
   backuppc-client show && ls -l /etc/backuppc-client"
+
+# Основной маршрут клиента — через inet: так «внешний» 10.250.0.9 доступен
+# напрямую (как интернет через uplink), а таргет — только через туннель.
+client "ip route replace default via 10.231.0.10 && (cd /tmp && python3 -m http.server 18090 >/dev/null 2>&1 &)"
+# входящее подключение «из интернета» к сервису клиента
+inbound() { inet "curl -s --max-time 3 -o /dev/null --interface 10.250.0.9 http://10.231.0.20:18090/"; }
 
 fail() { echo "FAIL: $*"; docker exec bpc-client sh -c 'tail -20 /tmp/core-*.log' 2>/dev/null || true; exit 1; }
 
@@ -141,10 +173,30 @@ echo "OK: TUN — $SIZE МиБ без прокси-настроек, SHA-256 с�
 ans=$(client "python3 /w/dnsq.py") || fail "DNS через туннель не ответил"
 [ "$ans" = "10.250.0.1" ] || fail "DNS: ответ $ans"
 echo "OK: DNS UDP:53 → TUN → TCP через туннель → $ans"
+client "! python3 /w/udpq.py" || fail "десктоп: прочий UDP не заблокирован"
+echo "OK: прочий UDP заблокирован"
+! inbound || fail "десктоп: входящее подключение неожиданно прошло"
+echo "OK: без серверного режима ответы на входящие уходят в туннель (ожидаемо)"
+
+echo "==> серверный режим: import -server-mode, перезапуск"
+client "/usr/lib/backuppc-client/tun-routes down >/dev/null 2>&1; pkill -f 'config /etc/backuppc-client/[t]un.json'; sleep 0.5
+  backuppc-client import -server-mode -dns 10.250.0.53 - < /etc/backuppc-client/link >/dev/null &&
+  backuppc-client show | tail -1"
+core tun
+client "BACKUPPC_CLIENT_DNS=0 /usr/lib/backuppc-client/tun-routes up"
+client "ip rule | grep -E '^7739'; nft list table inet backuppc_client | grep -E 'iifname|meta mark'"
+inbound || fail "сервер: входящее подключение не получило ответ"
+echo "OK: входящее подключение «из интернета» — ответ мимо туннеля"
+got=$(client "curl -sS --max-time 120 http://10.250.0.1:18080/file.bin | sha256sum | cut -d' ' -f1")
+[ "$got" = "$SHA" ] || fail "сервер: исходящие не через туннель"
+echo "OK: исходящие по-прежнему через туннель (SHA-256 совпал)"
+client "python3 /w/udpq.py" || fail "сервер: UDP напрямую не работает"
+echo "OK: UDP — напрямую"
 
 echo "==> tun-routes down"
 client "/usr/lib/backuppc-client/tun-routes down"
-client "! ip rule | grep -qE '^774[0-2]'" || fail "правила не сняты"
+client "! ip rule | grep -qE '^77(39|4[0-2])'" || fail "правила не сняты"
+client "! nft list table inet backuppc_client >/dev/null 2>&1" || fail "nft-таблица не снята"
 client "! curl -s --max-time 3 -o /dev/null http://10.250.0.1:18080/" || fail "после down таргет доступен"
 echo "OK: маршруты сняты"
 
