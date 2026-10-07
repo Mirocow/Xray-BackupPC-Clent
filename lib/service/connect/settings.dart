@@ -113,6 +113,11 @@ class ConnectionSettings {
   final TrafficMode trafficMode;
   final int? customId;
   final SmartRoutingSettings smart;
+  /// Native backuppc outbound on Android: Xray handles backuppc protocol
+  /// directly in VPN process (no Dart tunnel, single TUN pass, Go TLS).
+  /// Default: true on Android, false on iOS/desktop.
+  /// User can disable to fall back to Dart tunnel (troubleshooting).
+  final bool nativeBackuppcOutbound;
 
   ConnectionSettings({
     this.expert = false,
@@ -121,6 +126,7 @@ class ConnectionSettings {
     this.trafficMode = TrafficMode.smart,
     this.customId,
     SmartRoutingSettings? smart,
+    this.nativeBackuppcOutbound = true,
   }) : smart = smart ?? SmartRoutingSettings();
 
   factory ConnectionSettings.fromJson(Map<String, dynamic> value) =>
@@ -137,6 +143,8 @@ class ConnectionSettings {
         smart: SmartRoutingSettings.fromJson(
           value['smart'] as Map<String, dynamic>? ?? {},
         ),
+        nativeBackuppcOutbound:
+            value['nativeBackuppcOutbound'] as bool? ?? true,
       );
 
   Map<String, dynamic> toJson() => {
@@ -146,6 +154,7 @@ class ConnectionSettings {
     'trafficMode': trafficMode.name,
     'customId': customId,
     'smart': smart.toJson(),
+    'nativeBackuppcOutbound': nativeBackuppcOutbound,
   };
 
   int requiredEntries({int? customEntryCount}) {

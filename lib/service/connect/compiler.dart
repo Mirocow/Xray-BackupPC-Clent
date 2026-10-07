@@ -237,7 +237,8 @@ class ConnectionCompiler {
           custom is AdvancedRoutingProfile) {
         // Android: use native backuppc outbound (no Dart tunnel).
         // iOS/desktop: use Dart tunnel (useNativeOutbound=false).
-        final useNative = options.platform == ConnectionPlatform.android;
+        final useNative = options.platform == ConnectionPlatform.android &&
+            settings.nativeBackuppcOutbound;
         final outbounds = <Map<String, dynamic>>[];
         for (final (index, entry) in entries.indexed) {
           final tag = 'app-entry-$index';
@@ -292,7 +293,8 @@ class ConnectionCompiler {
       final selector = <String>[];
       // Android: native backuppc outbound (no Dart tunnel).
       // iOS/desktop: Dart tunnel (useNativeOutbound=false).
-      final useNative = options.platform == ConnectionPlatform.android;
+      final useNative = options.platform == ConnectionPlatform.android &&
+            settings.nativeBackuppcOutbound;
       for (final (index, entry) in entries.indexed) {
         final entryTag = 'app-entry-$index';
         final outbound = _nodeWithTunnels(
