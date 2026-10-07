@@ -22,7 +22,9 @@ TABLE=7742
 PREF_UID=7740
 PREF_SUPPRESS=7741
 PREF_TABLE=7742
-ADDR4=172.19.0.1/30
+# 198.18.0.0/15 (RFC 2544, бенчмарки) — Docker и DHCP его не выдают;
+# 172.16/12 занят сетями Docker (br-*), 10/8 и 192.168/16 — LAN.
+ADDR4=198.18.0.1/30
 ADDR6=fdfe:dcba:9876::1/126
 
 log() { echo "tun-routes: $*" >&2; }
@@ -71,6 +73,13 @@ up() {
         [ "$i" -gt 50 ] && { log "интерфейс $TUN_NAME не появился за 10 с"; exit 1; }
         sleep 0.2
     done
+
+    # адрес не должен пересекаться с чужим интерфейсом (иначе сломаем его сеть)
+    busy=$(ip -o -4 addr show to "$ADDR4" | awk -v t="$TUN_NAME" '$2 != t {print $2}')
+    if [ -n "$busy" ]; then
+        log "адрес $ADDR4 уже занят интерфейсом $busy — TUN не настроен"
+        exit 1
+    fi
 
     rules_del
     ip addr replace "$ADDR4" dev "$TUN_NAME"
