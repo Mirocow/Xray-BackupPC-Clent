@@ -24,6 +24,7 @@ class SettingsPageState {
   final String xrayVersion;
   final AppIcon appIcon;
   final bool connectOnLaunch;
+  final bool nativeBackuppcOutbound;
   final bool loading;
   final bool saving;
   final bool checkingUpdate;
@@ -34,6 +35,7 @@ class SettingsPageState {
     this.xrayVersion = '—',
     this.appIcon = AppIcon.primary,
     this.connectOnLaunch = false,
+    this.nativeBackuppcOutbound = true,
     this.loading = true,
     this.saving = false,
     this.checkingUpdate = false,
@@ -46,6 +48,7 @@ class SettingsPageState {
     String? xrayVersion,
     AppIcon? appIcon,
     bool? connectOnLaunch,
+    bool? nativeBackuppcOutbound,
     bool? loading,
     bool? saving,
     bool? checkingUpdate,
@@ -57,6 +60,8 @@ class SettingsPageState {
     xrayVersion: xrayVersion ?? this.xrayVersion,
     appIcon: appIcon ?? this.appIcon,
     connectOnLaunch: connectOnLaunch ?? this.connectOnLaunch,
+    nativeBackuppcOutbound:
+        nativeBackuppcOutbound ?? this.nativeBackuppcOutbound,
     loading: loading ?? this.loading,
     saving: saving ?? this.saving,
     checkingUpdate: checkingUpdate ?? this.checkingUpdate,
@@ -103,12 +108,15 @@ class SettingsController extends PageCubit<SettingsPageState> {
   Future<void> _readPreferences() async {
     try {
       final connect = await PreferencesKey().readConnectOnAppLaunch();
+      final nativeOutbound =
+          await PreferencesKey().readNativeBackuppcOutbound();
       final icon = showAppIcon
           ? AppIcon.fromString(await AppHostApi().getCurrentAppIcon())
           : null;
       emit(
         state.copyWith(
           connectOnLaunch: connect,
+          nativeBackuppcOutbound: nativeOutbound,
           appIcon: icon ?? AppIcon.primary,
           loading: false,
         ),
@@ -116,6 +124,14 @@ class SettingsController extends PageCubit<SettingsPageState> {
     } catch (error) {
       emit(state.copyWith(loading: false, failure: error));
     }
+  }
+
+  /// Toggle native backuppc outbound (Android only).
+  /// When enabled: Xray handles backuppc protocol directly in VPN process.
+  /// When disabled: Dart tunnel fallback (same as iOS/desktop).
+  Future<void> toggleNativeBackuppcOutbound(bool value) async {
+    await PreferencesKey().saveNativeBackuppcOutbound(value);
+    emit(state.copyWith(nativeBackuppcOutbound: value));
   }
 
   Future<void> openSetting(

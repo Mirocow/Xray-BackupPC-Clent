@@ -235,11 +235,16 @@ class ConnectionCompiler {
       }
       if (settings.trafficMode == TrafficMode.custom &&
           custom is AdvancedRoutingProfile) {
+        // Android: use native backuppc outbound (no Dart tunnel).
+        // iOS/desktop: use Dart tunnel (useNativeOutbound=false).
+        final useNative = options.platform == ConnectionPlatform.android &&
+            settings.nativeBackuppcOutbound;
         final outbounds = <Map<String, dynamic>>[];
         for (final (index, entry) in entries.indexed) {
           final tag = 'app-entry-$index';
           outbounds.add(
-            _nodeWithTunnels(entry, tag, backuppcPortIt, backuppcTunnels),
+            _nodeWithTunnels(entry, tag, backuppcPortIt, backuppcTunnels,
+                useNativeOutbound: useNative),
           );
           nodeTags[tag] = entry.id;
         }
@@ -286,6 +291,10 @@ class ConnectionCompiler {
       final entriesOutbounds = <Map<String, dynamic>>[];
       final exits = <Map<String, dynamic>>[];
       final selector = <String>[];
+      // Android: native backuppc outbound (no Dart tunnel).
+      // iOS/desktop: Dart tunnel (useNativeOutbound=false).
+      final useNative = options.platform == ConnectionPlatform.android &&
+            settings.nativeBackuppcOutbound;
       for (final (index, entry) in entries.indexed) {
         final entryTag = 'app-entry-$index';
         final outbound = _nodeWithTunnels(
@@ -293,6 +302,7 @@ class ConnectionCompiler {
           entryTag,
           backuppcPortIt,
           backuppcTunnels,
+          useNativeOutbound: useNative,
         );
         nodeTags[entryTag] = entry.id;
         entriesOutbounds.add(outbound);
@@ -305,6 +315,7 @@ class ConnectionCompiler {
             exitTag,
             backuppcPortIt,
             backuppcTunnels,
+            useNativeOutbound: useNative,
           );
           setOutboundDialerProxy(exit, entryTag);
           nodeTags[exitTag] = finalExit.id;
@@ -420,17 +431,42 @@ class ConnectionCompiler {
     );
   }
 
-  /// Узлы backuppc → Dart-туннель (SOCKS5 на 127.0.0.1): каждому узлу
-  /// выделяется порт из [backuppcPorts], outbound в Xray-конфиге —
-  /// обычный socks. Идём по списку порт-итератором.
+  /// Узлы backuppc → Dart-туннель (SOCKS5 на 127.0.0.1) или нативный
+  /// outbound ({"protocol":"backuppc"}) — зависит от платформы и настроек.
+  ///
+  /// Android + nativeOutbound=true → нативный backuppc outbound в Xray:
+  ///   - Туннель живёт в VPN foreground service (не убивается Android)
+  ///   - Один проход через TUN (вместо двух)
+  ///   - Go TLS/HTTP2 (быстрее Dart)
+  ///   - protect() вызывается через internet.DialSystem → нет TUN loop
+  ///
+  /// iOS/desktop/nativeOutbound=false → Dart-туннель (SOCKS5):
+  ///   - Каждый узел получает свой порт
+  ///   - outbound в Xray-конфиге — socks
+  ///   - Анти-петлевые правила (_backuppcDirectRules) для TUN
   static ({
     Map<String, dynamic> outbound,
     ({int port, Map<String, dynamic> config})? tunnel,
   }) _backuppcNode(
     Map<String, dynamic> outbound,
     String tag,
-    Iterator<int> ports,
-  ) {
+    Iterator<int> ports, {
+    bool useNativeOutbound = false,
+  }) {
+    // Native backuppc outbound — Xray сам делает backuppc → server.
+    // Не нужен SOCKS5, не нужен Dart-туннель, не нужен порт.
+    if (useNativeOutbound) {
+      // Оставляем outbound как есть (protocol: backuppc),
+      // только убеждаемся что tag правильный.
+      final native = <String, dynamic>{
+        ...outbound,
+        'tag': tag,
+      };
+      // tunnel = null — нет Dart-туннеля, Xray делает всё сам.
+      return (outbound: native, tunnel: null);
+    }
+
+    // Dart-туннель: SOCKS5 на 127.0.0.1 (старый путь).
     if (!ports.moveNext()) {
       throw const FormatException(
         'Не выделен локальный порт для туннеля backuppc',
@@ -569,14 +605,19 @@ class ConnectionCompiler {
     ResolvedServer node,
     String tag,
     Iterator<int> ports,
-    List<({int port, Map<String, dynamic> config})> tunnels,
-  ) {
+    List<({int port, Map<String, dynamic> config})> tunnels, {
+    bool useNativeOutbound = false,
+  }) {
     final outbound = _node(node, tag);
     if (!isBackupPcOutbound(outbound)) {
       return outbound;
     }
-    final replaced = _backuppcNode(outbound, tag, ports);
-    tunnels.add(replaced.tunnel!);
+    final replaced = _backuppcNode(outbound, tag, ports,
+        useNativeOutbound: useNativeOutbound);
+    // tunnel is null when useNativeOutbound=true (no Dart tunnel needed).
+    if (replaced.tunnel != null) {
+      tunnels.add(replaced.tunnel!);
+    }
     return replaced.outbound;
   }
 

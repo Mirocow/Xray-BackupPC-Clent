@@ -187,6 +187,24 @@ class PreferencesKey {
     await _prefs.setString(_languageCode, value);
   }
 
+  // ─── Native backuppc outbound (Android) ────────────────────────────
+  //
+  // When true (default): Android uses Xray native backuppc outbound —
+  //   tunnel lives in VPN foreground service, single TUN pass, Go TLS.
+  // When false: Android uses Dart tunnel (SOCKS5) — fallback for
+  //   troubleshooting, same path as iOS/desktop.
+  static const _nativeBackuppcOutbound = "${_namespace}nativeBackuppcOutbound";
+
+  Future<bool> readNativeBackuppcOutbound() async {
+    final value = await _prefs.getBool(_nativeBackuppcOutbound);
+    // Default: true — native outbound is preferred on Android.
+    return value ?? true;
+  }
+
+  Future<void> saveNativeBackuppcOutbound(bool value) async {
+    await _prefs.setBool(_nativeBackuppcOutbound, value);
+  }
+
   Future<void> clearUserDataPreferences() async {
     await Future.wait([
       _prefs.remove('app2.runningConfigId'),
