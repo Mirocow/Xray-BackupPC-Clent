@@ -12,8 +12,12 @@ ROOT=$(cd "$HERE/../.." && pwd)
 GO="${GO:-go}"
 
 if [ -z "${VERSION:-}" ]; then
+    # время коммита (UTC) — монотонно растёт; хеш только для справки
+    # (сравнение dpkg по одному хешу дало бы «понижение» версии)
+    stamp=$(TZ=UTC0 git -C "$ROOT" log -1 --date=format-local:%Y%m%d%H%M%S --format=%cd 2>/dev/null ||
+        date -u +%Y%m%d%H%M%S)
     rev=$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)
-    VERSION="0.1.0~git$(date -u +%Y%m%d).$rev"
+    VERSION="0.1.0~git$stamp.g$rev"
 fi
 
 OUT="$ROOT/dist"
