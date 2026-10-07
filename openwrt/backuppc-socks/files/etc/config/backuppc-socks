@@ -1,0 +1,10 @@
+# backuppc-socks: одна секция instance — один сервер (отдельный процесс и порт).
+# Ссылка — панель сервера → «Клиенты» → «Конфиг клиента».
+# В podkop: секция с proxy-ссылкой socks5://127.0.0.1:<порт>
+# (несколько серверов — URLTest/Selector из нескольких socks5-ссылок).
+
+config instance 'main'
+	option enabled '0'
+	option link ''
+	option listen '127.0.0.1:1080'
+	option loglevel 'warn'

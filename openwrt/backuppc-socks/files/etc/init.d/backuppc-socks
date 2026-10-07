@@ -1,0 +1,54 @@
+#!/bin/sh /etc/rc.common
+# backuppc-socks — SOCKS5-клиенты backuppc (procd), по процессу на секцию instance.
+
+USE_PROCD=1
+START=95
+STOP=10
+
+PROG=/usr/bin/backuppc-socks
+RUN_DIR=/var/run/backuppc-socks
+
+start_instance() {
+	local section="$1" enabled link listen loglevel
+	config_get_bool enabled "$section" enabled 0
+	config_get link "$section" link
+	config_get listen "$section" listen "127.0.0.1:1080"
+	config_get loglevel "$section" loglevel "warn"
+
+	[ "$enabled" = 1 ] || return 0
+	if [ -z "$link" ]; then
+		logger -t backuppc-socks "$section: не задана ссылка (option link) — пропуск"
+		return 0
+	fi
+
+	# ссылка (с UUID) — в файле 0600, не в аргументах (видны в ps)
+	local link_file="$RUN_DIR/$section.link"
+	(umask 077 && printf '%s\n' "$link" > "$link_file")
+	chown nobody "$link_file"
+	if ! "$PROG" -check -link-file "$link_file" -listen "$listen" >/dev/null 2>&1; then
+		logger -t backuppc-socks "$section: некорректная ссылка или listen=$listen — пропуск"
+		"$PROG" -check -link-file "$link_file" -listen "$listen" 2>&1 | logger -t backuppc-socks
+		rm -f "$link_file"
+		return 0
+	fi
+
+	procd_open_instance "$section"
+	procd_set_param command "$PROG" -link-file "$link_file" -listen "$listen" -loglevel "$loglevel"
+	procd_set_param user nobody
+	procd_set_param respawn 3600 5 0
+	procd_set_param stdout 1
+	procd_set_param stderr 1
+	procd_close_instance
+}
+
+start_service() {
+	mkdir -p "$RUN_DIR"
+	chmod 0711 "$RUN_DIR"
+	rm -f "$RUN_DIR"/*.link
+	config_load backuppc-socks
+	config_foreach start_instance instance
+}
+
+service_triggers() {
+	procd_add_reload_trigger backuppc-socks
+}

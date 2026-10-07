@@ -1,0 +1,15 @@
+#!/bin/sh
+set -e
+if [ "$1" = purge ]; then
+    rm -rf /etc/backuppc-client
+    if getent passwd backuppc-client >/dev/null; then
+        deluser --system backuppc-client >/dev/null 2>&1 || true
+    fi
+    if getent group backuppc-client >/dev/null; then
+        delgroup --system backuppc-client >/dev/null 2>&1 || true
+    fi
+fi
+if [ -d /run/systemd/system ]; then
+    systemctl daemon-reload >/dev/null 2>&1 || true
+fi
+exit 0

@@ -1,0 +1,14 @@
+Package: backuppc-client
+Version: @VERSION@
+Architecture: amd64
+Maintainer: Alexander Musikhin <dth.pto@gmail.com>
+Installed-Size: @SIZE@
+Depends: adduser, iproute2
+Recommends: systemd-resolved, nftables
+Section: net
+Priority: optional
+Description: headless client for the xray-backuppc tunnel
+ Xray core with the native backuppc outbound plus a small configurator.
+ Imports a backuppc:// link from the server panel and runs either as a
+ local SOCKS5 proxy (backuppc-client.service) or as a system-wide VPN
+ over a TUN interface (backuppc-client-tun.service).

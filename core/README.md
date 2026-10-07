@@ -2,10 +2,17 @@
 
 Этот модуль встраивает транспортный протокол **backuppc** (модуль
 [`../backuppc`](../backuppc)) в **ядро Xray-core** как полноценный
-outbound-протокол — наравне с vless/vmess/trojan. Приложение OneXray
-работает с backuppc-сервером как с **еще одним дополнительным протоколом**:
-share-ссылка `backuppc://`, outbound JSON `{"protocol": "backuppc"}`,
-роутинг по тегу, метрики и URL-тесты — все штатные механизмы Xray.
+outbound-протокол — наравне с vless/vmess/trojan: share-ссылка
+`backuppc://`, outbound JSON `{"protocol": "backuppc"}`, роутинг по тегу,
+метрики и URL-тесты — все штатные механизмы Xray.
+
+> **Кто использует.** Нативный outbound — продуктовый путь безголового
+> клиента (`cmd/backuppc-xray`: Linux, роутеры, контейнеры). GUI-приложение
+> (Flutter) его **не использует**: там узел `backuppc://` компилируется в
+> socks-outbound на локальный Dart-туннель (`lib/service/connect/compiler.dart`,
+> `docs/backuppc-protocol.md`). В libXray приложения outbound тоже
+> вкомпилирован, но срабатывает только для «сырого» JSON-узла с
+> `"protocol": "backuppc"`.
 
 ```
  приложение OneXray                     ядро Xray (libXray + backuppc-core)         сервер
