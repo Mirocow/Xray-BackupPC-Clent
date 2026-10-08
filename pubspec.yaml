@@ -4,12 +4,8 @@ publish_to: "none"
 version: 26.9.3+1
 
 environment:
-  # Lower bound relaxed from 3.13.0 → 3.5.0 to support macOS 13
-  # (Ventura) where the latest compatible Flutter is 3.24.5 (Dart 3.5.4).
-  # Flutter 3.27+ bumped min macOS to 14.0 — keeping 3.13.0 here would
-  # make the project unbuildable on macOS 13 without any actual use of
-  # 3.13-specific syntax. CI on macOS 14+ runners uses latest stable,
-  # which still satisfies this constraint.
+  # The lower bound also sets the Dart language version: the app uses
+  # 3.8+ features (null-aware elements etc.), so it cannot go below this.
   sdk: ">=3.13.0 <4.0.0"
 
 dependencies:
