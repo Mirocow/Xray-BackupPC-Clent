@@ -11,8 +11,11 @@ environment:
   sdk: ^3.5.0
 
 dependencies:
+  # Path goes up 2 levels: packages/backuppc_mesh → packages → repo root,
+  # then into backuppc_dart. Was ../backuppc_dart (1 level) which resolved
+  # to packages/backuppc_dart/ — directory doesn't exist.
   backuppc_dart:
-    path: ../backuppc_dart
+    path: ../../backuppc_dart
   cryptography: ^2.7.0
   cryptography_flutter: ^1.0.0
 
