@@ -78,10 +78,18 @@ case "$os" in
             echo "install: дождитесь окончания установки Command Line Tools и запустите скрипт повторно"
             exit 0
         fi
-        # Install Python 3.12 via uv (system Python on macOS 13 is 3.9,
-        # project requires >=3.12 per build_scripts/pyproject.toml).
-        echo "install: uv python install 3.12 (for build_scripts)"
-        uv python install 3.12
+        # Python 3.12 — project requires >=3.12 per pyproject.toml.
+        # Prefer asdf (if installed via brew/asdf) else uv-managed.
+        if command -v asdf >/dev/null 2>&1; then
+            echo "install: asdf install python 3.12.15"
+            asdf install python 3.12.15
+            asdf local python 3.12.15
+        else
+            echo "install: uv python install 3.12 (no asdf)"
+            uv python install 3.12
+        fi
+        # uv venv from pyproject.toml (works with both asdf-managed and
+        # uv-managed Python 3.12).
         uv sync --project build_scripts --python 3.12
         ;;
     linux)
@@ -101,21 +109,31 @@ case "$os" in
             export PATH="/usr/local/go/bin:$PATH"
             echo 'export PATH="/usr/local/go/bin:$PATH"' >> "$HOME/.profile"
         fi
-        # uv (Python package manager) — install via curl installer.
-        # uv installs to $HOME/.local/bin/uv (modern) — add to PATH.
-        if ! command -v uv >/dev/null 2>&1; then
-            echo "install: uv не найден — ставим"
-            curl -LsSf https://astral.sh/uv/install.sh | sh
-            export PATH="$HOME/.local/bin:$PATH"
+        # Python 3.12 — project requires >=3.12 per pyproject.toml.
+        # Prefer asdf (user's existing tool) if installed, else uv.
+        if command -v asdf >/dev/null 2>&1; then
+            echo "install: asdf install python 3.12.15"
+            asdf install python 3.12.15
+            # asdf local creates/updates .tool-versions (already in repo)
+            asdf local python 3.12.15
+        else
+            # Fallback: install uv, use uv-managed Python 3.12
+            if ! command -v uv >/dev/null 2>&1; then
+                echo "install: uv не найден — ставим (asdf не обнаружен)"
+                curl -LsSf https://astral.sh/uv/install.sh | sh
+                export PATH="$HOME/.local/bin:$PATH"
+            fi
+            echo "install: uv python install 3.12 (no asdf)"
+            uv python install 3.12
         fi
-        # Install Python 3.12 via uv (project requires >=3.12 per
-        # build_scripts/pyproject.toml; system python3 on Linux distros
-        # is often older — 3.6/3.7/3.8 — and lacks walrus operator /
-        # other modern features that build_scripts/ uses).
-        echo "install: uv python install 3.12 (for build_scripts)"
-        uv python install 3.12
-        # Create venv with Python 3.12 in build_scripts/.venv
-        uv sync --project build_scripts --python 3.12
+        # uv venv — used by build_scripts (declared in pyproject.toml [tool.uv]).
+        # Works with both asdf-managed and uv-managed Python 3.12.
+        if command -v uv >/dev/null 2>&1; then
+            echo "install: uv sync --project build_scripts --python 3.12"
+            uv sync --project build_scripts --python 3.12
+        else
+            echo "install: uv не установлен — build scripts используют системный python3 (требуется 3.12+)" >&2
+        fi
         # Build essentials (cmake, ninja, pkg-config, clang) — needed for
         # building native deps (libsqlite3, etc.) via Flutter plugins.
         case "$linux_distro" in

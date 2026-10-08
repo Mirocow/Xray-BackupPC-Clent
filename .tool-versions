@@ -1,0 +1,8 @@
+# asdf tool-versions — used by install.sh + asdf users to pin Python
+# version for this project. asdf reads this file automatically when
+# entering the directory (after `asdf install`).
+#
+# Python 3.12.x is required by build_scripts/pyproject.toml
+# (requires-python = ">=3.12"). Latest 3.12.x as of late 2025 is
+# 3.12.15 — stable, widely available in asdf.
+python 3.12.15
