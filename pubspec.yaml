@@ -36,7 +36,9 @@ dependencies:
 
   #---------- dart.dev plugin
   # core
-  path: ^1.9.1
+  # Pinned to ^1.9.0 (not ^1.9.1) to match flutter_test's SDK pin on
+  # path 1.9.0 — ^1.9.1 would conflict with flutter_test from sdk.
+  path: ^1.9.0
 
   # backuppc protocol (pure Dart — all OneXray platforms build)
   backuppc_dart:
