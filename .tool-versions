@@ -1,8 +1,16 @@
-# asdf tool-versions — used by install.sh + asdf users to pin Python
-# version for this project. asdf reads this file automatically when
-# entering the directory (after `asdf install`).
+# asdf tool-versions — used by install.sh + asdf users to pin versions
+# for this project. asdf reads this file automatically when entering
+# the directory (after `asdf install`).
 #
-# Python 3.12.x is required by build_scripts/pyproject.toml
-# (requires-python = ">=3.12"). Latest 3.12.x as of late 2025 is
-# 3.12.15 — stable, widely available in asdf.
+# System packages (build-essential, cmake, ninja, clang, libsqlite3-dev)
+# are NOT managed by asdf — installed via apt/dnf/pacman in install.sh.
+# Only language runtimes + standalone tools go here.
+#
+# Python 3.12.x is required by build_scripts/pyproject.toml.
+# Go 1.27.x is required by third_party/libXray/go.mod.
+# Ruby 3.3.x is required for fastlane (gem install).
+# uv — Python package manager for venv management.
+golang 1.27.1
 python 3.12.15
+ruby 3.3.6
+uv 0.12.23

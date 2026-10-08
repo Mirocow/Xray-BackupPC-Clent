@@ -93,74 +93,102 @@ case "$os" in
         uv sync --project build_scripts --python 3.12
         ;;
     linux)
-        # Install Go via package manager OR download official tarball.
-        # We prefer the official tarball (newer Go than distro packages).
-        if ! command -v go >/dev/null 2>&1; then
-            echo "install: Go не найден — ставим из официального архива"
-            go_version="1.27.1"
-            go_arch="$(uname -m)"
-            case "$go_arch" in
-                x86_64)  go_arch="amd64" ;;
-                aarch64|arm64) go_arch="arm64" ;;
-                *) echo "install: unsupported arch: $go_arch" >&2; exit 1 ;;
-            esac
-            curl -fsSL "https://go.dev/dl/go${go_version}.linux-${go_arch}.tar.gz" | \
-                sudo tar -C /usr/local -xz
-            export PATH="/usr/local/go/bin:$PATH"
-            echo 'export PATH="/usr/local/go/bin:$PATH"' >> "$HOME/.profile"
-        fi
-        # Python 3.12 — project requires >=3.12 per pyproject.toml.
-        # Prefer asdf (user's existing tool) if installed, else uv.
+        # ─── Language runtimes + tools via asdf ──────────────────────
+        # asdf manages: golang, python, ruby, uv (per .tool-versions).
+        # System packages (build-essential, cmake, clang, sqlite3-dev) —
+        # через apt/dnf/pacman ниже (asdf их не умеет).
         if command -v asdf >/dev/null 2>&1; then
-            echo "install: asdf install python 3.12.15"
-            asdf install python 3.12.15
-            # asdf local creates/updates .tool-versions (already in repo)
-            asdf local python 3.12.15
+            echo "install: asdf detected — installing all runtimes via asdf"
+
+            # Add asdf plugins (idempotent — asdf plugin add ignores if exists)
+            echo "install: asdf plugin add golang"
+            asdf plugin add golang https://github.com/asdf-community/asdf-golang.git 2>/dev/null || true
+            echo "install: asdf plugin add python"
+            asdf plugin add python https://github.com/asdf-community/asdf-python.git 2>/dev/null || true
+            echo "install: asdf plugin add ruby"
+            asdf plugin add ruby https://github.com/asdf/asdf-ruby.git 2>/dev/null || true
+            echo "install: asdf plugin add uv"
+            asdf plugin add uv https://github.com/asdf-community/asdf-uv.git 2>/dev/null || true
+
+            # Install all versions from .tool-versions (already committed to repo)
+            echo "install: asdf install (all versions from .tool-versions)"
+            asdf install
+
+            # Set local versions (creates .tool-versions if missing)
+            asdf local golang 1.27.1 2>/dev/null || true
+            asdf local python 3.12.15 2>/dev/null || true
+            asdf local ruby 3.3.6 2>/dev/null || true
+            asdf local uv 0.12.23 2>/dev/null || true
+
+            # fastlane via gem (uses asdf's Ruby, not system Ruby)
+            echo "install: gem install fastlane (via asdf ruby)"
+            gem install fastlane --no-document
         else
-            # Fallback: uv-managed Python 3.12 (asdf not detected)
-            echo "install: uv python install 3.12 (no asdf)"
+            # ─── Fallback: no asdf — install via package managers ──────
+            echo "install: asdf не обнаружен — fallback на системные пакеты"
+
+            # Go — official tarball
+            if ! command -v go >/dev/null 2>&1; then
+                echo "install: Go не найден — ставим из официального архива"
+                go_version="1.27.1"
+                go_arch="$(uname -m)"
+                case "$go_arch" in
+                    x86_64)  go_arch="amd64" ;;
+                    aarch64|arm64) go_arch="arm64" ;;
+                    *) echo "install: unsupported arch: $go_arch" >&2; exit 1 ;;
+                esac
+                curl -fsSL "https://go.dev/dl/go${go_version}.linux-${go_arch}.tar.gz" | \
+                    sudo tar -C /usr/local -xz
+                export PATH="/usr/local/go/bin:$PATH"
+                echo 'export PATH="/usr/local/go/bin:$PATH"' >> "$HOME/.profile"
+            fi
+
+            # Python 3.12 via uv
+            if ! command -v uv >/dev/null 2>&1; then
+                echo "install: uv не найден — ставим"
+                curl -LsSf https://astral.sh/uv/install.sh | sh
+                export PATH="$HOME/.local/bin:$PATH"
+            fi
+            echo "install: uv python install 3.12"
             uv python install 3.12
+
+            # fastlane via system gem
+            echo "install: gem install fastlane (system ruby)"
+            sudo gem install fastlane --no-document 2>/dev/null || \
+                gem install fastlane --no-document 2>/dev/null || \
+                echo "install: WARN — fastlane install failed; поставь вручную" >&2
         fi
-        # uv is ALWAYS needed — it manages the venv for build_scripts
-        # (declared in pyproject.toml [tool.uv]). Install it even if
-        # asdf is present (uv is a standalone binary, doesn't conflict).
-        if ! command -v uv >/dev/null 2>&1; then
-            echo "install: uv не найден — ставим (нужен для venv)"
-            curl -LsSf https://astral.sh/uv/install.sh | sh
-            export PATH="$HOME/.local/bin:$PATH"
-        fi
-        # Create venv with Python 3.12 in build_scripts/.venv
+
+        # uv venv — ALWAYS needed (per pyproject.toml [tool.uv]).
+        # Works with both asdf-managed and uv-managed Python 3.12.
         if command -v uv >/dev/null 2>&1; then
             echo "install: uv sync --project build_scripts --python 3.12"
             uv sync --project build_scripts --python 3.12
         else
-            echo "install: WARN — uv не установлен; build scripts будут использовать системный python3 (требуется 3.12+)" >&2
+            echo "install: WARN — uv не установлен; build scripts используют системный python3 (требуется 3.12+)" >&2
         fi
-        # Build essentials (cmake, ninja, pkg-config, clang) — needed for
-        # building native deps (libsqlite3, etc.) via Flutter plugins.
+
+        # ─── System packages (cannot be installed via asdf) ───────────
+        # build-essential, cmake, ninja, clang, llvm-dev, libsqlite3-dev
+        # — компиляторы и библиотеки; asdf не умеет их ставить.
+        echo "install: системные пакеты (cmake, clang, sqlite3-dev, etc.)"
         case "$linux_distro" in
             debian)
                 sudo apt-get update
                 sudo apt-get install -y build-essential cmake ninja-build \
-                    pkg-config clang llvm-dev libsqlite3-dev \
-                    ruby ruby-dev
-                # fastlane via gem (apt version is too old)
-                sudo gem install fastlane --no-document
+                    pkg-config clang llvm-dev libsqlite3-dev
                 ;;
             redhat)
                 sudo dnf install -y gcc gcc-c++ make cmake ninja-build \
-                    pkg-config clang llvm-devel sqlite-devel \
-                    ruby ruby-devel
-                sudo gem install fastlane --no-document
+                    pkg-config clang llvm-devel sqlite-devel
                 ;;
             arch)
                 sudo pacman -S --noconfirm base-devel cmake ninja pkgconf \
-                    clang llvm sqlite ruby
-                sudo gem install fastlane --no-document
+                    clang llvm sqlite
                 ;;
             unknown)
-                echo "install: неизвестный Linux distro — пропускаем установку системных пакетов" >&2
-                echo "  установи вручную: go, uv, build-essential, cmake, ninja, clang, sqlite3-dev, ruby" >&2
+                echo "install: неизвестный Linux distro — пропускаем системные пакеты" >&2
+                echo "  установи вручную: build-essential, cmake, ninja, clang, sqlite3-dev" >&2
                 ;;
         esac
         ;;
