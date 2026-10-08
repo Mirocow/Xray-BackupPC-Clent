@@ -45,6 +45,7 @@
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>backuppcvpn</string>
+				<string>backuppc</string>
 			</array>
 		</dict>
 	</array>

@@ -297,7 +297,7 @@
   "prototypeNoSupportedLinks": "Поддерживаемые ссылки не найдены. Проверьте текст и повторите попытку.",
   "prototypeSubscriptionName": "Название подписки",
   "prototypeSubscriptionLink": "Ссылка подписки",
-  "prototypeSubscriptionDescription": "Подписка — список серверов от вашего провайдера. BackupPC VPN может проверять его обновления. Поддерживаются только форматы ссылок VMessAEAD / VLESS.",
+  "prototypeSubscriptionDescription": "Подписка — список серверов от вашего провайдера. BackupPC VPN может проверять его обновления. Поддерживаются форматы ссылок VMessAEAD / VLESS / backuppc://.",
   "prototypeAgeEncryption": "Шифрование Age",
   "prototypeAgeOptional": "Необязательно · нужна поддержка провайдера",
   "prototypeAgeSupportNotice": "Вводите ключи Age, только если провайдер поддерживает зашифрованные подписки. Age не заменяет HTTPS.",
