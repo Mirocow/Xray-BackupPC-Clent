@@ -15,7 +15,8 @@ environment:
   flutter: ">=3.24.0"
 
 dependencies:
-  collection: ^1.19.1
+  # Pinned to ^1.18.0 to match flutter_test SDK pin on collection 1.18.0.
+  collection: ^1.18.0
   # cupertino_ui also has Dart-version constraints; relax at fork level.
   cupertino_ui:
     path: ../cupertino_ui
@@ -23,9 +24,14 @@ dependencies:
     sdk: flutter
   flutter_localizations:
     sdk: flutter
-  intl: ^0.20.2
-  material_color_utilities: ^0.13.0
-  vector_math: ^2.2.0
+  intl: ^0.19.0                 # match flutter_localizations pin
+  # Pinned to ^0.11.1 to match flutter_test SDK pin on
+  # material_color_utilities 0.11.1. material_ui 1.2.0 source may use
+  # APIs from 0.13.0+ — if so, we'll need dependency_overrides in
+  # the host project to force a newer version.
+  material_color_utilities: ^0.11.1
+  # Pinned to ^2.1.4 to match flutter_test SDK pin on vector_math 2.1.4.
+  vector_math: ^2.1.4
 
 dev_dependencies:
   args: ^2.7.0
