@@ -157,11 +157,16 @@ case "$os" in
 
             # uv — standalone binary via curl installer (NOT via asdf;
             # asdf-uv community plugin is unreliable with version numbers).
-            # Remove orphaned asdf uv plugin if present (from previous
-            # install.sh run that added it). The shim intercepts `uv`
-            # command and says "No version is set" since .tool-versions
-            # no longer pins uv.
+            # Remove orphaned asdf plugins that intercept commands but
+            # aren't in .tool-versions:
+            #   - uv plugin: shim says "No version is set" since we removed
+            #     uv from .tool-versions. Curl-installed uv in ~/.local/bin
+            #     should be used instead.
+            #   - flutter plugin: same issue — flutter is installed via
+            #     setup_flutter.sh to ~/flutter/stable/, not via asdf.
+            #     The shim blocks PATH resolution to ~/flutter/stable/bin/.
             asdf plugin remove uv 2>/dev/null || true
+            asdf plugin remove flutter 2>/dev/null || true
             if ! command -v uv >/dev/null 2>&1; then
                 echo "install: uv не найден — ставим (curl installer)"
                 curl -LsSf https://astral.sh/uv/install.sh | sh
