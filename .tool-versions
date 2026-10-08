@@ -1,14 +1,20 @@
-# asdf tool-versions — used by install.sh + asdf users to pin versions
-# for this project. asdf reads this file automatically when entering
-# the directory (after `asdf install`).
+# asdf tool-versions — ALL runtimes managed by asdf.
+# asdf reads this file automatically when entering the directory.
 #
-# System packages (build-essential, cmake, ninja, clang, libsqlite3-dev)
-# are NOT managed by asdf — installed via apt/dnf/pacman in install.sh.
-# uv is installed via curl-installer (more reliable than asdf-uv plugin).
+# System packages (build-essential, cmake, clang, libsqlite3-dev,
+# libyaml-dev, etc.) are NOT managed by asdf — installed via
+# apt/dnf/pacman in install.sh BEFORE asdf install (Ruby compiles
+# from source, needs -dev headers).
 #
-# Python 3.12.x is required by build_scripts/pyproject.toml.
-# Go 1.27.x is required by third_party/libXray/go.mod.
-# Ruby 3.3.x is required for fastlane (gem install).
+# golang 1.27.x — required by third_party/libXray/go.mod
+# python 3.12.x — required by build_scripts/pyproject.toml
+# ruby 3.3.x   — required for fastlane (gem install)
+# flutter 3.47.6-stable — latest stable (Dart 3.13.5)
+#   NOTE: macOS 13 (Ventura) users need 3.24.5-stable — install.sh
+#   detects macOS <14 and overrides via `asdf local flutter 3.24.5-stable`.
+# uv 0.12.23 — Python package manager for venv
 golang 1.27.1
 python 3.12.15
 ruby 3.3.5
+flutter 3.47.6-stable
+uv 0.12.23

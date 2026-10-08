@@ -58,9 +58,11 @@ esac
 
 echo "install: detected OS = $os"
 
-# ─── 1. Package manager + base tools ───────────────────────────────────
+# ─── 1. System packages + asdf runtimes ────────────────────────────────
 case "$os" in
     macos)
+        # Homebrew — только для cocoapods (Xcode dep, нет asdf-плагина).
+        # Go, Python, Ruby, Flutter, uv — всё через asdf (ниже).
         if ! command -v brew >/dev/null 2>&1; then
             echo "install: Homebrew не найден — ставим"
             /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
@@ -70,33 +72,17 @@ case "$os" in
                 eval "$(/usr/local/bin/brew shellenv)"
             fi
         fi
-        echo "install: brew install go cocoapods uv fastlane"
-        brew install go cocoapods uv fastlane
+        brew install cocoapods
         # Xcode Command Line Tools.
         if ! xcode-select -p >/dev/null 2>&1; then
             xcode-select --install || true
             echo "install: дождитесь окончания установки Command Line Tools и запустите скрипт повторно"
             exit 0
         fi
-        # Python 3.12 — project requires >=3.12 per pyproject.toml.
-        # Prefer asdf (if installed) else uv-managed.
-        if command -v asdf >/dev/null 2>&1; then
-            echo "install: asdf install python 3.12.15"
-            asdf install python 3.12.15
-            asdf local python 3.12.15
-        else
-            echo "install: uv python install 3.12 (no asdf)"
-            uv python install 3.12
-        fi
-        # uv is ALWAYS needed for venv (even if asdf is present).
-        # brew already installed uv above, but verify + create venv.
-        uv sync --project build_scripts --python 3.12
         ;;
     linux)
-        # ─── System packages FIRST (Ruby/Python compile deps) ────────
-        # asdf compiles Ruby/Python from source — needs -dev headers.
-        # Must install BEFORE `asdf install` or Ruby build fails on
-        # psych (libyaml), openssl (libssl), readline, zlib, ffi, etc.
+        # System packages FIRST — asdf compiles Ruby/Python from source,
+        # needs -dev headers. Must install BEFORE asdf install.
         echo "install: системные пакеты (build deps для asdf компиляции)"
         case "$linux_distro" in
             debian)
@@ -123,177 +109,141 @@ case "$os" in
                 echo "  libyaml-dev, libssl-dev, libreadline-dev, zlib1g-dev, libffi-dev" >&2
                 ;;
         esac
-
-        # ─── Language runtimes + tools via asdf ──────────────────────
-        # asdf manages: golang, python, ruby (per .tool-versions).
-        # uv — via curl installer (standalone binary, not asdf plugin).
-        if command -v asdf >/dev/null 2>&1; then
-            echo "install: asdf detected — installing all runtimes via asdf"
-
-            # Add asdf plugins (idempotent — asdf plugin add ignores if exists)
-            echo "install: asdf plugin add golang"
-            asdf plugin add golang https://github.com/asdf-community/asdf-golang.git 2>/dev/null || true
-            echo "install: asdf plugin add python"
-            asdf plugin add python https://github.com/asdf-community/asdf-python.git 2>/dev/null || true
-            echo "install: asdf plugin add ruby"
-            asdf plugin add ruby https://github.com/asdf/asdf-ruby.git 2>/dev/null || true
-
-            # Update plugins to get latest version lists (fixes "Version not found")
-            echo "install: asdf plugin update --all"
-            asdf plugin update --all 2>/dev/null || true
-
-            # Install all versions from .tool-versions (already committed to repo)
-            echo "install: asdf install (all versions from .tool-versions)"
-            asdf install
-
-            # Set local versions (creates .tool-versions if missing)
-            asdf local golang 1.27.1 2>/dev/null || true
-            asdf local python 3.12.15 2>/dev/null || true
-            asdf local ruby 3.3.5 2>/dev/null || true
-
-            # fastlane via gem (uses asdf's Ruby, not system Ruby)
-            echo "install: gem install fastlane (via asdf ruby)"
-            gem install fastlane --no-document
-
-            # uv — standalone binary via curl installer (NOT via asdf;
-            # asdf-uv community plugin is unreliable with version numbers).
-            # Remove orphaned asdf plugins that intercept commands but
-            # aren't in .tool-versions:
-            #   - uv plugin: shim says "No version is set" since we removed
-            #     uv from .tool-versions. Curl-installed uv in ~/.local/bin
-            #     should be used instead.
-            #   - flutter plugin: same issue — flutter is installed via
-            #     setup_flutter.sh to ~/flutter/stable/, not via asdf.
-            #     The shim blocks PATH resolution to ~/flutter/stable/bin/.
-            asdf plugin remove uv 2>/dev/null || true
-            asdf plugin remove flutter 2>/dev/null || true
-            if ! command -v uv >/dev/null 2>&1; then
-                echo "install: uv не найден — ставим (curl installer)"
-                curl -LsSf https://astral.sh/uv/install.sh | sh
-                export PATH="$HOME/.local/bin:$PATH"
-            fi
-        else
-            # ─── Fallback: no asdf — install via package managers ──────
-            echo "install: asdf не обнаружен — fallback на системные пакеты"
-
-            # Go — official tarball
-            if ! command -v go >/dev/null 2>&1; then
-                echo "install: Go не найден — ставим из официального архива"
-                go_version="1.27.1"
-                go_arch="$(uname -m)"
-                case "$go_arch" in
-                    x86_64)  go_arch="amd64" ;;
-                    aarch64|arm64) go_arch="arm64" ;;
-                    *) echo "install: unsupported arch: $go_arch" >&2; exit 1 ;;
-                esac
-                curl -fsSL "https://go.dev/dl/go${go_version}.linux-${go_arch}.tar.gz" | \
-                    sudo tar -C /usr/local -xz
-                export PATH="/usr/local/go/bin:$PATH"
-                echo 'export PATH="/usr/local/go/bin:$PATH"' >> "$HOME/.profile"
-            fi
-
-            # Python 3.12 via uv
-            if ! command -v uv >/dev/null 2>&1; then
-                echo "install: uv не найден — ставим"
-                curl -LsSf https://astral.sh/uv/install.sh | sh
-                export PATH="$HOME/.local/bin:$PATH"
-            fi
-            echo "install: uv python install 3.12"
-            uv python install 3.12
-
-            # fastlane via system gem
-            echo "install: gem install fastlane (system ruby)"
-            sudo gem install fastlane --no-document 2>/dev/null || \
-                gem install fastlane --no-document 2>/dev/null || \
-                echo "install: WARN — fastlane install failed; поставь вручную" >&2
-        fi
-
-        # uv venv — ALWAYS needed (per pyproject.toml [tool.uv]).
-        # Works with both asdf-managed and uv-managed Python 3.12.
-        if command -v uv >/dev/null 2>&1; then
-            echo "install: uv sync --project build_scripts --python 3.12"
-            uv sync --project build_scripts --python 3.12
-        else
-            echo "install: WARN — uv не установлен; build scripts используют системный python3 (требуется 3.12+)" >&2
-        fi
         ;;
     windows)
         echo "install: Windows — рекомендуется использовать WSL2 + Linux install"
         echo "  Если всё же нативный Windows:"
-        # winget может быть не установлен на старых Windows 10
         if command -v winget >/dev/null 2>&1; then
             winget install --id GoLang.Go -e --source winget
             winget install --id Python.Python.3.13 -e --source winget
             winget install --id AstralSH.uv -e --source winget
-            # fastlane на Windows работает через RubyInstaller
             echo "install: fastlane — установи через RubyInstaller + 'gem install fastlane'"
         else
             echo "install: winget не найден — установи Go, Python, uv вручную" >&2
         fi
-        # CocoaPods не нужен на Windows (только для iOS/macOS builds)
         ;;
 esac
 
-# ─── 2. Flutter через setup_flutter.sh (кросс-платформенный) ────────────
-# setup_flutter.sh сам детектит OS и пинит нужную версию:
-#   - macOS 13 (Ventura): 3.24.5 (последний с поддержкой macOS 13)
-#   - macOS 14+: latest stable
-#   - Linux/Windows/CI: latest stable
-# Переопределение: ONEXRAY_FLUTTER_VERSION=3.29.0 sh install.sh
+# ─── 2. asdf — ALL runtimes (golang + python + ruby + flutter + uv) ────
+# .tool-versions pins all 5 versions. asdf reads it automatically.
+if command -v asdf >/dev/null 2>&1; then
+    echo "install: asdf detected — installing ALL runtimes via asdf"
 
-# Determine Flutter version based on OS
-FLUTTER_VERSION="${ONEXRAY_FLUTTER_VERSION:-stable}"
-if [ -z "${ONEXRAY_FLUTTER_VERSION:-}" ] && [ "$os" = "macos" ]; then
-    macos_product="$(sw_vers -productVersion 2>/dev/null || echo "")"
-    macos_major="$(echo "$macos_product" | cut -d. -f1)"
-    if [ -n "$macos_major" ] && [ "$macos_major" -lt 14 ] 2>/dev/null; then
-        FLUTTER_VERSION="3.24.5"
-        echo "install: macOS $macos_product (<14) — pinning Flutter to 3.24.5" >&2
-    else
-        echo "install: macOS $macos_product (>=14) — using latest stable Flutter" >&2
+    # Add asdf plugins (idempotent — asdf plugin add ignores if exists)
+    echo "install: asdf plugin add golang"
+    asdf plugin add golang https://github.com/asdf-community/asdf-golang.git 2>/dev/null || true
+    echo "install: asdf plugin add python"
+    asdf plugin add python https://github.com/asdf-community/asdf-python.git 2>/dev/null || true
+    echo "install: asdf plugin add ruby"
+    asdf plugin add ruby https://github.com/asdf/asdf-ruby.git 2>/dev/null || true
+    echo "install: asdf plugin add flutter"
+    asdf plugin add flutter https://github.com/oae/asdf-flutter.git 2>/dev/null || true
+    echo "install: asdf plugin add uv"
+    asdf plugin add uv https://github.com/asdf-community/asdf-uv.git 2>/dev/null || true
+
+    # Update plugins to get latest version lists
+    echo "install: asdf plugin update --all"
+    asdf plugin update --all 2>/dev/null || true
+
+    # Install all versions from .tool-versions
+    echo "install: asdf install (all versions from .tool-versions)"
+    asdf install
+
+    # macOS 13 (Ventura) override: Flutter 3.27+ requires macOS 14.
+    # Pin Flutter to 3.24.5-stable (last supporting macOS 13).
+    if [ "$os" = "macos" ]; then
+        macos_product="$(sw_vers -productVersion 2>/dev/null || echo "")"
+        macos_major="$(echo "$macos_product" | cut -d. -f1)"
+        if [ -n "$macos_major" ] && [ "$macos_major" -lt 14 ] 2>/dev/null; then
+            echo "install: macOS $macos_product (<14) — overriding flutter to 3.24.5-stable"
+            asdf install flutter 3.24.5-stable 2>/dev/null || true
+            asdf local flutter 3.24.5-stable
+        fi
     fi
+
+    # Trigger Dart SDK download (first run of flutter)
+    flutter --version 2>/dev/null || true
+
+    # fastlane via gem (uses asdf's Ruby)
+    echo "install: gem install fastlane (via asdf ruby)"
+    gem install fastlane --no-document
+
+    # uv venv for build_scripts
+    echo "install: uv sync --project build_scripts --python 3.12"
+    uv sync --project build_scripts --python 3.12
+
+else
+    # ─── Fallback: no asdf — install via package managers ──────────────
+    echo "install: asdf не обнаружен — fallback на системные пакеты"
+
+    # Go — official tarball (Linux) or brew (macOS)
+    if ! command -v go >/dev/null 2>&1; then
+        if [ "$os" = "macos" ]; then
+            brew install go
+        else
+            echo "install: Go не найден — ставим из официального архива"
+            go_version="1.27.1"
+            go_arch="$(uname -m)"
+            case "$go_arch" in
+                x86_64)  go_arch="amd64" ;;
+                aarch64|arm64) go_arch="arm64" ;;
+                *) echo "install: unsupported arch: $go_arch" >&2; exit 1 ;;
+            esac
+            curl -fsSL "https://go.dev/dl/go${go_version}.linux-${go_arch}.tar.gz" | \
+                sudo tar -C /usr/local -xz
+            export PATH="/usr/local/go/bin:$PATH"
+            echo 'export PATH="/usr/local/go/bin:$PATH"' >> "$HOME/.profile"
+        fi
+    fi
+
+    # uv — curl installer
+    if ! command -v uv >/dev/null 2>&1; then
+        echo "install: uv не найден — ставим (curl installer)"
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        export PATH="$HOME/.local/bin:$PATH"
+    fi
+    echo "install: uv python install 3.12"
+    uv python install 3.12
+    echo "install: uv sync --project build_scripts --python 3.12"
+    uv sync --project build_scripts --python 3.12
+
+    # fastlane via gem
+    echo "install: gem install fastlane"
+    [ "$os" = "macos" ] && brew install fastlane || \
+        sudo gem install fastlane --no-document 2>/dev/null || \
+        gem install fastlane --no-document 2>/dev/null || \
+        echo "install: WARN — fastlane install failed" >&2
+
+    # Flutter via setup_flutter.sh (cross-platform, detects macOS 13)
+    FLUTTER_VERSION="${ONEXRAY_FLUTTER_VERSION:-stable}"
+    if [ "$os" = "macos" ]; then
+        macos_product="$(sw_vers -productVersion 2>/dev/null || echo "")"
+        macos_major="$(echo "$macos_product" | cut -d. -f1)"
+        if [ -n "$macos_major" ] && [ "$macos_major" -lt 14 ] 2>/dev/null; then
+            FLUTTER_VERSION="3.24.5"
+        fi
+    fi
+    FLUTTER_ROOT="${ONEXRAY_FLUTTER_ROOT:-$HOME/flutter/$FLUTTER_VERSION}"
+    export FLUTTER_ROOT
+    export PATH="$FLUTTER_ROOT/bin:$PATH"
+    ONEXRAY_FLUTTER_VERSION="$FLUTTER_VERSION" \
+    ONEXRAY_FLUTTER_ROOT="$FLUTTER_ROOT" \
+        bash build_scripts/setup_flutter.sh
+    flutter --version
 fi
-
-FLUTTER_ROOT="${ONEXRAY_FLUTTER_ROOT:-$HOME/flutter/$FLUTTER_VERSION}"
-export FLUTTER_ROOT
-export PATH="$FLUTTER_ROOT/bin:$PATH"
-
-# Run setup_flutter.sh (clones Flutter SDK to $FLUTTER_ROOT)
-ONEXRAY_FLUTTER_VERSION="$FLUTTER_VERSION" \
-ONEXRAY_FLUTTER_ROOT="$FLUTTER_ROOT" \
-    bash build_scripts/setup_flutter.sh
-
-echo "install: FLUTTER_ROOT=$FLUTTER_ROOT"
-
-if ! command -v flutter >/dev/null 2>&1; then
-    echo "install: ERROR — flutter не на PATH после setup_flutter.sh" >&2
-    echo "  Проверь, что $FLUTTER_ROOT/bin/flutter существует" >&2
-    exit 1
-fi
-flutter --version
 
 # ─── 3. Update shell rc file (idempotent, marker-block) ────────────────
-# НЕ сурсим rc — там shell-специфичный синтаксис. Marker-block безопасно
-# добавляется в конец файла.
-case "$os" in
-    macos)
-        rc_path="$HOME/.zshrc"
-        ;;
-    linux)
-        # bash is default on most distros; zsh if installed
-        if [ -n "${ZSH_VERSION:-}" ]; then
-            rc_path="$HOME/.zshrc"
-        else
-            rc_path="$HOME/.bashrc"
-        fi
-        ;;
-    windows)
-        # Git Bash uses ~/.bashrc
-        rc_path="$HOME/.bashrc"
-        ;;
-esac
+# Только для non-asdf fallback (когда Flutter установлен в ~/flutter/).
+# asdf users не нужны — asdf shims уже на PATH через .bashrc (asdf setup).
+if [ -z "${rc_path:-}" ]; then
+    case "$os" in
+        macos) rc_path="$HOME/.zshrc" ;;
+        linux)  rc_path="$HOME/.bashrc" ;;
+        windows) rc_path="$HOME/.bashrc" ;;
+    esac
+fi
 
-if [ -n "${rc_path:-}" ] && [ -n "$FLUTTER_ROOT" ]; then
+if [ -n "${rc_path:-}" ] && [ -n "${FLUTTER_ROOT:-}" ]; then
     marker_begin="# >>> backuppc-vpn install.sh >>>"
     marker_end="# <<< backuppc-vpn install.sh <<<"
     block="${marker_begin}
