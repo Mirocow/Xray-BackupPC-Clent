@@ -31,7 +31,8 @@ android {
     }
 
     defaultConfig {
-        applicationId = "net.yuandev.onexray"
+        // своя сборка (форк OneXray, GPL-3.0): ставится рядом с OneXray
+        applicationId = "org.moorfiles.backuppcvpn"
         minSdk = 29
         targetSdk = 37
         versionCode = flutter.versionCode

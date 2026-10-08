@@ -1,5 +1,5 @@
 <resources>
-    <string name="quick_settings_tile_label">OneXray</string>
+    <string name="quick_settings_tile_label">backuppc-vpn</string>
     <string name="quick_settings_tile_status_connected">متصل</string>
     <string name="quick_settings_tile_status_connecting">در حال اتصال</string>
     <string name="quick_settings_tile_status_disconnected">قطع شده</string>

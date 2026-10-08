@@ -309,13 +309,13 @@ class OneVpnService : VpnService() {
         return Notification.Builder(this, channelId)
             .setContentTitle(appName)
             .setContentText(getString(R.string.notification_vpn_connected))
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.drawable.ic_stat_vpn)
             .setContentIntent(openPendingIntent)
             .setTicker(appName)
             .setOngoing(true)
             .addAction(
                 Notification.Action.Builder(
-                    Icon.createWithResource(this, R.mipmap.ic_launcher),
+                    Icon.createWithResource(this, R.drawable.ic_stat_vpn),
                     getString(R.string.notification_action_open),
                     openPendingIntent
                 ).build()
