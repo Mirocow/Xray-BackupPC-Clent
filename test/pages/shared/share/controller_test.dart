@@ -67,7 +67,7 @@ void main() {
 
       controller.selectFormat(ShareLinkFormat.onexray);
       final link = Uri.parse(controller.state.selectedLink);
-      expect(link.scheme, 'onexray');
+      expect(link.scheme, 'backuppcvpn');
       expect(Uri.decodeComponent(link.fragment), 'My subscription');
       expect(link.queryParameters['age'], 'x25519');
       expect(controller.state.selectedLink, isNot(contains('PRIVATE')));

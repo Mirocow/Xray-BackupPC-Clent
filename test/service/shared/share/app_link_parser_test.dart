@@ -15,8 +15,8 @@ void main() {
       test('parses ${entry.key}', () {
         const json = '{"name":"Example"}';
         final uri = Uri(
-          scheme: 'onexray',
-          host: 'onexray.com',
+          scheme: 'backuppcvpn',
+          host: 'app',
           path: '/config/add',
           queryParameters: {
             'type': entry.key,
@@ -46,7 +46,7 @@ void main() {
         base64Encode(utf8.encode('{"name":"Example"}')),
       );
       final duplicate = Uri.parse(
-        'onexray://onexray.com/config/add?type=raw&type=full&data=$data',
+        'backuppcvpn://app/config/add?type=raw&type=full&data=$data',
       );
       final unknown = _configUri(extra: const {'backup': 'true'});
 
@@ -129,7 +129,7 @@ void main() {
   test('requires the exact scheme, host, and supported path', () {
     final wrongScheme = _configUri(scheme: 'https');
     final wrongHost = _configUri(host: 'example.com');
-    final spoofedHost = _configUri(host: 'onexray.com.example.com');
+    final spoofedHost = _configUri(host: 'app.example.com');
     final wrongPath = _configUri(path: '/backup/add');
 
     expect(OneXrayAppLinkParser.parse(wrongScheme), isNull);
@@ -140,8 +140,8 @@ void main() {
 }
 
 Uri _configUri({
-  String scheme = 'onexray',
-  String host = 'onexray.com',
+  String scheme = 'backuppcvpn',
+  String host = 'app',
   String path = '/config/add',
   String type = 'raw',
   Map<String, String> extra = const {},
@@ -160,8 +160,8 @@ Uri _configUri({
 
 Uri _subscriptionUri({required String url, String? age, String name = ''}) {
   return Uri(
-    scheme: 'onexray',
-    host: 'onexray.com',
+    scheme: 'backuppcvpn',
+    host: 'app',
     path: '/sub/add',
     queryParameters: {'url': url, 'age': ?age},
     fragment: name,
@@ -174,8 +174,8 @@ Uri _geoDataUri({
   String name = '',
 }) {
   return Uri(
-    scheme: 'onexray',
-    host: 'onexray.com',
+    scheme: 'backuppcvpn',
+    host: 'app',
     path: '/dat/add',
     queryParameters: {'type': type, 'url': url},
     fragment: name,

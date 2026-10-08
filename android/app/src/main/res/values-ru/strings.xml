@@ -1,5 +1,5 @@
 <resources>
-    <string name="quick_settings_tile_label">backuppc-vpn</string>
+    <string name="quick_settings_tile_label">BackupPC VPN</string>
     <string name="quick_settings_tile_status_connected">Подключено</string>
     <string name="quick_settings_tile_status_connecting">Подключение</string>
     <string name="quick_settings_tile_status_disconnected">Отключено</string>

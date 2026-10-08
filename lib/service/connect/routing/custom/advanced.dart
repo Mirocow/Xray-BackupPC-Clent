@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:onexray/core/constants/branding.dart';
 import 'package:onexray/core/model/xray_json.dart';
 import 'package:onexray/core/tools/json.dart';
 import 'package:onexray/service/connect/routing/custom/configuration.dart';
@@ -316,8 +317,9 @@ void _keys(Map<String, dynamic> value, Set<String> allowed, String path) {
 
 bool _internal(String tag) =>
     tag.startsWith('app-entry-') || tag.startsWith('app-exit-');
-Never _managed(String path) =>
-    throw FormatException('$path is managed by OneXray; use App settings');
+Never _managed(String path) => throw FormatException(
+  '$path is managed by ${AppBranding.name}; use App settings',
+);
 void _definition(Object? tag, String path, Set<String> tags) {
   if (tag is! String || tag.isEmpty) {
     throw FormatException('$path requires a tag');

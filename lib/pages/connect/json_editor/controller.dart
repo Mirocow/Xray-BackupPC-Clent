@@ -5,6 +5,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:onexray/l10n/localizations/app_localizations.dart';
 import 'package:onexray/pages/connect/dialogs.dart';
 import 'package:onexray/pages/shared/alert.dart';
+import 'package:onexray/service/shared/doc/helper.dart';
 import 'package:onexray/pages/shared/page_cubit.dart';
 import 'package:onexray/pages/shared/widgets/configuration_transfer.dart';
 import 'package:onexray/service/connect/raw/editor.dart';
@@ -356,13 +357,9 @@ class JsonConfigurationEditorController
   }
 
   Future<void> openDocumentation(BuildContext context) async {
-    final language = Localizations.localeOf(context).languageCode;
-    final prefix = const {'zh', 'ru'}.contains(language) ? '$language/' : '';
     try {
       if (!await launchUrl(
-        Uri.parse(
-          'https://onexray.com/${prefix}docs/configuration/advanced-routing/',
-        ),
+        DocURLHelper.routingUri(),
         mode: LaunchMode.externalApplication,
       )) {
         throw StateError('No application could open this link');

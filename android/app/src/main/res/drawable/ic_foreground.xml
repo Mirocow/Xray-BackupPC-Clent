@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- backuppc-vpn: щит со стрелками (отправка/приём) -->
+<!-- BackupPC VPN: щит со стрелками (отправка/приём) -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="432dp"
     android:height="432dp"

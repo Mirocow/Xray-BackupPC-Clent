@@ -8,7 +8,7 @@ import 'package:onexray/core/constants/branding.dart';
 void main() {
   const content = ShareText(
     title: '  Example  ',
-    text: 'onexray://example.test/first\nonexray://example.test/second\n',
+    text: 'backuppcvpn://example.test/first\nbackuppcvpn://example.test/second\n',
   );
   const origin = Rect.fromLTWH(10, 20, 100, 40);
 
