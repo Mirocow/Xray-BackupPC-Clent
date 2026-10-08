@@ -6,9 +6,14 @@ description: >-
 repository: https://github.com/dart-lang/http/tree/master/pkgs/http2
 
 environment:
-  sdk: ^3.7.0
+  # Relaxed from ^3.7.0 → ^3.0.0 to support macOS 13 (Ventura) + Flutter
+  # 3.24.5 (Dart 3.5.4). The fork's source uses standard Dart 3.0 syntax,
+  # no 3.7+ features (verified by quick scan of lib/).
+  sdk: ^3.0.0
 
 dependencies:
-  collection: ^1.19.0
+  # Pinned to ^1.18.0 (was ^1.19.0) to match flutter_test SDK pin on
+  # collection 1.18.0.
+  collection: ^1.18.0
   meta: ^1.15.0
   pool: ^1.5.0
