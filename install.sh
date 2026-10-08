@@ -1,103 +1,108 @@
 #!/usr/bin/env bash
 # install.sh — локальная установка dev-окружения OneXray на macOS.
 #
-# Запускать ТОЛЬКО через bash (не sh), т.к. используется bash-специфичный
-# синтаксис и source bash-скриптов. zsh-специфичный ~/.zshrc НЕ сурсится
-# (это ломает p10k/oh-my-zsh). PATH/FLUTTER_ROOT экспортируются в текущую
-# сессию и дописываются в ~/.zshrc через отдельный safe-блок.
+# Скрипт POSIX-совместимый: работает под sh, bash, dash. Запуск:
+#   sh install.sh        # OK
+#   bash install.sh      # OK
+#   ./install.sh         # OK (shebang → bash)
 #
-# После первого запуска — открыть новый терминал или выполнить:
-#   source ~/.zshrc   (если zsh) или ~/.bashrc (если bash)
-#
-# Баги, которые лечит эта версия:
-#   1. setup_flutter.sh теперь детектит macOS 13 (Ventura) и пинит Flutter
-#      к 3.24.5 (последний stable, поддерживающий macOS 13; 3.27 требует 14+)
-#   2. fastlane ставится как formula, а не --cask (cask 'fastlane' не существует)
-#   3. FLUTTER_ROOT берётся из setup_flutter.sh, а не хардкодится "stable"
-#   4. ~/.zshrc не сурсится внутри bash — он сурсится только в zsh-сессии
+# НЕ сурсит ~/.zshrc — там zsh-специфичный синтаксис (p10k/oh-my-zsh),
+# который ломается под sh. PATH/FLUTTER_ROOT дописываются в ~/.zshrc
+# через безопасный marker-блок (idempotent).
 
-set -euo pipefail
+# Требуем bash если вызвано под нес bash-совместимым shell — но это
+# блокируем только при POSIX-incompatible синтаксисе. Текущая версия
+# написана в POSIX sh, так что этого не потребуется.
+set -eu
 
 # ─── 0. Откатить подмену macos/ ─────────────────────────────────────────
-if [[ -d macos ]]; then
+if [ -d macos ]; then
     git checkout -- macos/ 2>/dev/null || true
 fi
 
-# ─── 1. Проверить, что есть Homebrew ────────────────────────────────────
-if ! command -v brew &>/dev/null; then
+# ─── 1. Homebrew ───────────────────────────────────────────────────────
+if ! command -v brew >/dev/null 2>&1; then
     echo "install: Homebrew не найден — ставим"
     /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-    # Подсказка установщика про PATH — пользователь должен добавить сам
-    if [[ -x /opt/homebrew/bin/brew ]]; then
+    if [ -x /opt/homebrew/bin/brew ]; then
         eval "$(/opt/homebrew/bin/brew shellenv)"
-    elif [[ -x /usr/local/bin/brew ]]; then
+    elif [ -x /usr/local/bin/brew ]; then
         eval "$(/usr/local/bin/brew shellenv)"
     fi
 fi
 
-# ─── 2. Установить Go, CocoaPods, Fastlane, uv ─────────────────────────
-# fastlane — это FORMULA, не cask. `brew install --cask fastlane` фейлится
-# с "No Cask with this name exists" и подсказывает "fastmail" (не то).
+# ─── 2. Go, CocoaPods, uv, fastlane ────────────────────────────────────
+# fastlane — это FORMULA, не cask. `brew install --cask fastlane`
+# фейлится с "No Cask with this name exists" и подсказывает "fastmail".
 brew install go cocoapods uv fastlane
 
-# Xcode Command Line Tools (если ещё не установлен).
-# xcode-select --install при уже установленном возвращает не-zero, это ОК.
-if ! xcode-select -p &>/dev/null; then
+# Xcode Command Line Tools.
+if ! xcode-select -p >/dev/null 2>&1; then
     xcode-select --install || true
     echo "install: дождитесь окончания установки Command Line Tools и запустите скрипт повторно"
     exit 0
 fi
 
-# ─── 3. Установить Flutter через setup_flutter.sh ──────────────────────
+# ─── 3. Flutter через setup_flutter.sh ─────────────────────────────────
 # Скрипт сам определяет версию:
 #   - macOS 13 (Ventura): пинит к 3.24.5 (последний stable с поддержкой 13)
 #   - macOS 14+ (Sonoma): latest stable
-#   - Linux/CI: latest stable
-# Переопределение: ONEXRAY_FLUTTER_VERSION=3.29.0 bash install.sh
+#   - Linux/CI:           latest stable
+# Переопределение: ONEXRAY_FLUTTER_VERSION=3.29.0 sh install.sh
 #
-# Скрипт экспортирует FLUTTER_ROOT в текущий shell только для GitHub Actions
-# (через $GITHUB_ENV). Локально переменные живут только в subshell —
-# поэтому捕获 их через Bash-совместимый source + export:
-source <(bash build_scripts/setup_flutter.sh 2>/dev/null | grep -E '^FLUTTER_ROOT=' || true)
-# Fallback: если source не вытащил (setup_flutter.sh может не печатать),
-# вычислим путь по тому же правилу:
-if [[ -z "${FLUTTER_ROOT:-}" ]]; then
-    flutter_version="${ONEXRAY_FLUTTER_VERSION:-stable}"
-    if [[ "$(uname -s)" == "Darwin" ]]; then
-        macos_product="$(sw_vers -productVersion 2>/dev/null || echo "")"
-        if [[ "$macos_product" =~ ^([0-9]+)\. ]] && [[ "${BASH_REMATCH[1]}" -lt 14 ]]; then
-            flutter_version="3.24.5"
-        fi
+# setup_flutter.sh экспортирует FLUTTER_ROOT только в GitHub Actions
+# (через $GITHUB_ENV). Локально переменные живут в subshell —
+# поэтому после запуска скрипта вычисляем путь по той же rule-логике
+# (detected macOS version → pinned Flutter tag → path).
+FLUTTER_VERSION="${ONEXRAY_FLUTTER_VERSION:-stable}"
+if [ -z "${ONEXRAY_FLUTTER_VERSION:-}" ] && [ "$(uname -s)" = "Darwin" ]; then
+    macos_product="$(sw_vers -productVersion 2>/dev/null || echo "")"
+    # POSIX-совместимое извлечение major-версии через cut:
+    #   "13.6.1" → "13", "14.5" → "14"
+    macos_major="$(echo "$macos_product" | cut -d. -f1)"
+    if [ -n "$macos_major" ] && [ "$macos_major" -lt 14 ] 2>/dev/null; then
+        FLUTTER_VERSION="3.24.5"
+        echo "install: macOS $macos_product (<14) — pinning Flutter to 3.24.5" >&2
+    else
+        echo "install: macOS $macos_product (>=14) — using latest stable" >&2
     fi
-    export FLUTTER_ROOT="$HOME/flutter/$flutter_version"
 fi
+
+FLUTTER_ROOT="${ONEXRAY_FLUTTER_ROOT:-$HOME/flutter/$FLUTTER_VERSION}"
+export FLUTTER_ROOT
 export PATH="$FLUTTER_ROOT/bin:$PATH"
+
+# Запустить setup_flutter.sh — он склонирует нужный tag в $FLUTTER_ROOT.
+# Локально переменные не важны (мы их уже вычислили), но скрипт нужен
+# чтобы клонировать Flutter SDK.
+ONEXRAY_FLUTTER_VERSION="$FLUTTER_VERSION" \
+ONEXRAY_FLUTTER_ROOT="$FLUTTER_ROOT" \
+    bash build_scripts/setup_flutter.sh
 
 echo "install: FLUTTER_ROOT=$FLUTTER_ROOT"
 echo "install: PATH includes flutter: $(command -v flutter || echo 'NOT FOUND')"
 
-# Проверить, что flutter отвечает:
-if ! command -v flutter &>/dev/null; then
+if ! command -v flutter >/dev/null 2>&1; then
     echo "install: ERROR — flutter не на PATH после setup_flutter.sh" >&2
     echo "  Проверь, что $FLUTTER_ROOT/bin/flutter существует" >&2
     exit 1
 fi
 flutter --version
 
-# ─── 4. Дописать FLUTTER_ROOT/PATH в ~/.zshrc (idempotent) ─────────────
+# ─── 4. Доп.'idempotent' блок в ~/.zshrc (НЕ source'им его!) ─────────
 # НЕ сурсим ~/.zshrc — там zsh-специфичный синтаксис (p10k, oh-my-zsh),
-# который ломается под bash/sh. Вместо этого — безопасный блок в конец
-# файла, который пользователь может source в новой zsh-сессии.
+# который ломается под sh/bash. Вместо этого — безопасный marker-блок.
 zshrc_path="$HOME/.zshrc"
 marker_begin="# >>> OneXray install.sh >>>"
 marker_end="# <<< OneXray install.sh <<<"
-block="$marker_begin
+block="${marker_begin}
 export FLUTTER_ROOT=\"$FLUTTER_ROOT\"
 export PATH=\"\$FLUTTER_ROOT/bin:\$PATH\"
-$marker_end"
+${marker_end}"
 
-if [[ -f "$zshrc_path" ]] && grep -qF "$marker_begin" "$zshrc_path"; then
-    # Заменить существующий блок.
+if [ -f "$zshrc_path" ] && grep -qF "$marker_begin" "$zshrc_path"; then
+    # Заменить существующий блок (POSIX-shell совместимо через python3
+    # — без sed -i и без GNU-расширений).
     python3 - "$zshrc_path" "$block" "$marker_begin" "$marker_end" <<'PY'
 import sys, re
 path, block, begin, end = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
@@ -112,38 +117,39 @@ else
     printf '\n%s\n' "$block" >> "$zshrc_path"
 fi
 echo "install: дописан/обновлён блок в $zshrc_path"
-echo "  открой новый терминал (или: source ~/.zshrc в zsh-сессии)"
+echo "  открой новый терминал (или в zsh-сессии: source ~/.zshrc)"
 
-# ─── 5. Подготовить Python-окружение проекта (uv) ─────────────────────
-if command -v uv &>/dev/null; then
+# ─── 5. Python-окружение (uv) ──────────────────────────────────────────
+if command -v uv >/dev/null 2>&1; then
     uv sync --project build_scripts
 else
     echo "install: uv не на PATH — пропускаем (brew install uv должен быть выше)" >&2
 fi
 
-# ─── 6. Сертификаты Apple Developer ID (для macos_se) ──────────────────
-# Инструкции — см. README. Скрипт их не трогает.
+# ─── 6. Apple Developer cert инструкции (не исполняется автоматически) ─
 cat <<'INSTR'
 install: следующие шаги требуют ручной настройки Apple Developer certs:
 
   Вариант A: импорт уже выданного .p12:
     base64 -i cert.p12 | pbcopy
     export APPLE_DEVELOPER_ID_P12_BASE64=...
-    export APPLE_MAC_INSTALLER_P12_BASE64=...
     export KEYCHAIN_PASSWORD=...
+    (в GitHub: Settings → Secrets and variables → Actions → New secret)
 
   Вариант B: создать Developer ID cert в Apple Developer Portal:
-    Accounts → Certificates, IDs & Profiles →
-    создать Developer ID Application + Developer ID Installer
+    https://developer.apple.com/account/resources/certificates/list
+    + → Developer ID Application
+    Загрузи CSR (Keychain → Certificate Assistant → Request a Certificate)
+    Скачай .cer, дважды кликни → импортируй в Keychain
+    Экспортируй .p12 (с паролем) → base64 -i Certificates.p12 | pbcopy
 
   App Store Connect API key для нотаризации:
-    App Store Connect → Users and Access → Keys → App Store Connect API
-    Создать ключ (Developer/App Manager), скачать .p8 →
-    macos_se/fastlane/AuthKey.p8
-    export FASTLANE_ASC_KEY_ID=...
-    export FASTLANE_ASC_ISSUER_ID=...
+    https://appstoreconnect.apple.com/access/integrations/api
+    Generate API Key → role App Manager → скачай .p8 (только один раз!)
+    Запиши Key ID и Issuer ID
+    base64 -i AuthKey.p8 | pbcopy
 
-  Запуск сборки:
+  Запуск сборки локально:
     export BUILD_NUMBER=1
     uv run --project build_scripts python build_scripts/main.py OneXray macos_se
     #  или: make build-macos-se

@@ -17,6 +17,20 @@ FLUTTER ?= flutter
 GO ?= go
 PYTHON ?= python3
 
+# BUILD_NUMBER — целочисленный номер сборки (uv-style). Дефолт 1 для
+# локальных запусков; CI переопределяет через env (GitHub Actions
+# использует github.run_number).
+BUILD_NUMBER ?= 1
+
+# FLUTTER_ROOT — путь к Flutter SDK (ставится setup_flutter.sh). Если
+# задан и flutter не на PATH — используем $FLUTTER_ROOT/bin/flutter.
+ifeq ($(shell command -v $(FLUTTER) 2>/dev/null),)
+  ifneq ($(FLUTTER_ROOT),)
+    FLUTTER := $(FLUTTER_ROOT)/bin/flutter
+    DART := $(FLUTTER_ROOT)/bin/dart
+  endif
+endif
+
 DARTPKG := backuppc_dart
 CORE_BIN := core/bin/backuppc-xray
 DEPLOY := deploy
@@ -62,22 +76,22 @@ build-app: ## Справка сборщиков GUI: платформы и тр�
 	$(PYTHON) build_scripts/main.py --help
 
 build-android: ## Android (APK)
-	$(PYTHON) build_scripts/main.py OneXray android
+	BUILD_NUMBER=$(BUILD_NUMBER) $(PYTHON) build_scripts/main.py OneXray android
 
 build-ios: ## iOS
-	$(PYTHON) build_scripts/main.py OneXray ios
+	BUILD_NUMBER=$(BUILD_NUMBER) $(PYTHON) build_scripts/main.py OneXray ios
 
 build-macos: ## macOS (Developer ID)
-	$(PYTHON) build_scripts/main.py OneXray macos
+	BUILD_NUMBER=$(BUILD_NUMBER) $(PYTHON) build_scripts/main.py OneXray macos
 
 build-macos-se: ## Mac App Store
-	$(PYTHON) build_scripts/main.py OneXray macos_se
+	BUILD_NUMBER=$(BUILD_NUMBER) $(PYTHON) build_scripts/main.py OneXray macos_se
 
 build-windows: ## Windows (WINDOWS_MODE=exe|msix)
-	$(PYTHON) build_scripts/main.py OneXray windows --windows-mode $(WINDOWS_MODE)
+	BUILD_NUMBER=$(BUILD_NUMBER) $(PYTHON) build_scripts/main.py OneXray windows --windows-mode $(WINDOWS_MODE)
 
 build-linux: ## Linux
-	$(PYTHON) build_scripts/main.py OneXray linux
+	BUILD_NUMBER=$(BUILD_NUMBER) $(PYTHON) build_scripts/main.py OneXray linux
 
 verify-release: ## Проверка релизных артефактов (build_scripts/verify_release.py)
 	$(PYTHON) build_scripts/verify_release.py
