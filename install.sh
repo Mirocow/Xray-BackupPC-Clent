@@ -79,7 +79,7 @@ case "$os" in
             exit 0
         fi
         # Python 3.12 — project requires >=3.12 per pyproject.toml.
-        # Prefer asdf (if installed via brew/asdf) else uv-managed.
+        # Prefer asdf (if installed) else uv-managed.
         if command -v asdf >/dev/null 2>&1; then
             echo "install: asdf install python 3.12.15"
             asdf install python 3.12.15
@@ -88,8 +88,8 @@ case "$os" in
             echo "install: uv python install 3.12 (no asdf)"
             uv python install 3.12
         fi
-        # uv venv from pyproject.toml (works with both asdf-managed and
-        # uv-managed Python 3.12).
+        # uv is ALWAYS needed for venv (even if asdf is present).
+        # brew already installed uv above, but verify + create venv.
         uv sync --project build_scripts --python 3.12
         ;;
     linux)
@@ -117,22 +117,24 @@ case "$os" in
             # asdf local creates/updates .tool-versions (already in repo)
             asdf local python 3.12.15
         else
-            # Fallback: install uv, use uv-managed Python 3.12
-            if ! command -v uv >/dev/null 2>&1; then
-                echo "install: uv не найден — ставим (asdf не обнаружен)"
-                curl -LsSf https://astral.sh/uv/install.sh | sh
-                export PATH="$HOME/.local/bin:$PATH"
-            fi
+            # Fallback: uv-managed Python 3.12 (asdf not detected)
             echo "install: uv python install 3.12 (no asdf)"
             uv python install 3.12
         fi
-        # uv venv — used by build_scripts (declared in pyproject.toml [tool.uv]).
-        # Works with both asdf-managed and uv-managed Python 3.12.
+        # uv is ALWAYS needed — it manages the venv for build_scripts
+        # (declared in pyproject.toml [tool.uv]). Install it even if
+        # asdf is present (uv is a standalone binary, doesn't conflict).
+        if ! command -v uv >/dev/null 2>&1; then
+            echo "install: uv не найден — ставим (нужен для venv)"
+            curl -LsSf https://astral.sh/uv/install.sh | sh
+            export PATH="$HOME/.local/bin:$PATH"
+        fi
+        # Create venv with Python 3.12 in build_scripts/.venv
         if command -v uv >/dev/null 2>&1; then
             echo "install: uv sync --project build_scripts --python 3.12"
             uv sync --project build_scripts --python 3.12
         else
-            echo "install: uv не установлен — build scripts используют системный python3 (требуется 3.12+)" >&2
+            echo "install: WARN — uv не установлен; build scripts будут использовать системный python3 (требуется 3.12+)" >&2
         fi
         # Build essentials (cmake, ninja, pkg-config, clang) — needed for
         # building native deps (libsqlite3, etc.) via Flutter plugins.
@@ -247,23 +249,11 @@ export PATH=\"\$FLUTTER_ROOT/bin:\$PATH\"
 ${marker_end}"
 
     if [ -f "$rc_path" ] && grep -qF "$marker_begin" "$rc_path"; then
-        # Заменить существующий блок.
-        python3 - "$rc_path" "$block" "$marker_begin" "$marker_end" <<'PY' 2>/dev/null || \
-            awk -v begin="$marker_begin" -v end="$marker_end" -v block="$block" '
-            BEGIN { in_block=0; printed=0 }
-            $0 ~ begin { in_block=1; print block; printed=1; next }
-            $0 ~ end { in_block=0; next }
-            !in_block { print }
-        ' "$rc_path" > "$rc_path.tmp" && mv "$rc_path.tmp" "$rc_path"
-import sys, re
-path, block, begin, end = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
-with open(path) as f:
-    content = f.read()
-pattern = re.escape(begin) + r".*?" + re.escape(end)
-new = re.sub(pattern, block, content, flags=re.DOTALL)
-with open(path, "w") as f:
-    f.write(new)
-PY
+        # Заменить существующий блок: удалить старый + добавить новый.
+        # Используем sed для удаления строк между marker_begin и marker_end
+        # (включительно), потом добавляем новый блок в конец.
+        sed -i "/${marker_begin}/,/${marker_end}/d" "$rc_path" 2>/dev/null || true
+        printf '\n%s\n' "$block" >> "$rc_path"
     else
         printf '\n%s\n' "$block" >> "$rc_path"
     fi
