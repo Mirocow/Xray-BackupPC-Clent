@@ -18,6 +18,7 @@ import 'package:onexray/service/shared/menu/window/service.dart';
 import 'package:onexray/service/shared/notification/service.dart';
 import 'package:onexray/service/shared/ping/service.dart';
 import 'package:onexray/service/shared/share/service.dart';
+import 'package:onexray/core/constants/branding.dart';
 
 abstract final class ServiceManager {
   static Future<void>? _initFuture;
@@ -90,6 +91,7 @@ abstract final class ServiceManager {
   }
 
   static Future<void> _checkUpdate() async {
+    if (!AppBranding.updateChecksEnabled) return;
     try {
       final service = AppUpdateService();
       if (!await service.shouldRunAutomaticCheck()) return;

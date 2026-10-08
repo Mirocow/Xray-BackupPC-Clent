@@ -13,6 +13,7 @@ import 'package:onexray/service/shared/event_bus/service.dart';
 import 'package:onexray/service/shared/event_bus/state.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:onexray/pages/settings/widgets.dart';
+import 'package:onexray/core/constants/branding.dart';
 
 class AboutOneXrayPage extends StatelessWidget {
   const AboutOneXrayPage({super.key});
@@ -63,10 +64,23 @@ class AboutOneXrayPage extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(height: 9),
-                          Text('OneXray', style: AppTypography.aboutBrandTitle),
+                          Text(
+                            AppBranding.name,
+                            style: AppTypography.aboutBrandTitle,
+                          ),
                           const SizedBox(height: 9),
                           Text(
                             l10n.prototypeCrossPlatformXrayClient,
+                            style: AppTypography.aboutBrandDescription.copyWith(
+                              color: ColorManager.secondaryText(context),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            l10n.aboutBasedOn(
+                              AppBranding.upstreamName,
+                              AppBranding.license,
+                            ),
                             style: AppTypography.aboutBrandDescription.copyWith(
                               color: ColorManager.secondaryText(context),
                             ),
@@ -96,46 +110,48 @@ class AboutOneXrayPage extends StatelessWidget {
                               ? AppTypography.settingsVersion
                               : AppTypography.desktopSettingsVersion,
                         ),
-                        BlocBuilder<AppEventBus, AppEventBusState>(
-                          builder: (context, preferences) => SettingRow(
-                            title: l10n.prototypeCheckAppUpdates,
-                            minHeight: 64,
-                            titleStyle: AppTypography.settingsRow,
-                            subtitleStyle: mobile
-                                ? AppTypography.settingsChoiceDetail
-                                : AppTypography.desktopSettingsHint,
-                            contentPadding: EdgeInsets.symmetric(
-                              horizontal: mobile ? 13 : 14,
-                              vertical: 12,
-                            ),
-                            subtitle: preferences.appUpdateInfo == null
-                                ? l10n.prototypeCheckNewVersions
-                                : l10n.prototypeVersionAvailable(
-                                    preferences.appUpdateInfo!.latestVersion,
-                                  ),
-                            trailing:
-                                preferences.downloading || state.checkingUpdate
-                                ? const ButtonProgressIndicator(size: 20)
-                                : Stack(
-                                    clipBehavior: Clip.none,
-                                    children: [
-                                      const Icon(
-                                        LucideIcons.download,
-                                        size: 18,
-                                      ),
-                                      if (preferences.appUpdateInfo != null)
-                                        const PositionedDirectional(
-                                          end: -4,
-                                          top: -4,
-                                          child: SettingsUpdateDot(),
+                        if (AppBranding.updateChecksEnabled)
+                          BlocBuilder<AppEventBus, AppEventBusState>(
+                            builder: (context, preferences) => SettingRow(
+                              title: l10n.prototypeCheckAppUpdates,
+                              minHeight: 64,
+                              titleStyle: AppTypography.settingsRow,
+                              subtitleStyle: mobile
+                                  ? AppTypography.settingsChoiceDetail
+                                  : AppTypography.desktopSettingsHint,
+                              contentPadding: EdgeInsets.symmetric(
+                                horizontal: mobile ? 13 : 14,
+                                vertical: 12,
+                              ),
+                              subtitle: preferences.appUpdateInfo == null
+                                  ? l10n.prototypeCheckNewVersions
+                                  : l10n.prototypeVersionAvailable(
+                                      preferences.appUpdateInfo!.latestVersion,
+                                    ),
+                              trailing:
+                                  preferences.downloading ||
+                                      state.checkingUpdate
+                                  ? const ButtonProgressIndicator(size: 20)
+                                  : Stack(
+                                      clipBehavior: Clip.none,
+                                      children: [
+                                        const Icon(
+                                          LucideIcons.download,
+                                          size: 18,
                                         ),
-                                    ],
-                                  ),
-                            onTap: state.checkingUpdate
-                                ? null
-                                : () => controller.checkUpdate(context),
+                                        if (preferences.appUpdateInfo != null)
+                                          const PositionedDirectional(
+                                            end: -4,
+                                            top: -4,
+                                            child: SettingsUpdateDot(),
+                                          ),
+                                      ],
+                                    ),
+                              onTap: state.checkingUpdate
+                                  ? null
+                                  : () => controller.checkUpdate(context),
+                            ),
                           ),
-                        ),
                       ],
                     ),
                     SizedBox(height: mobile ? 23 : 24),
@@ -151,17 +167,19 @@ class AboutOneXrayPage extends StatelessWidget {
                           icon: LucideIcons.bookOpen,
                           link: SettingsLink.documentation,
                         ),
-                        if (AppPlatform.isMobile || AppPlatform.isMacOS)
+                        if (AppBranding.storeReviewEnabled &&
+                            (AppPlatform.isMobile || AppPlatform.isMacOS))
                           _LinkRow(
                             label: l10n.prototypeRateOneXray,
                             icon: LucideIcons.star,
                             link: SettingsLink.review,
                           ),
-                        _LinkRow(
-                          label: l10n.prototypeCommunity,
-                          icon: LucideIcons.send,
-                          link: SettingsLink.community,
-                        ),
+                        if (AppBranding.communityEnabled)
+                          _LinkRow(
+                            label: l10n.prototypeCommunity,
+                            icon: LucideIcons.send,
+                            link: SettingsLink.community,
+                          ),
                         _LinkRow(
                           label: l10n.prototypeSendFeedback,
                           icon: LucideIcons.bug,
