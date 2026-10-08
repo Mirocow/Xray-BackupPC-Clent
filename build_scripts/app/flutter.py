@@ -112,5 +112,8 @@ class FlutterBuilder(Builder):
         app_key = f"app.release.dir.{self.system}"
         if app_key in self.project_config:
             app_src_dir = os.path.join(self.project_dir, self.project_config[app_key])
-            cp_dir_files(app_src_dir, self.output_dir)
+            if os.path.isdir(app_src_dir):
+                cp_dir_files(app_src_dir, self.output_dir)
+            else:
+                print(f"[flutter] {app_src_dir} not found — skipping copy (SKIP_FASTFORGE or fastforge didn't create output)")
         self.builder.after_build()
