@@ -91,20 +91,23 @@ case "$os" in
                     pkg-config clang llvm-dev libsqlite3-dev \
                     libyaml-dev libssl-dev libreadline-dev zlib1g-dev \
                     libffi-dev libgdbm-dev libncurses-dev \
-                    libgtk-3-dev liblzma-dev libstdc++-14-dev
+                    libgtk-3-dev liblzma-dev libstdc++-14-dev \
+                    libayatana-appindicator3-dev
                 ;;
             redhat)
                 sudo dnf install -y gcc gcc-c++ make cmake ninja-build \
                     pkg-config clang llvm-devel sqlite-devel \
                     libyaml-devel openssl-devel readline-devel zlib-devel \
                     libffi-devel gdbm-devel ncurses-devel \
-                    gtk3-devel xz-devel libstdc++-devel
+                    gtk3-devel xz-devel libstdc++-devel \
+                    libayatana-appindicator-gtk3-devel
                 ;;
             arch)
                 sudo pacman -S --noconfirm base-devel cmake ninja pkgconf \
                     clang llvm sqlite \
                     yaml openssl readline zlib libffi gdbm ncurses \
-                    gtk3 xz
+                    gtk3 xz \
+                    libayatana-appindicator
                 ;;
             unknown)
                 echo "install: неизвестный Linux distro — пропускаем системные пакеты" >&2
