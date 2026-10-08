@@ -403,15 +403,6 @@ class ServerImportService {
         }
         standalone.add(link);
       }
-      // Process non-onexray links (backuppc://, vless://, vmess://, etc.)
-      // through the native share reader. Without this, backuppc:// URLs
-      // go to `other` list but are never parsed → "Поддерживаемые ссылки
-      // не найдены" error.
-      final otherText = other.join('\n').trim();
-      if (otherText.isNotEmpty) {
-        final otherRows = await _parse(otherText);
-        rows.addAll(otherRows);
-      }
       return _configurationPreview(rows, configurations, standalone);
     }
     final json = jsonDecode(text);
