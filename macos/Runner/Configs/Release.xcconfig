@@ -1,2 +1,12 @@
 #include "../../Flutter/Flutter-Release.xcconfig"
 #include "Warnings.xcconfig"
+
+// Disable code signing — for SKIP_FASTLANE=1 local unsigned builds.
+// Without this, xcodebuild fails with "No profile for team X matching Y"
+// because the project's CODE_SIGN_IDENTITY is "Developer ID Application"
+// but local user has no Apple cert.
+// To re-enable signing: comment these out and run without SKIP_FASTLANE
+// (fastlane will configure proper signing via get_provisioning_profile).
+CODE_SIGNING_ALLOWED = NO
+CODE_SIGNING_REQUIRED = NO
+CODE_SIGN_IDENTITY =

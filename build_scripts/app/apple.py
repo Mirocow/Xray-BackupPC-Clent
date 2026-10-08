@@ -25,15 +25,16 @@ class AppleBuilder(Builder):
         # Useful for local testing without Apple certs. Just runs
         # `flutter build macos` (or ios) — produces unsigned .app bundle
         # at build/<platform>/Build/Products/Release/.
+        # Note: macOS xcconfig files (macos/Runner/Configs/{Debug,Release}.xcconfig)
+        # have CODE_SIGNING_ALLOWED=NO that disables signing at xcodebuild
+        # level. iOS would need --no-codesign flag (which is iOS-only).
         if os.environ.get("SKIP_FASTLANE"):
             print("[apple] SKIP_FASTLANE=1 — running `flutter build` without fastlane")
-            # Determine flutter build target from self.system
-            # system is one of: macos, macos_se, ios
             build_target = "macos" if self.system in ("macos", "macos_se") else "ios"
-            # --no-codesign: skip code signing (we don't have Apple cert for
-            # local testing). Without this, xcodebuild fails with
-            # "No profile for team X matching Y found".
-            cmd = ["flutter", "build", build_target, "--no-codesign"]
+            cmd = ["flutter", "build", build_target]
+            if self.system == "ios":
+                # iOS supports --no-codesign (macOS doesn't)
+                cmd.append("--no-codesign")
             run_command(cmd, cwd=os.path.dirname(self.project_dir))
             return
         run_command(["fastlane", self.fastlane, "--verbose"], cwd=self.project_dir)
