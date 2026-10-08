@@ -28,3 +28,4 @@ startup_notify: true
 startup_wm_class: OneXray
 supported_mime_type:
   - x-scheme-handler/onexray
+  - x-scheme-handler/backuppc
