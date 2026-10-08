@@ -154,7 +154,7 @@ The App Store is the simplest installation route. An IPA must be re-signed toget
 <details>
 <summary>Windows: EXE / ZIP and Microsoft Store</summary>
 
-EXE and ZIP use a standalone Core with a native TUN interface; starting VPN requests administrator approval through UAC. Extract the entire ZIP before running it: a ZIP does not register protocol links or create shortcuts automatically.
+EXE and ZIP use a standalone Core with a native TUN interface; starting VPN requests administrator approval through UAC. Extract the entire ZIP before running it: a ZIP does not register protocol links or create shortcuts automatically. The EXE installer registers both `onexray://` and `backuppc://` URL schemes in `HKCU\Software\Classes\...`; MSIX (Microsoft Store) registers them via the AppX manifest.
 
 [Microsoft Store](https://apps.microsoft.com/detail/9NJ0MVHW215D) uses an MSIX package with a system VPN provider and handles architecture selection and updates. EXE / ZIP and MSIX use separate data locations and are not interchangeable upgrade channels. See the [Windows build guide](docs/windows-build.md) for development builds and mode selection.
 
@@ -163,7 +163,7 @@ EXE and ZIP use a standalone Core with a native TUN interface; starting VPN requ
 <details>
 <summary>Linux: packages and permissions</summary>
 
-On Debian/Ubuntu, install the DEB matching your architecture. It installs the runtime dependencies, registers OneXray links, and grants the required network capabilities:
+On Debian/Ubuntu, install the DEB matching your architecture. It installs the runtime dependencies, registers OneXray links (`onexray://` + `backuppc://`), and grants the required network capabilities:
 
 ```shell
 sudo apt install ./OneXray-linux-x86_64.deb
@@ -176,7 +176,7 @@ sudo apt install -y procps libcap2-bin libayatana-appindicator3-1
 sudo setcap cap_net_admin,cap_net_raw+eip OneXray/OneXrayCore
 ```
 
-ZIP builds do not register `onexray://` links automatically. GNOME users may need the [AppIndicator extension](https://github.com/ubuntu/gnome-shell-extension-appindicator) for tray controls.
+ZIP builds do not register `onexray://` or `backuppc://` links automatically. Run `./register-linux.sh` from the directory containing the extracted `OneXray` folder to register both schemes via `xdg-mime`. GNOME users may also need the [AppIndicator extension](https://github.com/ubuntu/gnome-shell-extension-appindicator) for tray controls.
 
 </details>
 

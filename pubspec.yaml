@@ -110,7 +110,16 @@ msix_config:
   identity_name: YuanDevLLC.OneXray
   publisher: CN=3666BCB5-5482-46DD-9C19-D8A7290A39FD
   logo_path: assets/logo.png
-  protocol_activation: onexray
+  # URL schemes handled by the app. Click onexray://... or backuppc://...
+  # in browser/email/chat → OneXray opens and imports the server config.
+  # protocol_activation: legacy single-string field (kept for back-compat).
+  # protocols: explicit list (msix >= 3.x canonical form).
+  protocol_activation: onexray,backuppc
+  protocols:
+    - name: OneXray Protocol
+      exec: OneXray.exe
+    - name: BackupPC Protocol
+      exec: OneXray.exe
   languages: en-us
   capabilities: internetClientServer, privateNetworkClientServer, networkingVpnProvider
   startup_task:

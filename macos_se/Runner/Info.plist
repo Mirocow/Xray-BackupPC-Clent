@@ -45,6 +45,7 @@
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>onexray</string>
+				<string>backuppc</string>
 			</array>
 		</dict>
 	</array>
