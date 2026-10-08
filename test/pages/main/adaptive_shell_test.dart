@@ -15,6 +15,7 @@ import 'package:onexray/pages/theme/theme.dart';
 import 'package:onexray/pages/shared/widgets/adaptive_dialog.dart';
 import 'package:onexray/service/settings/app_update/service.dart';
 import 'package:onexray/service/shared/event_bus/service.dart';
+import 'package:onexray/core/constants/branding.dart';
 
 void main() {
   test('primary destinations use product names and URLs', () {
@@ -183,7 +184,7 @@ void main() {
       const ValueKey('primary-desktop-navigation'),
     );
     expect(find.text('connect-content'), findsOneWidget);
-    expect(find.text('OneXray'), findsOneWidget);
+    expect(find.text(AppBranding.name), findsOneWidget);
     expect(
       tester.getSize(desktopNavigation).width,
       AppLayout.desktopSidebarWidth,
@@ -230,7 +231,7 @@ void main() {
         tester.getSize(desktopNavigation).width,
         AppLayout.compactSidebarWidth,
       );
-      expect(find.text('OneXray'), findsOneWidget);
+      expect(find.text(AppBranding.name), findsOneWidget);
       expect(tester.takeException(), isNull);
     }
     await tester.binding.setSurfaceSize(const Size(720, 800));

@@ -93,7 +93,7 @@ void main() {
       expect(find.byType(SharePage), findsOneWidget);
       expect(find.byType(ShadToast), findsNothing);
 
-      await tester.tap(find.text('OneXray link'));
+      await tester.tap(find.text('backuppc-vpn link'));
       await tester.pumpAndSettle();
       await tester.tap(button);
       await tester.pumpAndSettle();

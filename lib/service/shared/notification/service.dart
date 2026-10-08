@@ -1,6 +1,7 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:onexray/core/tools/logger.dart';
 import 'package:onexray/core/tools/platform.dart';
+import 'package:onexray/core/constants/branding.dart';
 
 final class NotificationService {
   static final NotificationService _singleton = NotificationService._internal();
@@ -26,7 +27,7 @@ final class NotificationService {
     );
     final WindowsInitializationSettings initializationSettingsWindows =
         WindowsInitializationSettings(
-          appName: 'OneXray',
+          appName: AppBranding.name,
           appUserModelId: 'net.yuandev.onexray',
           // Search online for GUID generators to make your own
           guid: '835d7bbd-85bb-4c73-97f8-ce0740f151a7',
@@ -80,8 +81,8 @@ final class NotificationService {
       const details = NotificationDetails(
         android: AndroidNotificationDetails(
           'net.yuandev.onexray',
-          'OneXray',
-          channelDescription: 'OneXray',
+          AppBranding.name,
+          channelDescription: AppBranding.name,
           importance: Importance.defaultImportance,
           priority: Priority.defaultPriority,
           ticker: 'OneXray',

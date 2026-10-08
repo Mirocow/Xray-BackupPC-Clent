@@ -10,6 +10,7 @@ import 'package:onexray/pages/theme/font.dart';
 import 'package:onexray/pages/theme/layout.dart';
 import 'package:onexray/service/launch/setup.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:onexray/core/constants/branding.dart';
 
 /// The production presentation, without creating services or changing setup
 /// preferences. It is also the isolated entry point for visual verification.
@@ -53,7 +54,7 @@ class SetupView extends StatelessWidget {
                   children: [
                     if (welcome) ...[
                       Text(
-                        'OneXray',
+                        AppBranding.name,
                         textAlign: TextAlign.center,
                         style: AppTypography.setupBrand,
                       ),

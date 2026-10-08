@@ -18,6 +18,7 @@ import 'package:onexray/service/shared/failure.dart';
 import 'package:onexray/service/shared/menu/short_cut/service.dart';
 import 'package:onexray/service/shared/menu/tray/service.dart';
 import 'package:onexray/service/shared/share/service.dart';
+import 'package:onexray/core/constants/branding.dart';
 
 class AdaptiveMainShell extends StatefulWidget {
   const AdaptiveMainShell({
@@ -234,7 +235,7 @@ class _AdaptiveMainShellState extends State<AdaptiveMainShell> {
                         AppSpacing.sidebarBrandBottom,
                       ),
                       child: Text(
-                        'OneXray',
+                        AppBranding.name,
                         style: AppTypography.desktopBrand.copyWith(
                           color: palette.brand,
                         ),
