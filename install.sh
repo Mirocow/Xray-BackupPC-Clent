@@ -58,9 +58,11 @@ esac
 
 echo "install: detected OS = $os"
 
-# ─── 1. Package manager + base tools ───────────────────────────────────
+# ─── 1. System packages + asdf runtimes ────────────────────────────────
 case "$os" in
     macos)
+        # Homebrew — только для cocoapods (Xcode dep, нет asdf-плагина).
+        # Go, Python, Ruby, Flutter, uv — всё через asdf (ниже).
         if ! command -v brew >/dev/null 2>&1; then
             echo "install: Homebrew не найден — ставим"
             /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
@@ -70,8 +72,7 @@ case "$os" in
                 eval "$(/usr/local/bin/brew shellenv)"
             fi
         fi
-        echo "install: brew install go cocoapods uv fastlane"
-        brew install go cocoapods uv fastlane
+        brew install cocoapods
         # Xcode Command Line Tools.
         if ! xcode-select -p >/dev/null 2>&1; then
             xcode-select --install || true
@@ -80,9 +81,116 @@ case "$os" in
         fi
         ;;
     linux)
-        # Install Go via package manager OR download official tarball.
-        # We prefer the official tarball (newer Go than distro packages).
-        if ! command -v go >/dev/null 2>&1; then
+        # System packages FIRST — asdf compiles Ruby/Python from source,
+        # needs -dev headers. Must install BEFORE asdf install.
+        echo "install: системные пакеты (build deps для asdf компиляции)"
+        case "$linux_distro" in
+            debian)
+                sudo apt-get update
+                sudo apt-get install -y build-essential cmake ninja-build \
+                    pkg-config clang llvm-dev libsqlite3-dev \
+                    libyaml-dev libssl-dev libreadline-dev zlib1g-dev \
+                    libffi-dev libgdbm-dev libncurses-dev \
+                    libgtk-3-dev liblzma-dev libstdc++-14-dev \
+                    libayatana-appindicator3-dev
+                ;;
+            redhat)
+                sudo dnf install -y gcc gcc-c++ make cmake ninja-build \
+                    pkg-config clang llvm-devel sqlite-devel \
+                    libyaml-devel openssl-devel readline-devel zlib-devel \
+                    libffi-devel gdbm-devel ncurses-devel \
+                    gtk3-devel xz-devel libstdc++-devel \
+                    libayatana-appindicator-gtk3-devel
+                ;;
+            arch)
+                sudo pacman -S --noconfirm base-devel cmake ninja pkgconf \
+                    clang llvm sqlite \
+                    yaml openssl readline zlib libffi gdbm ncurses \
+                    gtk3 xz \
+                    libayatana-appindicator
+                ;;
+            unknown)
+                echo "install: неизвестный Linux distro — пропускаем системные пакеты" >&2
+                echo "  установи вручную: build-essential, cmake, ninja, clang, sqlite3-dev," >&2
+                echo "  libyaml-dev, libssl-dev, libreadline-dev, zlib1g-dev, libffi-dev" >&2
+                ;;
+        esac
+        ;;
+    windows)
+        echo "install: Windows — рекомендуется использовать WSL2 + Linux install"
+        echo "  Если всё же нативный Windows:"
+        if command -v winget >/dev/null 2>&1; then
+            winget install --id GoLang.Go -e --source winget
+            winget install --id Python.Python.3.13 -e --source winget
+            winget install --id AstralSH.uv -e --source winget
+            echo "install: fastlane — установи через RubyInstaller + 'gem install fastlane'"
+        else
+            echo "install: winget не найден — установи Go, Python, uv вручную" >&2
+        fi
+        ;;
+esac
+
+# ─── 2. asdf — ALL runtimes (golang + python + ruby + flutter + uv) ────
+# .tool-versions pins all 5 versions. asdf reads it automatically.
+if command -v asdf >/dev/null 2>&1; then
+    echo "install: asdf detected — installing ALL runtimes via asdf"
+
+    # Add asdf plugins (idempotent — asdf plugin add ignores if exists)
+    echo "install: asdf plugin add golang"
+    asdf plugin add golang https://github.com/asdf-community/asdf-golang.git 2>/dev/null || true
+    echo "install: asdf plugin add python"
+    asdf plugin add python https://github.com/asdf-community/asdf-python.git 2>/dev/null || true
+    echo "install: asdf plugin add ruby"
+    asdf plugin add ruby https://github.com/asdf/asdf-ruby.git 2>/dev/null || true
+    echo "install: asdf plugin add flutter"
+    asdf plugin add flutter https://github.com/oae/asdf-flutter.git 2>/dev/null || true
+    echo "install: asdf plugin add uv"
+    asdf plugin add uv https://github.com/asdf-community/asdf-uv.git 2>/dev/null || true
+
+    # Update plugins to get latest version lists
+    echo "install: asdf plugin update --all"
+    asdf plugin update --all 2>/dev/null || true
+
+    # Install all versions from .tool-versions
+    echo "install: asdf install (all versions from .tool-versions)"
+    asdf install
+
+    # macOS 13 (Ventura) override: Flutter 3.27+ requires macOS 14.
+    # Pin Flutter to 3.24.5-stable (last supporting macOS 13).
+    if [ "$os" = "macos" ]; then
+        macos_product="$(sw_vers -productVersion 2>/dev/null || echo "")"
+        macos_major="$(echo "$macos_product" | cut -d. -f1)"
+        if [ -n "$macos_major" ] && [ "$macos_major" -lt 14 ] 2>/dev/null; then
+            echo "install: macOS $macos_product (<14) — overriding flutter to 3.24.5-stable"
+            asdf install flutter 3.24.5-stable 2>/dev/null || true
+            asdf local flutter 3.24.5-stable
+        fi
+    fi
+
+    # Trigger Dart SDK download (first run of flutter)
+    flutter --version 2>/dev/null || true
+
+    # fastlane via gem (uses asdf's Ruby)
+    echo "install: gem install fastlane (via asdf ruby)"
+    gem install fastlane --no-document
+
+    # uv venv for build_scripts
+    echo "install: uv sync --project build_scripts --python 3.12"
+    uv sync --project build_scripts --python 3.12
+
+    # fastforge — Dart packaging tool (zip/deb/rpm for Linux, exe for Windows)
+    echo "install: dart pub global activate fastforge"
+    dart pub global activate fastforge || echo "install: WARN — fastforge install failed; SKIP_FASTFORGE=1 make build-linux"
+
+else
+    # ─── Fallback: no asdf — install via package managers ──────────────
+    echo "install: asdf не обнаружен — fallback на системные пакеты"
+
+    # Go — official tarball (Linux) or brew (macOS)
+    if ! command -v go >/dev/null 2>&1; then
+        if [ "$os" = "macos" ]; then
+            brew install go
+        else
             echo "install: Go не найден — ставим из официального архива"
             go_version="1.27.1"
             go_arch="$(uname -m)"
@@ -96,117 +204,56 @@ case "$os" in
             export PATH="/usr/local/go/bin:$PATH"
             echo 'export PATH="/usr/local/go/bin:$PATH"' >> "$HOME/.profile"
         fi
-        # uv (Python package manager) — install via pipx or curl installer.
-        if ! command -v uv >/dev/null 2>&1; then
-            echo "install: uv не найден — ставим"
-            curl -LsSf https://astral.sh/uv/install.sh | sh
-            export PATH="$HOME/.cargo/bin:$PATH"
-        fi
-        # Build essentials (cmake, ninja, pkg-config, clang) — needed for
-        # building native deps (libsqlite3, etc.) via Flutter plugins.
-        case "$linux_distro" in
-            debian)
-                sudo apt-get update
-                sudo apt-get install -y build-essential cmake ninja-build \
-                    pkg-config clang llvm-dev libsqlite3-dev \
-                    ruby ruby-dev
-                # fastlane via gem (apt version is too old)
-                sudo gem install fastlane --no-document
-                ;;
-            redhat)
-                sudo dnf install -y gcc gcc-c++ make cmake ninja-build \
-                    pkg-config clang llvm-devel sqlite-devel \
-                    ruby ruby-devel
-                sudo gem install fastlane --no-document
-                ;;
-            arch)
-                sudo pacman -S --noconfirm base-devel cmake ninja pkgconf \
-                    clang llvm sqlite ruby
-                sudo gem install fastlane --no-document
-                ;;
-            unknown)
-                echo "install: неизвестный Linux distro — пропускаем установку системных пакетов" >&2
-                echo "  установи вручную: go, uv, build-essential, cmake, ninja, clang, sqlite3-dev, ruby" >&2
-                ;;
-        esac
-        ;;
-    windows)
-        echo "install: Windows — рекомендуется использовать WSL2 + Linux install"
-        echo "  Если всё же нативный Windows:"
-        # winget может быть не установлен на старых Windows 10
-        if command -v winget >/dev/null 2>&1; then
-            winget install --id GoLang.Go -e --source winget
-            winget install --id Python.Python.3.13 -e --source winget
-            winget install --id AstralSH.uv -e --source winget
-            # fastlane на Windows работает через RubyInstaller
-            echo "install: fastlane — установи через RubyInstaller + 'gem install fastlane'"
-        else
-            echo "install: winget не найден — установи Go, Python, uv вручную" >&2
-        fi
-        # CocoaPods не нужен на Windows (только для iOS/macOS builds)
-        ;;
-esac
-
-# ─── 2. Flutter через setup_flutter.sh (кросс-платформенный) ────────────
-# setup_flutter.sh сам детектит OS и пинит нужную версию:
-#   - macOS 13 (Ventura): 3.24.5 (последний с поддержкой macOS 13)
-#   - macOS 14+: latest stable
-#   - Linux/Windows/CI: latest stable
-# Переопределение: ONEXRAY_FLUTTER_VERSION=3.29.0 sh install.sh
-
-# Determine Flutter version based on OS
-FLUTTER_VERSION="${ONEXRAY_FLUTTER_VERSION:-stable}"
-if [ -z "${ONEXRAY_FLUTTER_VERSION:-}" ] && [ "$os" = "macos" ]; then
-    macos_product="$(sw_vers -productVersion 2>/dev/null || echo "")"
-    macos_major="$(echo "$macos_product" | cut -d. -f1)"
-    if [ -n "$macos_major" ] && [ "$macos_major" -lt 14 ] 2>/dev/null; then
-        FLUTTER_VERSION="3.24.5"
-        echo "install: macOS $macos_product (<14) — pinning Flutter to 3.24.5" >&2
-    else
-        echo "install: macOS $macos_product (>=14) — using latest stable Flutter" >&2
     fi
+
+    # uv — curl installer
+    if ! command -v uv >/dev/null 2>&1; then
+        echo "install: uv не найден — ставим (curl installer)"
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        export PATH="$HOME/.local/bin:$PATH"
+    fi
+    echo "install: uv python install 3.12"
+    uv python install 3.12
+    echo "install: uv sync --project build_scripts --python 3.12"
+    uv sync --project build_scripts --python 3.12
+
+    # fastlane via gem
+    echo "install: gem install fastlane"
+    [ "$os" = "macos" ] && brew install fastlane || \
+        sudo gem install fastlane --no-document 2>/dev/null || \
+        gem install fastlane --no-document 2>/dev/null || \
+        echo "install: WARN — fastlane install failed" >&2
+
+    # Flutter via setup_flutter.sh (cross-platform, detects macOS 13)
+    FLUTTER_VERSION="${ONEXRAY_FLUTTER_VERSION:-stable}"
+    if [ "$os" = "macos" ]; then
+        macos_product="$(sw_vers -productVersion 2>/dev/null || echo "")"
+        macos_major="$(echo "$macos_product" | cut -d. -f1)"
+        if [ -n "$macos_major" ] && [ "$macos_major" -lt 14 ] 2>/dev/null; then
+            FLUTTER_VERSION="3.24.5"
+        fi
+    fi
+    FLUTTER_ROOT="${ONEXRAY_FLUTTER_ROOT:-$HOME/flutter/$FLUTTER_VERSION}"
+    export FLUTTER_ROOT
+    export PATH="$FLUTTER_ROOT/bin:$PATH"
+    ONEXRAY_FLUTTER_VERSION="$FLUTTER_VERSION" \
+    ONEXRAY_FLUTTER_ROOT="$FLUTTER_ROOT" \
+        bash build_scripts/setup_flutter.sh
+    flutter --version
 fi
-
-FLUTTER_ROOT="${ONEXRAY_FLUTTER_ROOT:-$HOME/flutter/$FLUTTER_VERSION}"
-export FLUTTER_ROOT
-export PATH="$FLUTTER_ROOT/bin:$PATH"
-
-# Run setup_flutter.sh (clones Flutter SDK to $FLUTTER_ROOT)
-ONEXRAY_FLUTTER_VERSION="$FLUTTER_VERSION" \
-ONEXRAY_FLUTTER_ROOT="$FLUTTER_ROOT" \
-    bash build_scripts/setup_flutter.sh
-
-echo "install: FLUTTER_ROOT=$FLUTTER_ROOT"
-
-if ! command -v flutter >/dev/null 2>&1; then
-    echo "install: ERROR — flutter не на PATH после setup_flutter.sh" >&2
-    echo "  Проверь, что $FLUTTER_ROOT/bin/flutter существует" >&2
-    exit 1
-fi
-flutter --version
 
 # ─── 3. Update shell rc file (idempotent, marker-block) ────────────────
-# НЕ сурсим rc — там shell-специфичный синтаксис. Marker-block безопасно
-# добавляется в конец файла.
-case "$os" in
-    macos)
-        rc_path="$HOME/.zshrc"
-        ;;
-    linux)
-        # bash is default on most distros; zsh if installed
-        if [ -n "${ZSH_VERSION:-}" ]; then
-            rc_path="$HOME/.zshrc"
-        else
-            rc_path="$HOME/.bashrc"
-        fi
-        ;;
-    windows)
-        # Git Bash uses ~/.bashrc
-        rc_path="$HOME/.bashrc"
-        ;;
-esac
+# Только для non-asdf fallback (когда Flutter установлен в ~/flutter/).
+# asdf users не нужны — asdf shims уже на PATH через .bashrc (asdf setup).
+if [ -z "${rc_path:-}" ]; then
+    case "$os" in
+        macos) rc_path="$HOME/.zshrc" ;;
+        linux)  rc_path="$HOME/.bashrc" ;;
+        windows) rc_path="$HOME/.bashrc" ;;
+    esac
+fi
 
-if [ -n "${rc_path:-}" ] && [ -n "$FLUTTER_ROOT" ]; then
+if [ -n "${rc_path:-}" ] && [ -n "${FLUTTER_ROOT:-}" ]; then
     marker_begin="# >>> backuppc-vpn install.sh >>>"
     marker_end="# <<< backuppc-vpn install.sh <<<"
     block="${marker_begin}
@@ -215,23 +262,11 @@ export PATH=\"\$FLUTTER_ROOT/bin:\$PATH\"
 ${marker_end}"
 
     if [ -f "$rc_path" ] && grep -qF "$marker_begin" "$rc_path"; then
-        # Заменить существующий блок.
-        python3 - "$rc_path" "$block" "$marker_begin" "$marker_end" <<'PY' 2>/dev/null || \
-            awk -v begin="$marker_begin" -v end="$marker_end" -v block="$block" '
-            BEGIN { in_block=0; printed=0 }
-            $0 ~ begin { in_block=1; print block; printed=1; next }
-            $0 ~ end { in_block=0; next }
-            !in_block { print }
-        ' "$rc_path" > "$rc_path.tmp" && mv "$rc_path.tmp" "$rc_path"
-import sys, re
-path, block, begin, end = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
-with open(path) as f:
-    content = f.read()
-pattern = re.escape(begin) + r".*?" + re.escape(end)
-new = re.sub(pattern, block, content, flags=re.DOTALL)
-with open(path, "w") as f:
-    f.write(new)
-PY
+        # Заменить существующий блок: удалить старый + добавить новый.
+        # Используем sed для удаления строк между marker_begin и marker_end
+        # (включительно), потом добавляем новый блок в конец.
+        sed -i "/${marker_begin}/,/${marker_end}/d" "$rc_path" 2>/dev/null || true
+        printf '\n%s\n' "$block" >> "$rc_path"
     else
         printf '\n%s\n' "$block" >> "$rc_path"
     fi
@@ -239,11 +274,11 @@ PY
     echo "  открой новый терминал (или: source $rc_path в новой shell-сессии)"
 fi
 
-# ─── 4. Python-окружение (uv) ───────────────────────────────────────────
-if command -v uv >/dev/null 2>&1; then
-    uv sync --project build_scripts
-else
-    echo "install: uv не на PATH — пропускаем" >&2
+# ─── 4. Python-окружение (uv) — финальная проверка ──────────────────────
+# uv и venv уже настроены выше (в OS-specific блоке). Здесь только
+# проверяем что uv доступен.
+if ! command -v uv >/dev/null 2>&1; then
+    echo "install: WARN — uv не на PATH; установи вручную: curl -LsSf https://astral.sh/uv/install.sh | sh" >&2
 fi
 
 # ─── 5. Apple cert инструкции (только для macos/ios builds) ────────────

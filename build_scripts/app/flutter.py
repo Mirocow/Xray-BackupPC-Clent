@@ -72,6 +72,11 @@ class FlutterBuilder(Builder):
         self.before_build()
         self.build_app()
         self.after_build()
+        # SKIP_FASTFORGE=1 — skip provenance (needs packaged artifacts
+        # from fastforge which were skipped above).
+        if os.environ.get("SKIP_FASTFORGE"):
+            print("[flutter] SKIP_FASTFORGE=1 — skipping build provenance")
+            return
         finish_build(self, receipt)
 
     def before_build(self):
@@ -112,5 +117,8 @@ class FlutterBuilder(Builder):
         app_key = f"app.release.dir.{self.system}"
         if app_key in self.project_config:
             app_src_dir = os.path.join(self.project_dir, self.project_config[app_key])
-            cp_dir_files(app_src_dir, self.output_dir)
+            if os.path.isdir(app_src_dir):
+                cp_dir_files(app_src_dir, self.output_dir)
+            else:
+                print(f"[flutter] {app_src_dir} not found — skipping copy (SKIP_FASTFORGE or fastforge didn't create output)")
         self.builder.after_build()

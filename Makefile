@@ -19,7 +19,14 @@
 DART ?= dart
 FLUTTER ?= flutter
 GO ?= go
-PYTHON ?= python3
+# PYTHON — как запускать build_scripts/main.py. По умолчанию uv-managed
+# venv из build_scripts/.venv (Python 3.12+, ставится install.sh).
+# Если uv нет — fallback на системный python3 (требуется 3.12+).
+ifeq ($(shell command -v uv 2>/dev/null),)
+  PYTHON ?= python3
+else
+  PYTHON ?= uv run --project build_scripts python
+endif
 
 # BUILD_NUMBER — целочисленный номер сборки (uv-style). Дефолт 1 для
 # локальных запусков; CI переопределяет через env (GitHub Actions
@@ -34,6 +41,11 @@ ifeq ($(shell command -v $(FLUTTER) 2>/dev/null),)
     DART := $(FLUTTER_ROOT)/bin/dart
   endif
 endif
+
+# Pub global binaries (fastforge, etc.) — add to PATH for subprocesses.
+# command_line.py already does this for Python subprocess; this helps
+# when running commands directly from Makefile (make build-linux).
+export PATH := $(HOME)/.pub-cache/bin:$(PATH)
 
 # ─── Host OS auto-detection (for `make build` / `make run`) ────────────
 # uname -s returns: Darwin (macOS), Linux, MINGW*/MSYS*/CYGWIN* (Windows).

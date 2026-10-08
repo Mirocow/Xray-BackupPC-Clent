@@ -2,6 +2,14 @@
 cmake_minimum_required(VERSION 3.13)
 project(runner LANGUAGES CXX)
 
+# Override default install prefix (/usr/local/) to local build directory.
+# Without this, `flutter build linux` fails with "Permission denied" on
+# the cmake install step (tries to write to /usr/local/OneXray).
+# Can be overridden: -DCMAKE_INSTALL_PREFIX=/custom/path
+if(CMAKE_INSTALL_PREFIX STREQUAL "/usr/local")
+    set(CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/bundle" CACHE PATH "Install prefix" FORCE)
+endif()
+
 # The name of the executable created for the application. Change this to change
 # the on-disk name of your application.
 set(BINARY_NAME "OneXray")
