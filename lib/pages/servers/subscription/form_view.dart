@@ -150,14 +150,32 @@ class SubscriptionFormView extends StatelessWidget {
         controller: nameController,
         hintText: nameHint ?? nameLabel,
       ),
-      _editableField(
-        context,
-        label: urlLabel,
-        controller: urlController,
-        hintText: urlHint,
-        helperText: urlHelper,
-        textDirection: TextDirection.ltr,
-        keyboardType: TextInputType.url,
+      // URL field with reactive helper text: when the URL is not HTTPS
+      // (e.g. user pasted backuppc://, vless://, vmess://, trojan://, ss://),
+      // show a hint directing them to "Paste link" instead — subscription
+      // form is for HTTPS URLs that return server lists, not for direct
+      // share-links.
+      ValueListenableBuilder<TextEditingValue>(
+        valueListenable: urlController,
+        builder: (context, value, _) {
+          final text = value.text.trim();
+          final uri = text.isEmpty ? null : Uri.tryParse(text);
+          final isHttps = uri != null && uri.scheme.toLowerCase() == 'https';
+          final helper = urlHelper ??
+              (isHttps || text.isEmpty
+                  ? null
+                  : 'Subscription URL must be HTTPS (e.g. https://provider.example/subscription). '
+                      'For backuppc:// or vless:// share links, use "Paste link" instead.');
+          return _editableField(
+            context,
+            label: urlLabel,
+            controller: urlController,
+            hintText: urlHint,
+            helperText: helper,
+            textDirection: TextDirection.ltr,
+            keyboardType: TextInputType.url,
+          );
+        },
       ),
     ];
     if (MediaQuery.sizeOf(context).width <= AppLayout.mobileBreakpoint) {

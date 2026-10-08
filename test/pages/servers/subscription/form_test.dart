@@ -101,7 +101,7 @@ void main() {
     await tester.pumpWidget(app(form()));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('Only VMessAEAD / VLESS'), findsOneWidget);
+    expect(find.textContaining('VMessAEAD / VLESS / backuppc://'), findsOneWidget);
     expect(find.text('HTTPS only'), findsOneWidget);
     expect(find.byType(ShadInput), findsNWidgets(4));
     expect(
