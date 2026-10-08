@@ -4,13 +4,11 @@
 #
 # System packages (build-essential, cmake, ninja, clang, libsqlite3-dev)
 # are NOT managed by asdf — installed via apt/dnf/pacman in install.sh.
-# Only language runtimes + standalone tools go here.
+# uv is installed via curl-installer (more reliable than asdf-uv plugin).
 #
 # Python 3.12.x is required by build_scripts/pyproject.toml.
 # Go 1.27.x is required by third_party/libXray/go.mod.
 # Ruby 3.3.x is required for fastlane (gem install).
-# uv — Python package manager for venv management.
 golang 1.27.1
 python 3.12.15
-ruby 3.3.6
-uv 0.12.23
+ruby 3.3.5

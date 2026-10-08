@@ -107,8 +107,10 @@ case "$os" in
             asdf plugin add python https://github.com/asdf-community/asdf-python.git 2>/dev/null || true
             echo "install: asdf plugin add ruby"
             asdf plugin add ruby https://github.com/asdf/asdf-ruby.git 2>/dev/null || true
-            echo "install: asdf plugin add uv"
-            asdf plugin add uv https://github.com/asdf-community/asdf-uv.git 2>/dev/null || true
+
+            # Update plugins to get latest version lists (fixes "Version not found")
+            echo "install: asdf plugin update --all"
+            asdf plugin update --all 2>/dev/null || true
 
             # Install all versions from .tool-versions (already committed to repo)
             echo "install: asdf install (all versions from .tool-versions)"
@@ -117,12 +119,19 @@ case "$os" in
             # Set local versions (creates .tool-versions if missing)
             asdf local golang 1.27.1 2>/dev/null || true
             asdf local python 3.12.15 2>/dev/null || true
-            asdf local ruby 3.3.6 2>/dev/null || true
-            asdf local uv 0.12.23 2>/dev/null || true
+            asdf local ruby 3.3.5 2>/dev/null || true
 
             # fastlane via gem (uses asdf's Ruby, not system Ruby)
             echo "install: gem install fastlane (via asdf ruby)"
             gem install fastlane --no-document
+
+            # uv — standalone binary via curl installer (NOT via asdf;
+            # asdf-uv community plugin is unreliable with version numbers).
+            if ! command -v uv >/dev/null 2>&1; then
+                echo "install: uv не найден — ставим (curl installer)"
+                curl -LsSf https://astral.sh/uv/install.sh | sh
+                export PATH="$HOME/.local/bin:$PATH"
+            fi
         else
             # ─── Fallback: no asdf — install via package managers ──────
             echo "install: asdf не обнаружен — fallback на системные пакеты"
