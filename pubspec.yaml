@@ -136,7 +136,13 @@ dev_dependencies:
   # Dart — doesn't directly depend on build_config, pulls older
   # compatible versions transitively.
   flutter_gen_runner: ^5.13.0
-  ffigen: ^19.0.0              # was ^22.0.0 (>=3.10.0)
+  # Pinned to ^16.0.0 (was ^19.0.0):
+  # - ffigen 17+ uses dart_style ^3.0.0 (conflicts with source_gen 1.5.0's
+  #   dart_style ^2.0.0 — different majors, no intersection)
+  # - ffigen 19.1+ requires Dart >=3.8.0 (we have 3.5.4)
+  # - ffigen 16.x uses dart_style ^2.3.7 (compatible with source_gen 1.5.0)
+  #   and requires Dart >=3.4.0 ✓
+  ffigen: ^16.0.0
   msix: ^3.18.0                # already compatible (>=2.19.0)
 
 # re_editor only uses APIs that remain compatible with isolate_manager 6.x.
