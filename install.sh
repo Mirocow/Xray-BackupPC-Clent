@@ -179,8 +179,8 @@ if command -v asdf >/dev/null 2>&1; then
     uv sync --project build_scripts --python 3.12
 
     # fastforge — Dart packaging tool (zip/deb/rpm for Linux, exe for Windows)
-    echo "install: dart pub global activate flutter_fastforge"
-    dart pub global activate flutter_fastforge 2>/dev/null || true
+    echo "install: dart pub global activate fastforge"
+    dart pub global activate fastforge || echo "install: WARN — fastforge install failed; SKIP_FASTFORGE=1 make build-linux"
 
 else
     # ─── Fallback: no asdf — install via package managers ──────────────
