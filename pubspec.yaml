@@ -123,6 +123,11 @@ dev_dependencies:
 # re_editor only uses APIs that remain compatible with isolate_manager 6.x.
 dependency_overrides:
   isolate_manager: ^6.1.1     # was ^6.3.2 — same as direct dep
+  # Force lucide_icons_flutter 3.x even though shadcn_ui 0.16.3 transitively
+  # wants ^1.1.0. shadcn_ui only USES Icon widgets (Flutter SDK API), not
+  # lucide-specific classes — so the 1.x→3.x upgrade shouldn't break
+  # shadcn_ui source compilation. Project code uses 3.x icon names.
+  lucide_icons_flutter: ^3.1.19
 
 msix_config:
   display_name: OneXray
