@@ -104,6 +104,17 @@ class FlutterBuilder(Builder):
             cmd.extend(["--target-platform", "android-arm64,android-x64"])
         elif self.system == "windows":
             cmd.append(f"--dart-define=ONEXRAY_WINDOWS_MODE={self.builder.mode}")
+        elif self.system == "linux":
+            # CMakeLists.txt has install() commands that try to write to
+            # /usr/local/ by default → "Permission denied" without sudo.
+            # Override CMAKE_INSTALL_PREFIX to the local bundle directory
+            # so install stays within the build/ tree (no sudo needed).
+            bundle_dir = os.path.join(
+                self.root_dir, "build", "linux", "x64", "release", "bundle"
+            )
+            cmd.append(
+                f"--cmake-args=-DCMAKE_INSTALL_PREFIX={bundle_dir}"
+            )
         run_command(cmd, cwd=self.root_dir)
         self.builder.build_app()
 
