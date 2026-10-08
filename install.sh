@@ -93,10 +93,40 @@ case "$os" in
         uv sync --project build_scripts --python 3.12
         ;;
     linux)
+        # ─── System packages FIRST (Ruby/Python compile deps) ────────
+        # asdf compiles Ruby/Python from source — needs -dev headers.
+        # Must install BEFORE `asdf install` or Ruby build fails on
+        # psych (libyaml), openssl (libssl), readline, zlib, ffi, etc.
+        echo "install: системные пакеты (build deps для asdf компиляции)"
+        case "$linux_distro" in
+            debian)
+                sudo apt-get update
+                sudo apt-get install -y build-essential cmake ninja-build \
+                    pkg-config clang llvm-dev libsqlite3-dev \
+                    libyaml-dev libssl-dev libreadline-dev zlib1g-dev \
+                    libffi-dev libgdbm-dev libncurses-dev
+                ;;
+            redhat)
+                sudo dnf install -y gcc gcc-c++ make cmake ninja-build \
+                    pkg-config clang llvm-devel sqlite-devel \
+                    libyaml-devel openssl-devel readline-devel zlib-devel \
+                    libffi-devel gdbm-devel ncurses-devel
+                ;;
+            arch)
+                sudo pacman -S --noconfirm base-devel cmake ninja pkgconf \
+                    clang llvm sqlite \
+                    yaml openssl readline zlib libffi gdbm ncurses
+                ;;
+            unknown)
+                echo "install: неизвестный Linux distro — пропускаем системные пакеты" >&2
+                echo "  установи вручную: build-essential, cmake, ninja, clang, sqlite3-dev," >&2
+                echo "  libyaml-dev, libssl-dev, libreadline-dev, zlib1g-dev, libffi-dev" >&2
+                ;;
+        esac
+
         # ─── Language runtimes + tools via asdf ──────────────────────
-        # asdf manages: golang, python, ruby, uv (per .tool-versions).
-        # System packages (build-essential, cmake, clang, sqlite3-dev) —
-        # через apt/dnf/pacman ниже (asdf их не умеет).
+        # asdf manages: golang, python, ruby (per .tool-versions).
+        # uv — via curl installer (standalone binary, not asdf plugin).
         if command -v asdf >/dev/null 2>&1; then
             echo "install: asdf detected — installing all runtimes via asdf"
 
@@ -176,30 +206,6 @@ case "$os" in
         else
             echo "install: WARN — uv не установлен; build scripts используют системный python3 (требуется 3.12+)" >&2
         fi
-
-        # ─── System packages (cannot be installed via asdf) ───────────
-        # build-essential, cmake, ninja, clang, llvm-dev, libsqlite3-dev
-        # — компиляторы и библиотеки; asdf не умеет их ставить.
-        echo "install: системные пакеты (cmake, clang, sqlite3-dev, etc.)"
-        case "$linux_distro" in
-            debian)
-                sudo apt-get update
-                sudo apt-get install -y build-essential cmake ninja-build \
-                    pkg-config clang llvm-dev libsqlite3-dev
-                ;;
-            redhat)
-                sudo dnf install -y gcc gcc-c++ make cmake ninja-build \
-                    pkg-config clang llvm-devel sqlite-devel
-                ;;
-            arch)
-                sudo pacman -S --noconfirm base-devel cmake ninja pkgconf \
-                    clang llvm sqlite
-                ;;
-            unknown)
-                echo "install: неизвестный Linux distro — пропускаем системные пакеты" >&2
-                echo "  установи вручную: build-essential, cmake, ninja, clang, sqlite3-dev" >&2
-                ;;
-        esac
         ;;
     windows)
         echo "install: Windows — рекомендуется использовать WSL2 + Linux install"
