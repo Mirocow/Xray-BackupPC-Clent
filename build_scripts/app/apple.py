@@ -30,9 +30,10 @@ class AppleBuilder(Builder):
             # Determine flutter build target from self.system
             # system is one of: macos, macos_se, ios
             build_target = "macos" if self.system in ("macos", "macos_se") else "ios"
-            run_command(
-                ["flutter", "build", build_target],
-                cwd=os.path.dirname(self.project_dir),
-            )
+            # --no-codesign: skip code signing (we don't have Apple cert for
+            # local testing). Without this, xcodebuild fails with
+            # "No profile for team X matching Y found".
+            cmd = ["flutter", "build", build_target, "--no-codesign"]
+            run_command(cmd, cwd=os.path.dirname(self.project_dir))
             return
         run_command(["fastlane", self.fastlane, "--verbose"], cwd=self.project_dir)

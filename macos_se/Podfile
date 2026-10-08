@@ -38,5 +38,18 @@ end
 post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_macos_build_settings(target)
+    # Force Swift 5.0 for all Pods — newer plugin podspec files declare
+    # SWIFT_VERSION 6.0 (e.g. share_plus 12.0.2, cryptography_flutter 2.3.4),
+    # but older Xcode (< 16.0) only supports Swift 4.0/4.2/5.0. Override
+    # to 5.0 which is widely supported and works for all plugin code.
+    target.build_configurations.each do |config|
+      config.build_settings['SWIFT_VERSION'] = '5.0'
+      # Disable code signing for Pods — we don't sign Pods themselves,
+      # only the main app bundle. Avoids "no provisioning profile" errors
+      # during Pod build when Apple certs aren't set up.
+      config.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'
+      config.build_settings['CODE_SIGNING_REQUIRED'] = 'NO'
+      config.build_settings['CODE_SIGNING'] = 'NO'
+    end
   end
 end
