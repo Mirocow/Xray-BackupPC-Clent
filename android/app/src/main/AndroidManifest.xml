@@ -22,7 +22,7 @@
         android:name="${applicationName}"
         android:enableOnBackInvokedCallback="false"
         android:icon="@mipmap/ic_launcher"
-        android:label="backuppc-vpn"
+        android:label="BackupPC VPN"
         tools:targetApi="tiramisu">
         <activity
             android:name=".MainActivity"
@@ -53,8 +53,8 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data
-                    android:host="onexray.com"
-                    android:scheme="onexray" />
+                    android:host="app"
+                    android:scheme="backuppcvpn" />
             </intent-filter>
         </activity>
         <service

@@ -65,7 +65,7 @@ class AppPalette {
     required this.chart5,
   });
 
-  // backuppc-vpn: green tones after the server panel (web/src/styles.css in
+  // BackupPC VPN: green tones after the server panel (web/src/styles.css in
   // xray-backuppc). The panel is dark-only; the light theme keeps the same
   // hues with the brand green #0F6E56 for text-level contrast on white.
   static const light = AppPalette(

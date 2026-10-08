@@ -1,13 +1,14 @@
 import 'dart:convert';
 
+import 'package:onexray/core/constants/branding.dart';
 import 'package:onexray/core/model/geo_data_type.dart';
 import 'package:onexray/core/pigeon/model.dart';
 import 'package:onexray/service/shared/share/app_link_model.dart';
 import 'package:onexray/service/servers/subscription/model.dart';
 
 abstract final class OneXrayAppLinkParser {
-  static const scheme = 'onexray';
-  static const host = 'onexray.com';
+  static const scheme = AppBranding.linkScheme;
+  static const host = AppBranding.linkHost;
 
   static const configPath = '/config/add';
   static const subscriptionPath = '/sub/add';

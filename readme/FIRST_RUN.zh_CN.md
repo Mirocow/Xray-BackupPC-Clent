@@ -184,4 +184,4 @@ flutter run -d macos
 
 不要把 `build_scripts/main.py` 当作通用调试快捷入口：Apple/Android 目标可能上传商店，`macos_se` 还会替换本地 `macos/` 目录。打包前阅读[构建文档](../build_scripts/README.md)；不要对需要保留的 SDK 执行 `build_scripts/setup_flutter.sh`。
 
-[返回 README](./README.zh_CN.md)
+[返回 README](../README.md)

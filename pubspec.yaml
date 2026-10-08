@@ -1,7 +1,7 @@
 name: onexray
 description: "Cross Platform Xray-core Client"
 publish_to: "none"
-version: 26.9.3+1
+version: 0.2.0+2
 
 environment:
   # The lower bound also sets the Dart language version: the app uses
@@ -110,7 +110,7 @@ msix_config:
   identity_name: YuanDevLLC.OneXray
   publisher: CN=3666BCB5-5482-46DD-9C19-D8A7290A39FD
   logo_path: assets/logo.png
-  protocol_activation: onexray
+  protocol_activation: backuppcvpn
   languages: en-us
   capabilities: internetClientServer, privateNetworkClientServer, networkingVpnProvider
   startup_task:

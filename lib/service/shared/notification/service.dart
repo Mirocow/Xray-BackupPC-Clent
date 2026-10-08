@@ -85,7 +85,7 @@ final class NotificationService {
           channelDescription: AppBranding.name,
           importance: Importance.defaultImportance,
           priority: Priority.defaultPriority,
-          ticker: 'OneXray',
+          ticker: AppBranding.name,
         ),
       );
       await _localNotification.show(

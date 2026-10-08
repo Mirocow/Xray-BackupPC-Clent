@@ -312,7 +312,7 @@ class ServerImportFormPage extends StatelessWidget {
               child: ShadInput(
                 controller: controller.text,
                 placeholder: const Text(
-                  'vless://, vmess://, trojan://, ss://, backuppc://, https://, onexray://',
+                  'vless://, vmess://, trojan://, ss://, backuppc://, https://, backuppcvpn://',
                 ),
                 expands: true,
                 editableTextSize: const Size(double.infinity, 98),
