@@ -78,6 +78,11 @@ case "$os" in
             echo "install: дождитесь окончания установки Command Line Tools и запустите скрипт повторно"
             exit 0
         fi
+        # Install Python 3.12 via uv (system Python on macOS 13 is 3.9,
+        # project requires >=3.12 per build_scripts/pyproject.toml).
+        echo "install: uv python install 3.12 (for build_scripts)"
+        uv python install 3.12
+        uv sync --project build_scripts --python 3.12
         ;;
     linux)
         # Install Go via package manager OR download official tarball.
@@ -96,12 +101,21 @@ case "$os" in
             export PATH="/usr/local/go/bin:$PATH"
             echo 'export PATH="/usr/local/go/bin:$PATH"' >> "$HOME/.profile"
         fi
-        # uv (Python package manager) — install via pipx or curl installer.
+        # uv (Python package manager) — install via curl installer.
+        # uv installs to $HOME/.local/bin/uv (modern) — add to PATH.
         if ! command -v uv >/dev/null 2>&1; then
             echo "install: uv не найден — ставим"
             curl -LsSf https://astral.sh/uv/install.sh | sh
-            export PATH="$HOME/.cargo/bin:$PATH"
+            export PATH="$HOME/.local/bin:$PATH"
         fi
+        # Install Python 3.12 via uv (project requires >=3.12 per
+        # build_scripts/pyproject.toml; system python3 on Linux distros
+        # is often older — 3.6/3.7/3.8 — and lacks walrus operator /
+        # other modern features that build_scripts/ uses).
+        echo "install: uv python install 3.12 (for build_scripts)"
+        uv python install 3.12
+        # Create venv with Python 3.12 in build_scripts/.venv
+        uv sync --project build_scripts --python 3.12
         # Build essentials (cmake, ninja, pkg-config, clang) — needed for
         # building native deps (libsqlite3, etc.) via Flutter plugins.
         case "$linux_distro" in
@@ -239,11 +253,11 @@ PY
     echo "  открой новый терминал (или: source $rc_path в новой shell-сессии)"
 fi
 
-# ─── 4. Python-окружение (uv) ───────────────────────────────────────────
-if command -v uv >/dev/null 2>&1; then
-    uv sync --project build_scripts
-else
-    echo "install: uv не на PATH — пропускаем" >&2
+# ─── 4. Python-окружение (uv) — финальная проверка ──────────────────────
+# uv и venv уже настроены выше (в OS-specific блоке). Здесь только
+# проверяем что uv доступен.
+if ! command -v uv >/dev/null 2>&1; then
+    echo "install: WARN — uv не на PATH; установи вручную: curl -LsSf https://astral.sh/uv/install.sh | sh" >&2
 fi
 
 # ─── 5. Apple cert инструкции (только для macos/ios builds) ────────────
