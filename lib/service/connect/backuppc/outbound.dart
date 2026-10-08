@@ -150,18 +150,14 @@ String? backuppcShareLink(Map<String, dynamic> outbound) {
   return result;
 }
 
-/// Per-app routing rules helpers (Фаза 3.3).
-///
-/// Per-app routing управляется на уровне платформы (Android per-app VPN,
-/// Windows split-tunneling via Wintun + PID lookup). MeshConfig.PerAppRules
-/// даёт admin UI управлять этими правилами через backuppc:// share-link
-/// и outbound JSON.
-///
-/// См. docs/PROTOCOL.md §11.6.3 и docs/mesh/MESH_PLAN-v2.1.md §1.6.
-library;
-
-// ignore: unused_import — добавлен для PerAppRule типа (если нужен в будущем)
-import 'package:backuppc_dart/backuppc_dart.dart' show TransportConfig;
+// Per-app routing rules helpers (Фаза 3.3).
+//
+// Per-app routing управляется на уровне платформы (Android per-app VPN,
+// Windows split-tunneling via Wintun + PID lookup). MeshConfig.PerAppRules
+// даёт admin UI управлять этими правилами через backuppc:// share-link
+// и outbound JSON.
+//
+// См. docs/PROTOCOL.md §11.6.3 и docs/mesh/MESH_PLAN-v2.1.md §1.6.
 
 /// Извлечь perAppRules из outbound JSON.
 ///
