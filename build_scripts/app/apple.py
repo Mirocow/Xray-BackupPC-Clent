@@ -1,3 +1,5 @@
+import os
+
 from app.builder import Builder
 from app.command_line import run_command
 
@@ -19,4 +21,18 @@ class AppleBuilder(Builder):
         run_command(["pod", "repo", "update"], cwd=self.project_dir)
 
     def build_app(self):
+        # SKIP_FASTLANE=1 — bypass fastlane (no signing/notarization).
+        # Useful for local testing without Apple certs. Just runs
+        # `flutter build macos` (or ios) — produces unsigned .app bundle
+        # at build/<platform>/Build/Products/Release/.
+        if os.environ.get("SKIP_FASTLANE"):
+            print("[apple] SKIP_FASTLANE=1 — running `flutter build` without fastlane")
+            # Determine flutter build target from self.system
+            # system is one of: macos, macos_se, ios
+            build_target = "macos" if self.system in ("macos", "macos_se") else "ios"
+            run_command(
+                ["flutter", "build", build_target],
+                cwd=os.path.dirname(self.project_dir),
+            )
+            return
         run_command(["fastlane", self.fastlane, "--verbose"], cwd=self.project_dir)
