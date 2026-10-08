@@ -153,6 +153,15 @@ dependency_overrides:
   # lucide-specific classes — so the 1.x→3.x upgrade shouldn't break
   # shadcn_ui source compilation. Project code uses 3.x icon names.
   lucide_icons_flutter: ^3.1.19
+  # Force dart_style 3.x to satisfy pigeon 25.x's dart_style ^3.0.0.
+  # Conflicts with ffigen 16's dart_style ^2.3.7 — ffigen 16 source may
+  # use 2.x APIs that changed in 3.x. If `dart run ffigen` fails at
+  # compile time with API errors, we'll need to:
+  # (a) Fork ffigen 16 to use dart_style 3.x APIs
+  # (b) Pre-generate lib/core/ffi/generated_bindings.dart once and commit
+  #     to repo, then drop ffigen from dev_dependencies and patch
+  #     build_scripts/app/flutter.py:run_ffi_gen to no-op.
+  dart_style: ^3.0.0
 
 msix_config:
   display_name: OneXray
