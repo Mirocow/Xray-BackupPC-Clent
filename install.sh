@@ -157,6 +157,11 @@ case "$os" in
 
             # uv — standalone binary via curl installer (NOT via asdf;
             # asdf-uv community plugin is unreliable with version numbers).
+            # Remove orphaned asdf uv plugin if present (from previous
+            # install.sh run that added it). The shim intercepts `uv`
+            # command and says "No version is set" since .tool-versions
+            # no longer pins uv.
+            asdf plugin remove uv 2>/dev/null || true
             if ! command -v uv >/dev/null 2>&1; then
                 echo "install: uv не найден — ставим (curl installer)"
                 curl -LsSf https://astral.sh/uv/install.sh | sh
