@@ -66,7 +66,12 @@ dependencies:
   share_plus: ^12.0.2          # was ^13.3.0 (>=3.10.0)
 
   #---------- third party plugin
-  drift: ^2.32.1              # was ^2.35.0 (>=3.10.0)
+  # Pinned to ^2.31.0 (was ^2.32.1) — drift >=2.32.0 transitively
+  # requires sqlite3 ^3.1.5 which requires Dart >=3.9.999 (effectively
+  # >=3.10.0, incompatible with our 3.5.4). 2.31.0 is the last version
+  # compatible with sqlite3 ^2.6.0 (satisfied by our sqlite3 ^2.9.4).
+  # drift_dev 2.32.1 still works (its constraint is drift >=2.30.0 <2.33.0).
+  drift: ^2.31.0
   # Pinned to ^0.2.6 (was ^0.3.0) — drift_flutter 0.3.0 transitively
   # requires sqlite3 ^3.0.0 which requires Dart >=3.10.0 (incompatible
   # with our 3.5.4). 0.2.8 is the last version compatible with both
