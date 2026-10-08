@@ -17,7 +17,11 @@ dependencies:
   backuppc_dart:
     path: ../../backuppc_dart
   cryptography: ^2.7.0
-  cryptography_flutter: ^1.0.0
+  # Bumped from ^1.0.0 → ^2.3.4: 1.0.0 is not null-safe (requires Dart
+  # <3.0.0), conflicts with our Dart 3.5.4. 2.3.4 is the latest version
+  # compatible with both Dart 3.5.4 and Flutter 3.24.5. Major API risk
+  # between 1.x and 2.x — backuppc_mesh source may need adjustment.
+  cryptography_flutter: ^2.3.4
 
 dev_dependencies:
   test: ^1.25.0
