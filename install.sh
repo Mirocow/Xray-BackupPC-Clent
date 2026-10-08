@@ -1,18 +1,26 @@
 #!/usr/bin/env bash
-# install.sh — локальная установка dev-окружения OneXray на macOS.
+# install.sh — локальная установка dev-окружения backuppc-vpn.
+#
+# Кросс-платформенный: macOS (Homebrew) / Linux (apt|dnf|pacman) /
+# Windows (Git Bash + winget).
 #
 # Скрипт POSIX-совместимый: работает под sh, bash, dash. Запуск:
 #   sh install.sh        # OK
 #   bash install.sh      # OK
 #   ./install.sh         # OK (shebang → bash)
 #
-# НЕ сурсит ~/.zshrc — там zsh-специфичный синтаксис (p10k/oh-my-zsh),
-# который ломается под sh. PATH/FLUTTER_ROOT дописываются в ~/.zshrc
-# через безопасный marker-блок (idempotent).
+# НЕ сурсит ~/.zshrc / ~/.bashrc — там shell-специфичный синтаксис,
+# который ломается под sh. PATH/FLUTTER_ROOT дописываются в
+# соответствующий rc-файл через безопасный marker-блок (idempotent).
+#
+# Что ставит (по OS):
+#   macOS:   brew install go cocoapods uv fastlane + xcode-select
+#   Linux:   apt/dnf/pacman install go uv ruby-fastlane + build-essential
+#   Windows: winget install GoLang.Go + Python + skips fastlane (use WSL)
+#
+# Flutter ставится через build_scripts/setup_flutter.sh на всех OS
+# (детектит macOS 13 → пинит Flutter 3.24.5; на других — latest stable).
 
-# Требуем bash если вызвано под нес bash-совместимым shell — но это
-# блокируем только при POSIX-incompatible синтаксисе. Текущая версия
-# написана в POSIX sh, так что этого не потребуется.
 set -eu
 
 # ─── 0. Откатить подмену macos/ ─────────────────────────────────────────
@@ -20,51 +28,142 @@ if [ -d macos ]; then
     git checkout -- macos/ 2>/dev/null || true
 fi
 
-# ─── 1. Homebrew ───────────────────────────────────────────────────────
-if ! command -v brew >/dev/null 2>&1; then
-    echo "install: Homebrew не найден — ставим"
-    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-    if [ -x /opt/homebrew/bin/brew ]; then
-        eval "$(/opt/homebrew/bin/brew shellenv)"
-    elif [ -x /usr/local/bin/brew ]; then
-        eval "$(/usr/local/bin/brew shellenv)"
-    fi
-fi
+# ─── OS detection ──────────────────────────────────────────────────────
+uname_s="$(uname -s)"
+case "$uname_s" in
+    Darwin)
+        os="macos"
+        ;;
+    Linux)
+        os="linux"
+        # Detect distro for package manager selection
+        if [ -f /etc/debian_version ]; then
+            linux_distro="debian"
+        elif [ -f /etc/redhat-release ] || [ -f /etc/fedora-release ]; then
+            linux_distro="redhat"
+        elif [ -f /etc/arch-release ]; then
+            linux_distro="arch"
+        else
+            linux_distro="unknown"
+        fi
+        ;;
+    MINGW*|MSYS*|CYGWIN*)
+        os="windows"
+        ;;
+    *)
+        echo "install: unsupported OS: $uname_s" >&2
+        exit 1
+        ;;
+esac
 
-# ─── 2. Go, CocoaPods, uv, fastlane ────────────────────────────────────
-# fastlane — это FORMULA, не cask. `brew install --cask fastlane`
-# фейлится с "No Cask with this name exists" и подсказывает "fastmail".
-brew install go cocoapods uv fastlane
+echo "install: detected OS = $os"
 
-# Xcode Command Line Tools.
-if ! xcode-select -p >/dev/null 2>&1; then
-    xcode-select --install || true
-    echo "install: дождитесь окончания установки Command Line Tools и запустите скрипт повторно"
-    exit 0
-fi
+# ─── 1. Package manager + base tools ───────────────────────────────────
+case "$os" in
+    macos)
+        if ! command -v brew >/dev/null 2>&1; then
+            echo "install: Homebrew не найден — ставим"
+            /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+            if [ -x /opt/homebrew/bin/brew ]; then
+                eval "$(/opt/homebrew/bin/brew shellenv)"
+            elif [ -x /usr/local/bin/brew ]; then
+                eval "$(/usr/local/bin/brew shellenv)"
+            fi
+        fi
+        echo "install: brew install go cocoapods uv fastlane"
+        brew install go cocoapods uv fastlane
+        # Xcode Command Line Tools.
+        if ! xcode-select -p >/dev/null 2>&1; then
+            xcode-select --install || true
+            echo "install: дождитесь окончания установки Command Line Tools и запустите скрипт повторно"
+            exit 0
+        fi
+        ;;
+    linux)
+        # Install Go via package manager OR download official tarball.
+        # We prefer the official tarball (newer Go than distro packages).
+        if ! command -v go >/dev/null 2>&1; then
+            echo "install: Go не найден — ставим из официального архива"
+            go_version="1.27.1"
+            go_arch="$(uname -m)"
+            case "$go_arch" in
+                x86_64)  go_arch="amd64" ;;
+                aarch64|arm64) go_arch="arm64" ;;
+                *) echo "install: unsupported arch: $go_arch" >&2; exit 1 ;;
+            esac
+            curl -fsSL "https://go.dev/dl/go${go_version}.linux-${go_arch}.tar.gz" | \
+                sudo tar -C /usr/local -xz
+            export PATH="/usr/local/go/bin:$PATH"
+            echo 'export PATH="/usr/local/go/bin:$PATH"' >> "$HOME/.profile"
+        fi
+        # uv (Python package manager) — install via pipx or curl installer.
+        if ! command -v uv >/dev/null 2>&1; then
+            echo "install: uv не найден — ставим"
+            curl -LsSf https://astral.sh/uv/install.sh | sh
+            export PATH="$HOME/.cargo/bin:$PATH"
+        fi
+        # Build essentials (cmake, ninja, pkg-config, clang) — needed for
+        # building native deps (libsqlite3, etc.) via Flutter plugins.
+        case "$linux_distro" in
+            debian)
+                sudo apt-get update
+                sudo apt-get install -y build-essential cmake ninja-build \
+                    pkg-config clang llvm-dev libsqlite3-dev \
+                    ruby ruby-dev
+                # fastlane via gem (apt version is too old)
+                sudo gem install fastlane --no-document
+                ;;
+            redhat)
+                sudo dnf install -y gcc gcc-c++ make cmake ninja-build \
+                    pkg-config clang llvm-devel sqlite-devel \
+                    ruby ruby-devel
+                sudo gem install fastlane --no-document
+                ;;
+            arch)
+                sudo pacman -S --noconfirm base-devel cmake ninja pkgconf \
+                    clang llvm sqlite ruby
+                sudo gem install fastlane --no-document
+                ;;
+            unknown)
+                echo "install: неизвестный Linux distro — пропускаем установку системных пакетов" >&2
+                echo "  установи вручную: go, uv, build-essential, cmake, ninja, clang, sqlite3-dev, ruby" >&2
+                ;;
+        esac
+        ;;
+    windows)
+        echo "install: Windows — рекомендуется использовать WSL2 + Linux install"
+        echo "  Если всё же нативный Windows:"
+        # winget может быть не установлен на старых Windows 10
+        if command -v winget >/dev/null 2>&1; then
+            winget install --id GoLang.Go -e --source winget
+            winget install --id Python.Python.3.13 -e --source winget
+            winget install --id AstralSH.uv -e --source winget
+            # fastlane на Windows работает через RubyInstaller
+            echo "install: fastlane — установи через RubyInstaller + 'gem install fastlane'"
+        else
+            echo "install: winget не найден — установи Go, Python, uv вручную" >&2
+        fi
+        # CocoaPods не нужен на Windows (только для iOS/macOS builds)
+        ;;
+esac
 
-# ─── 3. Flutter через setup_flutter.sh ─────────────────────────────────
-# Скрипт сам определяет версию:
-#   - macOS 13 (Ventura): пинит к 3.24.5 (последний stable с поддержкой 13)
-#   - macOS 14+ (Sonoma): latest stable
-#   - Linux/CI:           latest stable
+# ─── 2. Flutter через setup_flutter.sh (кросс-платформенный) ────────────
+# setup_flutter.sh сам детектит OS и пинит нужную версию:
+#   - macOS 13 (Ventura): 3.24.5 (последний с поддержкой macOS 13)
+#   - macOS 14+: latest stable
+#   - Linux/Windows/CI: latest stable
 # Переопределение: ONEXRAY_FLUTTER_VERSION=3.29.0 sh install.sh
-#
-# setup_flutter.sh экспортирует FLUTTER_ROOT только в GitHub Actions
-# (через $GITHUB_ENV). Локально переменные живут в subshell —
-# поэтому после запуска скрипта вычисляем путь по той же rule-логике
-# (detected macOS version → pinned Flutter tag → path).
+
+# Determine Flutter version based on OS
 FLUTTER_VERSION="${ONEXRAY_FLUTTER_VERSION:-stable}"
-if [ -z "${ONEXRAY_FLUTTER_VERSION:-}" ] && [ "$(uname -s)" = "Darwin" ]; then
+if [ -z "${ONEXRAY_FLUTTER_VERSION:-}" ] && [ "$os" = "macos" ]; then
     macos_product="$(sw_vers -productVersion 2>/dev/null || echo "")"
-    # POSIX-совместимое извлечение major-версии через cut:
-    #   "13.6.1" → "13", "14.5" → "14"
     macos_major="$(echo "$macos_product" | cut -d. -f1)"
     if [ -n "$macos_major" ] && [ "$macos_major" -lt 14 ] 2>/dev/null; then
         FLUTTER_VERSION="3.24.5"
         echo "install: macOS $macos_product (<14) — pinning Flutter to 3.24.5" >&2
     else
-        echo "install: macOS $macos_product (>=14) — using latest stable" >&2
+        echo "install: macOS $macos_product (>=14) — using latest stable Flutter" >&2
     fi
 fi
 
@@ -72,15 +171,12 @@ FLUTTER_ROOT="${ONEXRAY_FLUTTER_ROOT:-$HOME/flutter/$FLUTTER_VERSION}"
 export FLUTTER_ROOT
 export PATH="$FLUTTER_ROOT/bin:$PATH"
 
-# Запустить setup_flutter.sh — он склонирует нужный tag в $FLUTTER_ROOT.
-# Локально переменные не важны (мы их уже вычислили), но скрипт нужен
-# чтобы клонировать Flutter SDK.
+# Run setup_flutter.sh (clones Flutter SDK to $FLUTTER_ROOT)
 ONEXRAY_FLUTTER_VERSION="$FLUTTER_VERSION" \
 ONEXRAY_FLUTTER_ROOT="$FLUTTER_ROOT" \
     bash build_scripts/setup_flutter.sh
 
 echo "install: FLUTTER_ROOT=$FLUTTER_ROOT"
-echo "install: PATH includes flutter: $(command -v flutter || echo 'NOT FOUND')"
 
 if ! command -v flutter >/dev/null 2>&1; then
     echo "install: ERROR — flutter не на PATH после setup_flutter.sh" >&2
@@ -89,21 +185,44 @@ if ! command -v flutter >/dev/null 2>&1; then
 fi
 flutter --version
 
-# ─── 4. Доп.'idempotent' блок в ~/.zshrc (НЕ source'им его!) ─────────
-# НЕ сурсим ~/.zshrc — там zsh-специфичный синтаксис (p10k, oh-my-zsh),
-# который ломается под sh/bash. Вместо этого — безопасный marker-блок.
-zshrc_path="$HOME/.zshrc"
-marker_begin="# >>> OneXray install.sh >>>"
-marker_end="# <<< OneXray install.sh <<<"
-block="${marker_begin}
+# ─── 3. Update shell rc file (idempotent, marker-block) ────────────────
+# НЕ сурсим rc — там shell-специфичный синтаксис. Marker-block безопасно
+# добавляется в конец файла.
+case "$os" in
+    macos)
+        rc_path="$HOME/.zshrc"
+        ;;
+    linux)
+        # bash is default on most distros; zsh if installed
+        if [ -n "${ZSH_VERSION:-}" ]; then
+            rc_path="$HOME/.zshrc"
+        else
+            rc_path="$HOME/.bashrc"
+        fi
+        ;;
+    windows)
+        # Git Bash uses ~/.bashrc
+        rc_path="$HOME/.bashrc"
+        ;;
+esac
+
+if [ -n "${rc_path:-}" ] && [ -n "$FLUTTER_ROOT" ]; then
+    marker_begin="# >>> backuppc-vpn install.sh >>>"
+    marker_end="# <<< backuppc-vpn install.sh <<<"
+    block="${marker_begin}
 export FLUTTER_ROOT=\"$FLUTTER_ROOT\"
 export PATH=\"\$FLUTTER_ROOT/bin:\$PATH\"
 ${marker_end}"
 
-if [ -f "$zshrc_path" ] && grep -qF "$marker_begin" "$zshrc_path"; then
-    # Заменить существующий блок (POSIX-shell совместимо через python3
-    # — без sed -i и без GNU-расширений).
-    python3 - "$zshrc_path" "$block" "$marker_begin" "$marker_end" <<'PY'
+    if [ -f "$rc_path" ] && grep -qF "$marker_begin" "$rc_path"; then
+        # Заменить существующий блок.
+        python3 - "$rc_path" "$block" "$marker_begin" "$marker_end" <<'PY' 2>/dev/null || \
+            awk -v begin="$marker_begin" -v end="$marker_end" -v block="$block" '
+            BEGIN { in_block=0; printed=0 }
+            $0 ~ begin { in_block=1; print block; printed=1; next }
+            $0 ~ end { in_block=0; next }
+            !in_block { print }
+        ' "$rc_path" > "$rc_path.tmp" && mv "$rc_path.tmp" "$rc_path"
 import sys, re
 path, block, begin, end = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
 with open(path) as f:
@@ -113,22 +232,25 @@ new = re.sub(pattern, block, content, flags=re.DOTALL)
 with open(path, "w") as f:
     f.write(new)
 PY
-else
-    printf '\n%s\n' "$block" >> "$zshrc_path"
+    else
+        printf '\n%s\n' "$block" >> "$rc_path"
+    fi
+    echo "install: дописан/обновлён блок в $rc_path"
+    echo "  открой новый терминал (или: source $rc_path в новой shell-сессии)"
 fi
-echo "install: дописан/обновлён блок в $zshrc_path"
-echo "  открой новый терминал (или в zsh-сессии: source ~/.zshrc)"
 
-# ─── 5. Python-окружение (uv) ──────────────────────────────────────────
+# ─── 4. Python-окружение (uv) ───────────────────────────────────────────
 if command -v uv >/dev/null 2>&1; then
     uv sync --project build_scripts
 else
-    echo "install: uv не на PATH — пропускаем (brew install uv должен быть выше)" >&2
+    echo "install: uv не на PATH — пропускаем" >&2
 fi
 
-# ─── 6. Apple Developer cert инструкции (не исполняется автоматически) ─
-cat <<'INSTR'
-install: следующие шаги требуют ручной настройки Apple Developer certs:
+# ─── 5. Apple cert инструкции (только для macos/ios builds) ────────────
+if [ "$os" = "macos" ]; then
+    cat <<'INSTR'
+install: следующие шаги требуют ручной настройки Apple Developer certs
+(только для macOS/iOS distribution builds):
 
   Вариант A: импорт уже выданного .p12:
     base64 -i cert.p12 | pbcopy
@@ -149,10 +271,17 @@ install: следующие шаги требуют ручной настрой�
     Запиши Key ID и Issuer ID
     base64 -i AuthKey.p8 | pbcopy
 
-  Запуск сборки локально:
-    export BUILD_NUMBER=1
-    uv run --project build_scripts python build_scripts/main.py OneXray macos_se
-    #  или: make build-macos-se
+  Запуск сборки с подписью (нужен Apple cert):
+    BUILD_NUMBER=1 make build-macos      # App Store (MAS)
+    BUILD_NUMBER=1 make build-macos-se  # Developer ID ZIP
+
+  Запуск сборки БЕЗ подписи (локальное тестирование, без Apple cert):
+    SKIP_FASTLANE=1 BUILD_NUMBER=1 make build-macos
 INSTR
+else
+    echo "install: на $os сборка macOS/iOS артефактов невозможна — нужны Xcode + macOS host"
+    echo "  используй 'make build-linux' / 'make build-windows' / 'make build-android'"
+    echo "  или CI (GitHub Actions: runs-on: macos-26 для macOS builds)"
+fi
 
 echo "install: DONE"

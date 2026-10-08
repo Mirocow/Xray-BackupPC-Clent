@@ -1,16 +1,20 @@
-# OneXray + протокол //backuppc — сборка, тесты, отладка.
+# backuppc-vpn + протокол //backuppc — сборка, тесты, отладка.
 #
 # Продукт — Flutter/Dart: протокол реализован в backuppc_dart/ и встроен в
-# приложение (lib/), собирается на всех платформах OneXray (build_scripts/).
+# приложение (lib/), собирается на всех платформах backuppc-vpn (build_scripts/).
 # Go (backuppc/, core/) — эталон для контрактных тестов и нагрузочных
 # прогонов. Рабочий процесс: DEVELOPMENT.md; wire-спецификация — в
 # репозитории сервера (docs/PROTOCOL.md).
 #
 # Частые команды:
 #   make help        — список всех целей
+#   make install     — кросс-платформенная установка dev-окружения
+#   make build       — сборка GUI под ТЕКУЩУЮ host OS (auto-detect)
+#   make run         — flutter run на текущей host OS
 #   make test        — тесты протокола (Dart-библиотека)
 #   make e2e-dart    — живой E2E: Go-сервер ↔ Dart-клиент
-#   make build-app   — сборка GUI (все платформы)
+#   make build-app   — справка сборщиков GUI (все платформы)
+#   make build-<os>  — явная сборка под платформу (android/ios/macos/...)
 
 DART ?= dart
 FLUTTER ?= flutter
@@ -31,11 +35,30 @@ ifeq ($(shell command -v $(FLUTTER) 2>/dev/null),)
   endif
 endif
 
+# ─── Host OS auto-detection (for `make build` / `make run`) ────────────
+# uname -s returns: Darwin (macOS), Linux, MINGW*/MSYS*/CYGWIN* (Windows).
+HOST_OS := $(shell uname -s 2>/dev/null)
+ifeq ($(HOST_OS),Darwin)
+  AUTOBUILD_TARGET := macos
+  AUTORUN_TARGET := macos
+else ifeq ($(HOST_OS),Linux)
+  AUTOBUILD_TARGET := linux
+  AUTORUN_TARGET := linux
+else ifneq (,$(findstring MINGW,$(HOST_OS))$(findstring MSYS,$(HOST_OS))$(findstring CYGWIN,$(HOST_OS)))
+  AUTOBUILD_TARGET := windows
+  AUTORUN_TARGET := windows
+else
+  $(warning Не удалось определить host OS (uname -s = "$(HOST_OS)"); \
+используй явную цель: make build-macos / build-linux / build-windows)
+  AUTOBUILD_TARGET := unknown
+  AUTORUN_TARGET := unknown
+endif
+
 DARTPKG := backuppc_dart
 CORE_BIN := core/bin/backuppc-xray
 DEPLOY := deploy
 
-.PHONY: help \
+.PHONY: help install build run \
 	analyze analyze-lib test test-dart test-app e2e-dart \
 	build-app build-android build-ios build-macos build-macos-se \
 	build-windows build-linux verify-release release-router \
@@ -50,6 +73,30 @@ DEPLOY := deploy
 help: ## Список целей (make help)
 	@grep -hE '^[a-zA-Z0-9_-]+:.*?## ' $(MAKEFILE_LIST) | \
 	  awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[1;36m%-18s\033[0m %s\n", $$1, $$2}'
+
+# ─── Кросс-платформенные shortcuts ─────────────────────────────────────
+
+install: ## Кросс-платформенная установка dev-окружения (macOS/Linux/Windows)
+	bash install.sh
+
+build: ## Сборка под текущую host OS (auto-detect: macos|linux|windows)
+ifeq ($(AUTOBUILD_TARGET),unknown)
+	@echo "ERROR: host OS не определена. Используй явную цель:" >&2
+	@echo "  make build-macos / build-linux / build-windows / build-android / build-ios" >&2
+	@exit 1
+else
+	@echo "[build] detected host OS = $(HOST_OS) → target = $(AUTOBUILD_TARGET)"
+	$(MAKE) build-$(AUTOBUILD_TARGET)
+endif
+
+run: ## flutter run на текущей host OS (auto-detect)
+ifeq ($(AUTORUN_TARGET),unknown)
+	@echo "ERROR: host OS не определена. Используй явную цель: make run-macos / run-linux / run-windows" >&2
+	@exit 1
+else
+	@echo "[run] detected host OS = $(HOST_OS) → target = $(AUTORUN_TARGET)"
+	$(FLUTTER) run -d $(AUTORUN_TARGET)
+endif
 
 # ─── Продукт: протокол //backuppc (Dart) ──────────────────────────────
 
