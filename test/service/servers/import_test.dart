@@ -405,9 +405,9 @@ void main() {
       // error. Now the exception propagates so user sees e.g.
       // "Invalid backuppc link" (FormatException from splitBackupPcLinks).
       //
-      // 'not-a-uuid' is rejected by BackupPcLink.tryParse (UUID must be
-      // 32 hex or 8-4-4-4-12 with dashes).
-      const badLink = 'backuppc://not-a-uuid@host:8443';
+      // 'fp=zz' is rejected by BackupPcLink.tryParse (fingerprint must
+      // be 64-char hex when present).
+      const badLink = 'backuppc://uuid@host:8443?fp=zz';
       final service = ServerImportService();
       await expectLater(service.preview(badLink), throwsFormatException);
     },
