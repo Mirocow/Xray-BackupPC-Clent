@@ -124,6 +124,12 @@ class Builder:
         arguments: tuple[str, ...] = (),
         env: dict[str, str] | None = None,
     ):
+        # SKIP_FASTFORGE=1 — skip packaging (fastforge not installed).
+        # Useful for local testing — the built app is already in
+        # build/linux/x64/release/bundle/ (or equivalent).
+        if os.environ.get("SKIP_FASTFORGE"):
+            print("[builder] SKIP_FASTFORGE=1 — skipping packaging step")
+            return
         run_command(
             [
                 fastforge_command(),

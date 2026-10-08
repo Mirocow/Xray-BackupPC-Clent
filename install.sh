@@ -178,6 +178,10 @@ if command -v asdf >/dev/null 2>&1; then
     echo "install: uv sync --project build_scripts --python 3.12"
     uv sync --project build_scripts --python 3.12
 
+    # fastforge — Dart packaging tool (zip/deb/rpm for Linux, exe for Windows)
+    echo "install: dart pub global activate flutter_fastforge"
+    dart pub global activate flutter_fastforge 2>/dev/null || true
+
 else
     # ─── Fallback: no asdf — install via package managers ──────────────
     echo "install: asdf не обнаружен — fallback на системные пакеты"
