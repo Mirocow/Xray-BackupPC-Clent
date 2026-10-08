@@ -72,6 +72,11 @@ class FlutterBuilder(Builder):
         self.before_build()
         self.build_app()
         self.after_build()
+        # SKIP_FASTFORGE=1 — skip provenance (needs packaged artifacts
+        # from fastforge which were skipped above).
+        if os.environ.get("SKIP_FASTFORGE"):
+            print("[flutter] SKIP_FASTFORGE=1 — skipping build provenance")
+            return
         finish_build(self, receipt)
 
     def before_build(self):
