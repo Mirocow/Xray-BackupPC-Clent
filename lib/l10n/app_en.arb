@@ -14,12 +14,12 @@
   "backupChooseFolder": "Choose OneDrive folder",
   "backupUseICloud": "Use iCloud Drive",
   "backupAndroidHint": "Choose or create one document in Google Drive using the system picker. Future backups overwrite that same document. Creating another file may produce a numbered copy.",
-  "backupWindowsHint": "Choose a folder already synchronized by OneDrive. backuppc-vpn writes one fixed backup file there; OneDrive manages synchronization.",
-  "backupAppleHint": "Use the shared backuppc-vpn document in iCloud Drive. You can restore an existing backup before permitting overwrite.",
+  "backupWindowsHint": "Choose a folder already synchronized by OneDrive. BackupPC VPN writes one fixed backup file there; OneDrive manages synchronization.",
+  "backupAppleHint": "Use the shared BackupPC VPN document in iCloud Drive. You can restore an existing backup before permitting overwrite.",
   "backupNotConfigured": "No backup location selected",
   "backupNotConfirmed": "Reading and restoring are available. Overwrite has not been authorized.",
   "backupConfirmTitle": "Allow backup overwrite?",
-  "backupOverwriteWarning": "backuppc-vpn keeps one file at this location. New backups replace its current contents, including a backup from another device. This permission applies to later manual and automatic backups until you change or unbind the location.",
+  "backupOverwriteWarning": "BackupPC VPN keeps one file at this location. New backups replace its current contents, including a backup from another device. This permission applies to later manual and automatic backups until you change or unbind the location.",
   "backupNow": "Back up now",
   "backupRestore": "Restore",
   "backupRestoreFrom": "Restore from backup",
@@ -47,9 +47,9 @@
   "geodataPendingDownload": "Not downloaded. Download this source before using configurations that require it.",
   "routingNormalConfiguration": "Normal configuration",
   "routingAdvancedJson": "Advanced JSON",
-  "routingAdvancedSummary": "Edit DNS, inbounds and routing in JSON; use servers already imported into backuppc-vpn.",
+  "routingAdvancedSummary": "Edit DNS, inbounds and routing in JSON; use servers already imported into BackupPC VPN.",
   "routingAdvancedTemplate": "Advanced routing template",
-  "routingAdvancedNotice": "Start outbounds with 1–3 empty objects for entry nodes. backuppc-vpn supplies the selected servers, proxy balancer, direct/block and platform settings. You control DNS and rule order; no DNS rules or catch-all are added. Unmatched traffic uses the first entry node. See the documentation before editing.",
+  "routingAdvancedNotice": "Start outbounds with 1–3 empty objects for entry nodes. BackupPC VPN supplies the selected servers, proxy balancer, direct/block and platform settings. You control DNS and rule order; no DNS rules or catch-all are added. Unmatched traffic uses the first entry node. See the documentation before editing.",
   "routingFakeDns": "Use FakeDNS",
   "routingFakeDnsHint": "Return virtual IPs and restore domains before routing. Domains matched by local DNS still use real IPs. Cached DNS results may temporarily affect access after disconnecting or reconnecting.",
   "routingRuleMoreConditions": "More matching conditions",
@@ -87,7 +87,7 @@
   "resultFailed": "failed",
   "menuBarStartVpn": "Start VPN",
   "menuBarStopVpn": "Stop VPN",
-  "menuBarShowApp": "Show backuppc-vpn",
+  "menuBarShowApp": "Show BackupPC VPN",
   "menuBarQuitApp": "Quit",
   "menuBarQuitAndStopVpn": "Quit and Stop VPN",
   "actionResult": "{action} {result}",
@@ -118,7 +118,7 @@
   "subscriptionMissingAgeSecretKey": "This encrypted subscription requires an age secret key",
   "subscriptionDecryptFailed": "Unable to decrypt the subscription with this age key",
   "subscriptionDecryptedTooLarge": "The decrypted subscription exceeds the 16 MiB limit",
-  "sharePageOneXrayLink": "backuppc-vpn link",
+  "sharePageOneXrayLink": "BackupPC VPN link",
   "sharePageQRCode": "QRCode",
   "sharePageSaveQRCode": "Save QR image",
   "sharePageShowQRCode": "Show QR code",
@@ -127,11 +127,11 @@
   "settingsPageDesktop": "Desktop",
   "desktopSettingsPageSectionStartup": "Startup",
   "settingsPageLaunchAtLogin": "Launch at login",
-  "settingsPageLaunchAtLoginDescription": "Start backuppc-vpn when you sign in",
+  "settingsPageLaunchAtLoginDescription": "Start BackupPC VPN when you sign in",
   "settingsPageStartHidden": "Start hidden",
   "settingsPageStartHiddenDescription": "Open without showing the main window",
   "settingsPageLaunchAtLoginRequiresApproval": "System approval required",
-  "settingsPageLaunchAtLoginApprovalDescription": "Allow backuppc-vpn in your system's login or startup app settings",
+  "settingsPageLaunchAtLoginApprovalDescription": "Allow BackupPC VPN in your system's login or startup app settings",
   "settingsPageLaunchAtLoginUnavailable": "Launch at login is unavailable",
   "settingsPageLaunchAtLoginUpdateFailed": "Unable to update launch at login",
   "appUpdateAlreadyLatest": "You are using the latest version",
@@ -285,7 +285,7 @@
   "@prototypeYourRegion": {
     "description": "Approved prototype copy: Your region"
   },
-  "prototypeWelcome": "Welcome to backuppc-vpn",
+  "prototypeWelcome": "Welcome to BackupPC VPN",
   "@prototypeWelcome": {
     "description": "Approved prototype copy: Welcome to OneXray"
   },
@@ -293,7 +293,7 @@
   "@prototypeWelcomeSubtitle": {
     "description": "Approved prototype copy: Your servers. A simpler connection."
   },
-  "prototypeNoDataCollection": "backuppc-vpn does not collect usage or browsing data.",
+  "prototypeNoDataCollection": "BackupPC VPN does not collect usage or browsing data.",
   "@prototypeNoDataCollection": {
     "description": "Approved prototype copy: OneXray does not collect usage or browsing data."
   },
@@ -305,7 +305,7 @@
   "@prototypePrivacyPolicy": {
     "description": "Approved prototype copy: Privacy policy"
   },
-  "prototypeNoDataUpload": "backuppc-vpn does not collect or upload usage, browsing, or analytics data.",
+  "prototypeNoDataUpload": "BackupPC VPN does not collect or upload usage, browsing, or analytics data.",
   "@prototypeNoDataUpload": {
     "description": "Approved prototype copy: OneXray does not collect or upload usage, browsing, or analytics data."
   },
@@ -341,7 +341,7 @@
   "@prototypeVpnPermission": {
     "description": "Approved prototype copy: VPN permission"
   },
-  "prototypeAllowAddVpn": "Allow backuppc-vpn to add a VPN configuration.",
+  "prototypeAllowAddVpn": "Allow BackupPC VPN to add a VPN configuration.",
   "@prototypeAllowAddVpn": {
     "description": "Approved prototype copy: Allow OneXray to add a VPN configuration."
   },
@@ -385,7 +385,7 @@
   "@prototypeInterfaceSelectionNotice": {
     "description": "Approved prototype copy: Select the network interface Xray uses to connect. Only the interface name is saved."
   },
-  "prototypeWhereWillYouUse": "Where will you use backuppc-vpn?",
+  "prototypeWhereWillYouUse": "Where will you use BackupPC VPN?",
   "@prototypeWhereWillYouUse": {
     "description": "Approved prototype copy: Where will you use OneXray?"
   },
@@ -445,7 +445,7 @@
   "@prototypeGoToHome": {
     "description": "Approved prototype copy: Go to Home"
   },
-  "prototypeStartUsingOneXray": "Start using backuppc-vpn",
+  "prototypeStartUsingOneXray": "Start using BackupPC VPN",
   "@prototypeStartUsingOneXray": {
     "description": "Approved prototype copy: Start using OneXray"
   },
@@ -676,11 +676,11 @@
       }
     }
   },
-  "prototypeRawManagedSettingsNotice": "This complete configuration controls servers, routing, and Xray DNS when selected. TUN, interface, and logging remain managed by backuppc-vpn.",
+  "prototypeRawManagedSettingsNotice": "This complete configuration controls servers, routing, and Xray DNS when selected. TUN, interface, and logging remain managed by BackupPC VPN.",
   "@prototypeRawManagedSettingsNotice": {
     "description": "Approved prototype copy: This complete configuration controls servers, routing, and Xray DNS when selected. TUN, interface, and logging remain managed by OneXray."
   },
-  "prototypeRawAdditionalSettingsNotice": "Configure additional inbounds, DNS, FakeDNS, and advanced routing here. backuppc-vpn manages platform tunIn settings; other tunIn fields are preserved.",
+  "prototypeRawAdditionalSettingsNotice": "Configure additional inbounds, DNS, FakeDNS, and advanced routing here. BackupPC VPN manages platform tunIn settings; other tunIn fields are preserved.",
   "@prototypeRawAdditionalSettingsNotice": {
     "description": "Raw JSON editor guidance: user tunIn fields are preserved except for platform-managed settings."
   },
@@ -737,11 +737,11 @@
   "@prototypeCompleteXrayConfiguration": {
     "description": "Approved prototype copy: Complete Xray configuration"
   },
-  "prototypeRawRuntimeOverrideNotice": "A complete configuration controls servers, routing, and Xray DNS. backuppc-vpn manages logs, traffic statistics, and platform tunIn settings; other tunIn fields are preserved.",
+  "prototypeRawRuntimeOverrideNotice": "A complete configuration controls servers, routing, and Xray DNS. BackupPC VPN manages logs, traffic statistics, and platform tunIn settings; other tunIn fields are preserved.",
   "@prototypeRawRuntimeOverrideNotice": {
     "description": "Raw JSON runtime ownership notice, including the limited platform tunIn override."
   },
-  "prototypeAddServersToOneXray": "Add servers to backuppc-vpn",
+  "prototypeAddServersToOneXray": "Add servers to BackupPC VPN",
   "@prototypeAddServersToOneXray": {
     "description": "Approved prototype copy: Add servers to OneXray"
   },
@@ -777,7 +777,7 @@
   "@prototypeImportLinks": {
     "description": "Approved prototype copy: Import links"
   },
-  "prototypeImportLinksHint": "One link per line. Supports servers, subscriptions, and backuppc-vpn import links.",
+  "prototypeImportLinksHint": "One link per line. Supports servers, subscriptions, and BackupPC VPN import links.",
   "@prototypeImportLinksHint": {
     "description": "Approved prototype copy: One link per line. Supports servers, subscriptions, and OneXray import links."
   },
@@ -793,7 +793,7 @@
   "@prototypeSubscriptionLink": {
     "description": "Approved prototype copy: Subscription link"
   },
-  "prototypeSubscriptionDescription": "A subscription is a server list supplied by your provider. backuppc-vpn can check it for updates later. Only VMessAEAD / VLESS share links are supported.",
+  "prototypeSubscriptionDescription": "A subscription is a server list supplied by your provider. BackupPC VPN can check it for updates later. Only VMessAEAD / VLESS share links are supported.",
   "@prototypeSubscriptionDescription": {
     "description": "Subscription explanation and supported share formats, shown in both the add and edit forms."
   },
@@ -849,7 +849,7 @@
   "@prototypeNodeJsonHint": {
     "description": "Approved prototype copy: The root object must contain a non-empty outbounds array."
   },
-  "prototypeLocalInputPrivacy": "Input is processed on this device and is never sent to backuppc-vpn.",
+  "prototypeLocalInputPrivacy": "Input is processed on this device and is never sent to BackupPC VPN.",
   "@prototypeLocalInputPrivacy": {
     "description": "Approved prototype copy: Input is processed on this device and is never sent to OneXray."
   },
@@ -1118,7 +1118,7 @@
   "@prototypeCannotUndo": {
     "description": "Approved prototype copy: This change cannot be undone."
   },
-  "prototypeWhyConnectionTitle": "Why backuppc-vpn chose this connection",
+  "prototypeWhyConnectionTitle": "Why BackupPC VPN chose this connection",
   "@prototypeWhyConnectionTitle": {
     "description": "Approved prototype copy: Why OneXray chose this connection"
   },
@@ -1174,7 +1174,7 @@
       }
     }
   },
-  "prototypeMultipleEntriesReason": "backuppc-vpn selected {count} entry servers with the best speed and availability. New connections are distributed between them.",
+  "prototypeMultipleEntriesReason": "BackupPC VPN selected {count} entry servers with the best speed and availability. New connections are distributed between them.",
   "@prototypeMultipleEntriesReason": {
     "description": "Approved prototype copy: OneXray selected {count} entry servers with the best speed and availability. New connections are distributed between them.",
     "placeholders": {
@@ -1192,7 +1192,7 @@
       }
     }
   },
-  "prototypeRegionEntryReason": "backuppc-vpn selected {server} as the fastest available server in {region}.",
+  "prototypeRegionEntryReason": "BackupPC VPN selected {server} as the fastest available server in {region}.",
   "@prototypeRegionEntryReason": {
     "description": "Approved prototype copy: OneXray selected {server} as the fastest available server in {region}.",
     "placeholders": {
@@ -1213,7 +1213,7 @@
       }
     }
   },
-  "prototypeNoAnalyticsLocalLogs": "backuppc-vpn does not collect or upload analytics. Optional logs stay on this device.",
+  "prototypeNoAnalyticsLocalLogs": "BackupPC VPN does not collect or upload analytics. Optional logs stay on this device.",
   "@prototypeNoAnalyticsLocalLogs": {
     "description": "Approved prototype copy: OneXray does not collect or upload analytics. Optional logs stay on this device."
   },
@@ -1585,7 +1585,7 @@
   "@prototypeLanguage": {
     "description": "Approved prototype copy: Language"
   },
-  "prototypeChooseLanguage": "Choose the language used throughout backuppc-vpn.",
+  "prototypeChooseLanguage": "Choose the language used throughout BackupPC VPN.",
   "@prototypeChooseLanguage": {
     "description": "Approved prototype copy: Choose the language used throughout OneXray."
   },
@@ -1609,7 +1609,7 @@
   "@prototypeLaunchAtLogin": {
     "description": "Approved prototype copy: Launch at login"
   },
-  "prototypeLaunchAtLoginHint": "Start backuppc-vpn when you sign in",
+  "prototypeLaunchAtLoginHint": "Start BackupPC VPN when you sign in",
   "@prototypeLaunchAtLoginHint": {
     "description": "Approved prototype copy: Start OneXray when you sign in"
   },
@@ -1625,7 +1625,7 @@
   "@prototypeHideDockIcon": {
     "description": "Approved prototype copy: Hide Dock icon"
   },
-  "prototypeHideDockIconHint": "Hide backuppc-vpn from the Dock",
+  "prototypeHideDockIconHint": "Hide BackupPC VPN from the Dock",
   "@prototypeHideDockIconHint": {
     "description": "Approved prototype copy: Hide OneXray from the Dock"
   },
@@ -1641,7 +1641,7 @@
   "@prototypeAbout": {
     "description": "Approved prototype copy: About"
   },
-  "prototypeAboutOneXray": "About backuppc-vpn",
+  "prototypeAboutOneXray": "About BackupPC VPN",
   "@prototypeAboutOneXray": {
     "description": "Approved prototype copy: About OneXray"
   },
@@ -1661,7 +1661,7 @@
   "@prototypeCheckAppUpdates": {
     "description": "Approved prototype copy: Check for app updates"
   },
-  "prototypeAboutUpdateAvailable": "About backuppc-vpn — update available",
+  "prototypeAboutUpdateAvailable": "About BackupPC VPN — update available",
   "@prototypeAboutUpdateAvailable": {
     "description": "Approved prototype copy: About OneXray — update available"
   },
@@ -1674,7 +1674,7 @@
       }
     }
   },
-  "prototypeCheckNewVersions": "Check for new backuppc-vpn versions",
+  "prototypeCheckNewVersions": "Check for new BackupPC VPN versions",
   "@prototypeCheckNewVersions": {
     "description": "Approved prototype copy: Check for new OneXray versions"
   },
@@ -1690,7 +1690,7 @@
   "@prototypeDocumentation": {
     "description": "Approved prototype copy: Documentation"
   },
-  "prototypeRateOneXray": "Rate backuppc-vpn",
+  "prototypeRateOneXray": "Rate BackupPC VPN",
   "@prototypeRateOneXray": {
     "description": "Rate OneXray in the platform app store"
   },
@@ -1846,7 +1846,7 @@
   "@prototypeChooseInterface": {
     "description": "Approved prototype copy: Choose an interface"
   },
-  "prototypeManagedInterfaceNotice": "Selected during initial setup. backuppc-vpn manages this setting. Raw JSON cannot override it.",
+  "prototypeManagedInterfaceNotice": "Selected during initial setup. BackupPC VPN manages this setting. Raw JSON cannot override it.",
   "@prototypeManagedInterfaceNotice": {
     "description": "Approved prototype copy: Selected during initial setup. OneXray manages this setting. Raw JSON cannot override it."
   },
@@ -2023,7 +2023,7 @@
   "@prototypeReadOnlyRuntimeConfiguration": {
     "description": "Approved prototype copy: Read-only runtime configuration"
   },
-  "prototypeManagedLogNotice": "backuppc-vpn manages both Xray log files. log settings in Raw JSON do not apply.",
+  "prototypeManagedLogNotice": "BackupPC VPN manages both Xray log files. log settings in Raw JSON do not apply.",
   "@prototypeManagedLogNotice": {
     "description": "Approved prototype copy: OneXray manages both Xray log files. log settings in Raw JSON do not apply."
   },
@@ -2535,7 +2535,7 @@
       }
     }
   },
-  "prototypeDeletedServerSelectionNotice": "If this server is currently selected or used as the VPN final exit, backuppc-vpn will return to Automatic selection.",
+  "prototypeDeletedServerSelectionNotice": "If this server is currently selected or used as the VPN final exit, BackupPC VPN will return to Automatic selection.",
   "@prototypeDeletedServerSelectionNotice": {
     "description": "Approved prototype copy: If this server is currently selected or used as the VPN final exit, OneXray will return to Automatic selection."
   },
@@ -2596,7 +2596,7 @@
   "@prototypeRoutingPreviewHint": {
     "description": "Approved prototype copy: With the current settings, traffic is handled like this."
   },
-  "prototypeRuleOrderMaintained": "Rule order is maintained by backuppc-vpn",
+  "prototypeRuleOrderMaintained": "Rule order is maintained by BackupPC VPN",
   "@prototypeRuleOrderMaintained": {
     "description": "Approved prototype copy: Rule order is maintained by OneXray"
   },
@@ -2632,11 +2632,11 @@
   "@prototypeIconRed": {
     "description": "Approved prototype copy: Red"
   },
-  "prototypeHomeScreenIconHint": "Choose the backuppc-vpn icon shown on the Home Screen.",
+  "prototypeHomeScreenIconHint": "Choose the BackupPC VPN icon shown on the Home Screen.",
   "@prototypeHomeScreenIconHint": {
     "description": "Approved prototype copy: Choose the OneXray icon shown on the Home Screen."
   },
-  "prototypeDockIconHint": "Choose the backuppc-vpn icon shown in the Dock.",
+  "prototypeDockIconHint": "Choose the BackupPC VPN icon shown in the Dock.",
   "@prototypeDockIconHint": {
     "description": "Approved prototype copy: Choose the OneXray icon shown in the Dock."
   },
@@ -2768,7 +2768,7 @@
   "@buttonOpenSettings": {
     "description": "Approved prototype copy: Open system settings"
   },
-  "prototypeAboutPrivacyNotice": "backuppc-vpn does not collect or upload usage, traffic, or browsing data.",
+  "prototypeAboutPrivacyNotice": "BackupPC VPN does not collect or upload usage, traffic, or browsing data.",
   "@prototypeAboutPrivacyNotice": {
     "description": "Approved prototype copy: OneXray does not collect or upload usage, traffic, or browsing data."
   },

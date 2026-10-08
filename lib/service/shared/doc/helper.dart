@@ -1,44 +1,12 @@
-import 'package:onexray/core/tools/logger.dart';
-import 'package:onexray/service/shared/event_bus/enum.dart';
-import 'package:onexray/service/shared/event_bus/service.dart';
+import 'package:onexray/core/constants/branding.dart';
 
+/// Документация, благодарности и политика — в репозитории BackupPC VPN.
 class DocURLHelper {
-  static const _domain = "onexray.com";
+  static Uri docUri() => Uri.parse(AppBranding.docsUrl);
 
-  static String _localizedDocsRootPath() {
-    return switch (AppEventBus.instance.state.languageCode) {
-      LanguageCode.zh => "/zh/docs/",
-      LanguageCode.ru => "/ru/docs/",
-      _ => "/docs/",
-    };
-  }
+  static Uri routingUri() => Uri.parse(AppBranding.routingDocsUrl);
 
-  static String _localizedDocsPath(String page) {
-    return switch (AppEventBus.instance.state.languageCode) {
-      LanguageCode.zh => "/zh/docs/$page/",
-      LanguageCode.ru => "/ru/docs/$page/",
-      _ => "/docs/$page/",
-    };
-  }
+  static Uri creditsUri() => Uri.parse(AppBranding.creditsUrl);
 
-  static Uri docUri() {
-    final path = _localizedDocsRootPath();
-    final uri = Uri.https(_domain, path);
-    ygLogger("$uri");
-    return uri;
-  }
-
-  static Uri creditsUri() {
-    final path = _localizedDocsPath("credits");
-    final uri = Uri.https(_domain, path);
-    ygLogger("$uri");
-    return uri;
-  }
-
-  static Uri privacyUri() {
-    final path = _localizedDocsPath("privacy");
-    final uri = Uri.https(_domain, path);
-    ygLogger("$uri");
-    return uri;
-  }
+  static Uri privacyUri() => Uri.parse(AppBranding.privacyUrl);
 }

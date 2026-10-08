@@ -44,7 +44,7 @@
 			<string>net.yuandev.onexray</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>onexray</string>
+				<string>backuppcvpn</string>
 			</array>
 		</dict>
 	</array>

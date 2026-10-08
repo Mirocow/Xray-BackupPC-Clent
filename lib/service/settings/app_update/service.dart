@@ -1,3 +1,4 @@
+import 'package:onexray/core/constants/branding.dart';
 import 'package:onexray/core/constants/preferences.dart';
 import 'package:onexray/core/network/client.dart';
 import 'package:onexray/core/pigeon/host_api.dart';
@@ -54,14 +55,13 @@ class AppUpdateService {
 
   AppUpdateService._internal();
 
+  // BackupPC VPN не публикуется в магазинах: все платформы ведут на
+  // релизы в репозитории.
   static const _githubLatestReleaseApi =
-      "https://api.github.com/repos/OneXray/OneXray/releases/latest";
-  static const _githubLatestReleaseUrl =
-      "https://github.com/OneXray/OneXray/releases/latest";
-  static const _appStoreUrl =
-      "https://apps.apple.com/us/app/onexray/id6745748773";
-  static const _googlePlayUrl =
-      "https://play.google.com/store/apps/details?id=net.yuandev.onexray";
+      "https://api.github.com/repos/Mirocow/Xray-BackupPC-Clent/releases/latest";
+  static const _githubLatestReleaseUrl = "${AppBranding.releasesUrl}/latest";
+  static const _appStoreUrl = _githubLatestReleaseUrl;
+  static const _googlePlayUrl = _githubLatestReleaseUrl;
   static const _automaticCheckInterval = Duration(days: 1);
 
   Future<AppUpdateCheckResult> checkForUpdate() async {

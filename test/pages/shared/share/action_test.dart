@@ -12,7 +12,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'test_app.dart';
 
-const _content = ShareText(title: 'Example', text: 'onexray://example.test');
+const _content = ShareText(title: 'Example', text: 'backuppcvpn://example.test');
 const _buttonKey = Key('share-button');
 
 Widget _button(BuildContext context, ShareActionView action) =>

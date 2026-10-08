@@ -93,13 +93,13 @@ void main() {
       expect(find.byType(SharePage), findsOneWidget);
       expect(find.byType(ShadToast), findsNothing);
 
-      await tester.tap(find.text('backuppc-vpn link'));
+      await tester.tap(find.text('BackupPC VPN link'));
       await tester.pumpAndSettle();
       await tester.tap(button);
       await tester.pumpAndSettle();
       expect(sent, hasLength(2));
       final link = Uri.parse(sent.last.text!);
-      expect(link.scheme, 'onexray');
+      expect(link.scheme, 'backuppcvpn');
       expect(link.queryParameters['age'], 'x25519');
       expect(sent.last.text, isNot(contains('PRIVATE')));
       expect(sent.last.text, isNot(contains('age1public')));
