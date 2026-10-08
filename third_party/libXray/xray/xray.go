@@ -10,13 +10,17 @@ import (
         "github.com/xtls/xray-core/core"
 
         backuppcpre "backuppc-core/preprocess" // backuppc-core: JSON preprocessing
-        _ "backuppc-core/core/outbound"        // backuppc-core: native outbound handler
+        _ "backuppc-core/outbound"             // backuppc-core: native outbound handler
                                                // (registers {"protocol":"backuppc"} in
                                                //  Xray's protocol registry via init().
-                                                   //  Without this, Xray on Android
-                                                   //  says "unknown protocol: backuppc"
-                                                   //  when compiler.dart emits native
-                                                   //  outbound instead of socks.)
+                                               //  Without this, Xray on Android
+                                               //  says "unknown protocol: backuppc"
+                                               //  when compiler.dart emits native
+                                               //  outbound instead of socks.)
+                                               //  FIX: was "backuppc-core/core/outbound"
+                                               //  (extra "core/" segment — actual package
+                                               //  lives at core/outbound/, which from
+                                               //  module root = "backuppc-core/outbound").
         _ "github.com/xtls/xray-core/main/distro/all"
 )
 
