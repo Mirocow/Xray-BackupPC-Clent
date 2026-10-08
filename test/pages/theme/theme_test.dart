@@ -88,11 +88,11 @@ void main() {
       expect(shad.background, palette.background);
       expect(shad.card, palette.card);
       expect(shad.popover, palette.popover);
-      expect(shad.border, const Color(0xFF2B3543));
-      expect(shad.input, const Color(0xFF2B3543));
-      expect(palette.primary, const Color(0xFF69A5FF));
-      expect(palette.primarySolid, const Color(0xFF1F6AF9));
-      expect(palette.foreground, const Color(0xFFF2F5F8));
+      expect(shad.border, const Color(0xFF262D36));
+      expect(shad.input, const Color(0xFF30363D));
+      expect(palette.primary, const Color(0xFF39C5A8));
+      expect(palette.primarySolid, const Color(0xFF238263));
+      expect(palette.foreground, const Color(0xFFE6EDF3));
     });
 
     test(
