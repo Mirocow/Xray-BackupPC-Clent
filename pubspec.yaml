@@ -4,7 +4,10 @@ publish_to: "none"
 version: 26.9.3+1
 
 environment:
-  sdk: ">=3.13.0 <4.0.0"
+  # Lowered from 3.13.0 → 3.5.0 to support macOS 13 (Ventura) where the
+  # last compatible Flutter is 3.24.5 (ships Dart 3.5.4). All deps pinned
+  # below to versions compatible with Dart 3.5.4.
+  sdk: ">=3.5.0 <4.0.0"
 
 dependencies:
   flutter:
@@ -13,18 +16,23 @@ dependencies:
   flutter_localizations:
     sdk: flutter
 
-  material_ui: ^1.2.0
+  # material_ui: no Dart-3.5.4-compatible version on pub.dev.
+  # Using local fork at packages/material_ui with relaxed SDK constraint.
+  material_ui:
+    path: packages/material_ui
 
   #---------- flutter.dev plugin
-  path_provider: ^2.1.6
-  shared_preferences: ^2.5.5
-  url_launcher: ^6.3.2
-  quick_actions: ^1.1.1
-  go_router: ^18.0.1
-  image_picker: ^1.2.3
-  process: ^5.0.6
-  webview_flutter: ^4.14.1
-  app_links: ^7.2.1
+  # macOS 13 (Ventura) pins: latest versions compatible with Dart 3.5.4.
+  # See docs/macos-13-build.md for rationale + maintenance plan.
+  path_provider: ^2.1.5          # was ^2.1.6 (>=3.10.0)
+  shared_preferences: ^2.5.3     # was ^2.5.5 (^3.11.0)
+  url_launcher: ^6.3.1          # was ^6.3.2 (^3.11.0)
+  quick_actions: ^1.1.0         # was ^1.1.1 (>=3.10.0)
+  go_router: ^15.1.2             # was ^18.0.1 (^3.12.0)
+  image_picker: ^1.1.0          # was ^1.2.3 (^3.11.0) — need to verify API compat
+  process: ^5.0.6               # already compatible (^3.5.0)
+  webview_flutter: ^4.10.0      # was ^4.14.1 (^3.10.0)
+  app_links: ^6.4.1             # was ^7.2.1 (^3.12.0)
 
   #---------- dart.dev plugin
   # core
@@ -40,44 +48,44 @@ dependencies:
   crypto: ^3.0.7
   pub_semver: ^2.2.1
   # i18n
-  intl: ^0.20.3
+  intl: ^0.20.2                 # was ^0.20.3 (^3.9.0)
   # native
-  ffi: ^2.2.0
+  ffi: ^2.1.3                  # was ^2.2.0 (>=3.7.0)
 
   #---------- google.dev plugin
-  json_annotation: ^4.12.0
+  json_annotation: ^4.9.0       # was ^4.12.0 (^3.9.0)
   tuple: ^2.0.2
 
   #---------- flutter community
-  package_info_plus: ^10.2.1
-  share_plus: ^13.3.0
+  package_info_plus: ^9.0.1    # was ^10.2.1 (>=3.10.0)
+  share_plus: ^12.0.2          # was ^13.3.0 (>=3.10.0)
 
   #---------- third party plugin
-  drift: ^2.35.0
-  drift_flutter: ^0.3.1
-  sqlite3: ^3.5.2
+  drift: ^2.32.1              # was ^2.35.0 (>=3.10.0)
+  drift_flutter: ^0.3.0       # was ^0.3.1 (>=3.10.0)
+  sqlite3: ^2.9.4             # was ^3.5.2 (>=3.10.0) — major API compat risk
 
   dio: ^5.11.1
   uuid: ^4.6.0
-  permission_handler: ^13.0.2
+  permission_handler: ^12.0.3  # was ^13.0.2 (^3.6.0)
   # qrcode
-  file_picker: ^12.2.0
-  icloud_storage_plus: 4.0.0
-  saf_stream: 4.0.1
-  mobile_scanner: ^7.4.1
+  file_picker: ^11.0.3        # was ^12.2.0 (>=3.4.0)
+  icloud_storage_plus: 4.0.0   # already compatible (>=3.0.0)
+  saf_stream: ^2.0.0          # was 4.0.1 (^3.12.0) — major downgrade
+  mobile_scanner: ^7.0.0-beta.5  # was ^7.4.1 (>=3.4.0) — only beta supports 3.5
   image: ^4.9.2
   zxing2: ^0.2.4
   # export
   # state management
   flutter_bloc: ^9.1.1
-  shadcn_ui: ^0.56.3
+  shadcn_ui: ^0.38.1          # was ^0.56.3 (>=3.11.0) — major downgrade, API compat risk
   lucide_icons_flutter: ^3.1.19
   # markdown
   flutter_markdown_plus: ^1.0.12
-  flutter_local_notifications: ^22.3.0
+  flutter_local_notifications: ^19.5.0  # was ^22.3.0 (^3.4.0)
   in_app_review: ^2.0.12
 
-  isolate_manager: ^6.3.2
+  isolate_manager: ^6.1.1     # was ^6.3.2 (>=3.7.0)
 
   # editor
   re_editor: ^0.10.0
@@ -86,24 +94,24 @@ dependencies:
   # desktop
   tray_manager: ^0.5.3
   window_manager: ^0.5.2
-  win32: ^6.4.0
+  win32: ^5.10.1              # was ^6.4.0 (^3.10.0) — major downgrade
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  share_plus_platform_interface: ^7.2.0
-  build_runner: ^2.16.1
-  json_serializable: ^6.14.1
-  drift_dev: ^2.35.0
-  pigeon: ^28.1.0
-  flutter_lints: ^6.0.0
-  flutter_gen_runner: ^5.15.0
-  ffigen: ^22.0.0
-  msix: ^3.18.0
+  share_plus_platform_interface: ^6.1.0  # was ^7.2.0 (>=3.10.0)
+  build_runner: ^2.4.13         # was ^2.16.1 (^3.11.0)
+  json_serializable: ^6.9.0    # was ^6.14.1 (^3.9.0)
+  drift_dev: ^2.32.1           # was ^2.35.0 (>=3.10.0)
+  pigeon: ^25.3.2              # was ^28.1.0 (^3.11.0) — major downgrade
+  flutter_lints: ^5.0.0        # was ^6.0.0 (^3.8.0)
+  flutter_gen_runner: ^5.15.0  # already compatible (^3.4.0)
+  ffigen: ^19.0.0              # was ^22.0.0 (>=3.10.0)
+  msix: ^3.18.0                # already compatible (>=2.19.0)
 
 # re_editor only uses APIs that remain compatible with isolate_manager 6.x.
 dependency_overrides:
-  isolate_manager: ^6.3.2
+  isolate_manager: ^6.1.1     # was ^6.3.2 — same as direct dep
 
 msix_config:
   display_name: OneXray
