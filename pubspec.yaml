@@ -120,7 +120,12 @@ dev_dependencies:
   drift_dev: ^2.32.1           # was ^2.35.0 (>=3.10.0)
   pigeon: ^25.3.2              # was ^28.1.0 (^3.11.0) — major downgrade
   flutter_lints: ^5.0.0        # was ^6.0.0 (^3.8.0)
-  flutter_gen_runner: ^5.15.0  # already compatible (^3.4.0)
+  # Pinned to ^5.13.0 (was ^5.15.0) — flutter_gen_runner >=5.14.0
+  # directly depends on build_config ^1.1.2 which requires Dart >=3.6.0
+  # (we have 3.5.4). 5.13.0+1 is the last version compatible with our
+  # Dart — doesn't directly depend on build_config, pulls older
+  # compatible versions transitively.
+  flutter_gen_runner: ^5.13.0
   ffigen: ^19.0.0              # was ^22.0.0 (>=3.10.0)
   msix: ^3.18.0                # already compatible (>=2.19.0)
 
