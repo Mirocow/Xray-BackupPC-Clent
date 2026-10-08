@@ -104,13 +104,7 @@ dev_dependencies:
   pigeon: ^28.1.0
   flutter_lints: ^6.0.0
   flutter_gen_runner: ^5.15.0
-  # Pinned to ^19.0.0 — last line that supports Dart 3.4+ (Flutter 3.24.5
-  # ships Dart 3.5.4 on macOS 13). ffigen 19.1.0+ requires Dart 3.8+,
-  # ffigen 21.0.0+ requires Dart 3.10+ — both incompatible with macOS 13.
-  # CI on macOS 14+ runners uses latest stable Flutter (Dart 3.10+) and
-  # could upgrade ffigen to ^22.0.0 — but keeping one pubspec for both
-  # local + CI is simpler. Generated bindings don't use 22-only features.
-  ffigen: ^19.0.0
+  ffigen: ^22.0.0
   msix: ^3.18.0
 
 # re_editor only uses APIs that remain compatible with isolate_manager 6.x.
