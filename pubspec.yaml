@@ -66,16 +66,18 @@ dependencies:
   share_plus: ^12.0.2          # was ^13.3.0 (>=3.10.0)
 
   #---------- third party plugin
-  # Pinned to ^2.31.0 (was ^2.32.1) — drift >=2.32.0 transitively
-  # requires sqlite3 ^3.1.5 which requires Dart >=3.9.999 (effectively
-  # >=3.10.0, incompatible with our 3.5.4). 2.31.0 is the last version
-  # compatible with sqlite3 ^2.6.0 (satisfied by our sqlite3 ^2.9.4).
-  # drift_dev 2.32.1 still works (its constraint is drift >=2.30.0 <2.33.0).
-  drift: ^2.31.0
+  # Pinned to ^2.29.0 (was ^2.31.0) — drift >=2.32.0 transitively
+  # requires sqlite3 ^3.x; drift 2.30-2.31 work with sqlite3 2.x but
+  # drift_dev 2.30+2.31 require analyzer >=8.1.0 <11.0.0 which doesn't
+  # intersect with pigeon 25.x's analyzer >=6.0.0 <8.0.0. drift 2.29.0
+  # + drift_dev 2.29.0 use analyzer >=7.3.0 <9.0.0 — intersects with
+  # pigeon's range at [7.3.0, 8.0.0). drift_flutter 0.2.7 will be picked
+  # (0.2.8 requires drift >=2.30 which we don't have).
+  drift: ^2.29.0
   # Pinned to ^0.2.6 (was ^0.3.0) — drift_flutter 0.3.0 transitively
   # requires sqlite3 ^3.0.0 which requires Dart >=3.10.0 (incompatible
-  # with our 3.5.4). 0.2.8 is the last version compatible with both
-  # Dart 3.5.0+ AND sqlite3 ^2.4.6 (which we satisfy via sqlite3 ^2.9.4).
+  # with our 3.5.4). 0.2.7 (latest compatible with drift 2.29) is what
+  # pub will resolve to.
   drift_flutter: ^0.2.6
   sqlite3: ^2.9.4             # was ^3.5.2 (>=3.10.0) — major API compat risk
 
@@ -122,11 +124,11 @@ dev_dependencies:
   share_plus_platform_interface: ^6.1.0  # was ^7.2.0 (>=3.10.0)
   build_runner: ^2.4.13         # was ^2.16.1 (^3.11.0)
   json_serializable: ^6.9.0    # was ^6.14.1 (^3.9.0)
-  # Pinned to ^2.31.0 (was ^2.32.1) — drift_dev >=2.32.0 transitively
-  # requires sqlite3 ^3.0.0 which requires Dart >=3.9.999 (effectively
-  # >=3.10.0, incompatible with our 3.5.4). 2.31.0 is the last version
-  # that supports drift 2.31.0 (its constraint is drift >=2.30.0 <2.32.0).
-  drift_dev: ^2.31.0
+  # Pinned to ^2.29.0 (was ^2.31.0) — drift_dev 2.31 requires analyzer
+  # >=8.1.0 <11.0.0 which doesn't intersect with pigeon 25.x's
+  # >=6.0.0 <8.0.0. 2.29.0 uses analyzer >=7.3.0 <9.0.0 (intersects).
+  # Allows drift >=2.29.0 <2.30.0 — our drift ^2.29.0 satisfies.
+  drift_dev: ^2.29.0
   pigeon: ^25.3.2              # was ^28.1.0 (^3.11.0) — major downgrade
   flutter_lints: ^5.0.0        # was ^6.0.0 (^3.8.0)
   # Pinned to ^5.13.0 (was ^5.15.0) — flutter_gen_runner >=5.14.0
