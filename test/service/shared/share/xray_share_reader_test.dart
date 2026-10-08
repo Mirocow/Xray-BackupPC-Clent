@@ -250,4 +250,99 @@ void main() {
       expect(native.trim(), isEmpty);
     });
   });
+
+  group('splitBackupPcLinks sanitizes mangled URLs before parsing', () {
+    test('URL with embedded newlines (chat/email wrap) parses', () {
+      // Long backuppc:// URLs (2000+ chars) often wrap across lines when
+      // copied from chat/email. The newlines should be stripped before
+      // BackupPcLink.tryParse is called.
+      final url =
+          'backuppc://52724a0e-6d3a-4b1c-9f2e-8a7c3d5b1e90@example.com:8443'
+          '?endpoints=%2Fbackuppc.BackupService%2FBackupStream\n'
+          '   %2C%2Fbackuppc.ChunkService%2FPutChunk\n'
+          '   &fp=7fbda8efec2e37418266b14e48e513bbce4e7868901f99318859ce65a4b6c72d\n'
+          '   &host=cdn.example.com\n'
+          '   #Office%20Backup';
+      final (outbounds, _) = XrayShareReader().splitBackupPcLinks(url);
+      expect(outbounds, hasLength(1));
+      expect(outbounds.single['protocol'], 'backuppc');
+      final settings = outbounds.single['settings'] as Map<String, dynamic>;
+      expect(settings['serverAddr'], 'example.com:8443');
+      expect(settings['endpointPaths'], hasLength(2));
+      expect(outbounds.single['tag'], 'Office Backup');
+    });
+
+    test('URL with `+` chars in query (form-encoded space) parses', () {
+      // Some chat clients / clipboard managers encode spaces as `+` instead
+      // of `%20`. Uri.parse doesn't decode `+` in standard URL query —
+      // it stays as `+` in parameter values. This breaks the
+      // startsWith('/') check for endpoints.
+      //
+      // Our sanitizer replaces `+` with `%20` in query string, which
+      // Uri.parse then decodes to space. The space is then stripped from
+      // endpoint path splits.
+      final url =
+          'backuppc://uuid@example.com:8443'
+          '?endpoints=%2Fbackuppc.BackupService%2FBackupStream+'
+          '%2C%2Fbackuppc.ChunkService%2FPutChunk';
+      final (outbounds, _) = XrayShareReader().splitBackupPcLinks(url);
+      expect(outbounds, hasLength(1));
+      final settings = outbounds.single['settings'] as Map<String, dynamic>;
+      // After sanitization, endpoints split by comma yields 2 paths,
+      // each starting with '/'. Without sanitization, `+` would be
+      // literal in the value, and split by comma would yield 1 path
+      // "/backuppc.BackupService/BackupStream+/backuppc.ChunkService/PutChunk"
+      // (which starts with '/' so passes validation, but is wrong at runtime).
+      expect(settings['endpointPaths'], hasLength(2));
+    });
+
+    test('truncated URL (no backuppc:// prefix) gives clear error', () {
+      // When user copies URL from a wrapped display that truncated the
+      // beginning, the URL might start with mid-text instead of "backuppc://".
+      // In this case, Uri.tryParse returns a URI with empty scheme,
+      // splitBackupPcLinks skips it (not a backuppc scheme), and the URL
+      // goes to "other" list. BackupPcLink.tryParse is never called.
+      //
+      // But if user explicitly types "backuppc://..." and the URL is
+      // otherwise malformed, tryParse returns null and we throw a clear
+      // error mentioning "URL must start with backuppc://".
+      expect(
+        () => XrayShareReader().splitBackupPcLinks(
+          'backuppc://host-without-uuid',
+        ),
+        throwsFormatException,
+      );
+    });
+
+    test('URL with all 38 default endpoint paths parses after sanitization', () {
+      // Real server-generated URL has 38 default endpoint paths joined by
+      // comma. When URL-encoded, that's ~2000 chars in endpoints param
+      // alone. If the URL is wrapped across lines, sanitization must
+      // strip the newlines and restore the original URL.
+      final paths = <String>[
+        '/backuppc.BackupService/BackupStream',
+        '/backuppc.ChunkService/PutChunk',
+        '/backuppc.StorageService/UploadStream',
+        '/backuppc.ChunkService/StreamChunks',
+        '/backuppc.StorageService/WriteStream',
+        '/backuppc.StorageService/PutBlocks',
+        '/backuppc.SnapshotService/SendSnapshot',
+        '/backuppc.SnapshotService/SnapshotStream',
+        '/backuppc.RsyncService/DeltaStream',
+        '/backuppc.RsyncService/RsyncTransfer',
+      ];
+      // Build URL like server does: backuppc://uuid@host?endpoints=...&fp=...
+      final eps = paths.map((p) =>
+          p.replaceAll('/', '%2F').replaceAll(',', '%2C')).join('%2C');
+      final url =
+          'backuppc://52724a0e@example.com:8443'
+          '?endpoints=$eps'
+          '&fp=7fbda8efec2e37418266b14e48e513bbce4e7868901f99318859ce65a4b6c72d'
+          '&host=cdn.example.com#test';
+      final (outbounds, _) = XrayShareReader().splitBackupPcLinks(url);
+      expect(outbounds, hasLength(1));
+      final settings = outbounds.single['settings'] as Map<String, dynamic>;
+      expect(settings['endpointPaths'], hasLength(10));
+    });
+  });
 }
