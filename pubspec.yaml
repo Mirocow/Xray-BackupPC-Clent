@@ -83,10 +83,16 @@ dependencies:
   # export
   # state management
   flutter_bloc: ^9.1.1
-  shadcn_ui: ^0.38.1          # was ^0.56.3 (>=3.11.0) — major downgrade, API compat risk
+  # Pinned to ^0.16.3 — last version compatible with Flutter 3.24.5.
+  # All versions 0.17.0+ require Flutter >=3.41.0 (incompatible with macOS 13).
+  # MAJOR downgrade from 0.56.3 — API has changed significantly, expect
+  # compile errors in lib/ that use newer shadcn_ui APIs.
+  shadcn_ui: ^0.16.3
   lucide_icons_flutter: ^3.1.19
   # markdown
-  flutter_markdown_plus: ^1.0.12
+  # Pinned to 1.0.0+1 — only version compatible with Flutter 3.24.5.
+  # All versions 1.0.1+ require Flutter >=3.27.1 (incompatible with macOS 13).
+  flutter_markdown_plus: 1.0.0+1
   flutter_local_notifications: ^19.5.0  # was ^22.3.0 (^3.4.0)
   in_app_review: ^2.0.12
 
