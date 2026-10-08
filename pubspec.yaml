@@ -10,7 +10,7 @@ environment:
   # make the project unbuildable on macOS 13 without any actual use of
   # 3.13-specific syntax. CI on macOS 14+ runners uses latest stable,
   # which still satisfies this constraint.
-  sdk: ">=3.5.0 <4.0.0"
+  sdk: ">=3.13.0 <4.0.0"
 
 dependencies:
   flutter:
