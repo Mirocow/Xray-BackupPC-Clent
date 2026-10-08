@@ -183,6 +183,7 @@ class ServerImportController extends PageCubit<ServerImportPageState> {
   final publicKey = TextEditingController();
   bool _closingFlow = false;
   bool _previewOpen = false;
+  bool _sanitizingInput = false; // prevents infinite loop in _changed
   final _completedSubscriptions = <String, ServerSubscriptionImport>{};
   AgeKeyType? _linkAgeType;
   String? _hwid;
@@ -207,6 +208,37 @@ class ServerImportController extends PageCubit<ServerImportPageState> {
   }
 
   void _changed() {
+    // Sanitize the "Paste link" input field in-place. When user pastes a
+    // long backuppc:// URL (2000+ chars due to 38 default endpoint paths)
+    // from chat/email, the URL gets wrapped across multiple lines with
+    // embedded newlines + leading whitespace + '+' chars encoding spaces.
+    // This breaks BackupPcLink.tryParse which expects a single-line URL.
+    //
+    // Sanitization:
+    // 1. JOIN continuation lines (lines that don't start with a URL scheme
+    //    joined to the previous line — handles multi-line wrapped URLs).
+    // 2. Strip whitespace from URL prefix, query, fragment.
+    // 3. Replace '+' chars in query string with '%20' (some chat clients
+    //    encode spaces as '+' instead of '%20').
+    //
+    // The sanitization only runs when the input has multi-line content or
+    // contains '+' chars. For normal single-line URLs, no changes.
+    if (!_sanitizingInput && text.text.isNotEmpty) {
+      final sanitized = _sanitizeInputText(text.text);
+      if (sanitized != null && sanitized != text.text) {
+        _sanitizingInput = true;
+        try {
+          final previousSelection = text.selection;
+          text.text = sanitized;
+          // Try to preserve cursor position (or move to end if sanitized
+          // text is shorter than cursor offset).
+          final newOffset = previousSelection.baseOffset.clamp(0, sanitized.length);
+          text.selection = TextSelection.collapsed(offset: newOffset);
+        } finally {
+          _sanitizingInput = false;
+        }
+      }
+    }
     var hwidEnabled = state.hwidEnabled;
     if (_hwidUrl != null && !SubscriptionUrl.sameOrigin(_hwidUrl!, url.text)) {
       // A new origin needs consent again, not a new subscription identity.
@@ -232,6 +264,106 @@ class ServerImportController extends PageCubit<ServerImportPageState> {
         hwidEnabled: hwidEnabled,
       ),
     );
+  }
+
+  /// Sanitize the "Paste link" input field text.
+  ///
+  /// Returns null if no sanitization is needed (single-line URL without
+  /// '+' chars). Returns the sanitized text otherwise.
+  ///
+  /// Sanitization rules:
+  /// 1. JOIN continuation lines — long URLs wrapped across multiple lines
+  ///    by chat/email clients are joined back into a single line. A line
+  ///    that doesn't start with a URL scheme (backuppc://, vless://,
+  ///    https://, etc.) is treated as a continuation of the previous line.
+  /// 2. Strip whitespace from each URL's prefix, query, fragment.
+  /// 3. Replace '+' chars in query string with '%20' (some chat clients
+  ///    encode spaces as '+' instead of '%20' — Uri.parse doesn't decode
+  ///    '+' in standard URL query, breaking BackupPcLink.tryParse).
+  ///
+  /// Preserves blank lines (separators between multi-line URLs).
+  /// Preserves lines that don't look like URLs (comments, plain text).
+  static String? _sanitizeInputText(String input) {
+    if (input.isEmpty) return null;
+    // Fast path: no newlines and no '+' chars → no sanitization needed.
+    if (!input.contains('\n') && !input.contains('+')) return null;
+    final lines = input.split('\n');
+    final out = <String>[];
+    String? currentUrl;
+    for (final line in lines) {
+      final trimmed = line.trim();
+      if (trimmed.isEmpty) {
+        // Blank line breaks URL continuation — flush current URL.
+        if (currentUrl != null) {
+          out.add(currentUrl);
+          currentUrl = null;
+        }
+        out.add(line);
+        continue;
+      }
+      final scheme = Uri.tryParse(trimmed)?.scheme.toLowerCase() ?? '';
+      final startsWithScheme = scheme.isNotEmpty &&
+          (trimmed.contains('://') || scheme == 'backuppcvpn');
+      if (startsWithScheme) {
+        // New URL starts here — flush previous URL if any.
+        if (currentUrl != null) {
+          out.add(currentUrl);
+        }
+        // Start new URL with sanitization applied.
+        currentUrl = _sanitizeUrl(line);
+      } else if (currentUrl != null) {
+        // Continuation line — append to current URL (no separator).
+        currentUrl += _sanitizeUrlLine(trimmed);
+      } else {
+        // No active URL — keep line as-is (might be plain text or comment).
+        out.add(line);
+      }
+    }
+    if (currentUrl != null) {
+      out.add(currentUrl);
+    }
+    final result = out.join('\n');
+    return result == input ? null : result;
+  }
+
+  /// Sanitize a single URL line: strip whitespace from prefix/query/fragment,
+  /// replace '+' with '%20' in query string.
+  static String _sanitizeUrl(String url) {
+    // Find query and fragment boundaries.
+    final queryStart = url.indexOf('?');
+    final fragmentStart = url.indexOf('#');
+    final prefixEnd = queryStart >= 0
+        ? queryStart
+        : (fragmentStart >= 0 ? fragmentStart : url.length);
+    final prefix = url.substring(0, prefixEnd).replaceAll(RegExp(r'\s'), '');
+    var query = '';
+    var fragment = '';
+    if (queryStart >= 0) {
+      final queryEnd = fragmentStart >= 0 && fragmentStart > queryStart
+          ? fragmentStart
+          : url.length;
+      query = url.substring(queryStart, queryEnd);
+      // Replace '+' with '%20' in query (form-encoded space).
+      query = query.replaceAll('+', '%20');
+      // Strip whitespace from query.
+      query = query.replaceAll(RegExp(r'\s'), '');
+    }
+    if (fragmentStart >= 0) {
+      fragment = url.substring(fragmentStart).replaceAll(RegExp(r'\s'), '');
+    }
+    return '$prefix$query$fragment';
+  }
+
+  /// Sanitize a continuation line (no URL scheme prefix) — just strip
+  /// whitespace and replace '+' with '%20' (continuation lines are
+  /// typically URL-encoded path segments or query params).
+  static String _sanitizeUrlLine(String line) {
+    var result = line.replaceAll(RegExp(r'\s'), '');
+    // Replace '+' with '%20' (continuation often contains query params).
+    if (result.contains('+')) {
+      result = result.replaceAll('+', '%20');
+    }
+    return result;
   }
 
   void closePage(BuildContext context) {
