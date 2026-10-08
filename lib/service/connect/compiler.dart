@@ -213,7 +213,14 @@ class ConnectionCompiler {
           'Raw configuration is required without normal nodes',
         );
       }
-      config = _transformRawBackuppc(raw, backuppcPortIt, backuppcTunnels, options);
+      config = _transformRawBackuppc(
+        raw,
+        backuppcPortIt,
+        backuppcTunnels,
+        options,
+        useNativeOutbound: options.platform == ConnectionPlatform.android &&
+            settings.nativeBackuppcOutbound,
+      );
     } else {
       final required = settings.requiredEntries(
         customEntryCount: custom?.entryCount,
@@ -310,12 +317,13 @@ class ConnectionCompiler {
           selector.add(entryTag);
         } else {
           final exitTag = 'app-exit-$index';
+          // выход в цепочке — всегда Dart-туннель: нативный outbound не
+          // использует dialerProxy, и выход молча обошёл бы вход
           final exit = _nodeWithTunnels(
             finalExit,
             exitTag,
             backuppcPortIt,
             backuppcTunnels,
-            useNativeOutbound: useNative,
           );
           setOutboundDialerProxy(exit, entryTag);
           nodeTags[exitTag] = finalExit.id;
@@ -366,6 +374,11 @@ class ConnectionCompiler {
         },
         directDomains: directDomains,
         ipv6: options.ipv6,
+        // нативный backuppc-outbound отклоняет UDP: прокси-DNS по UDP
+        // означал бы «VPN подключён, но ни один домен не резолвится»
+        proxyOverTcp:
+            useNative &&
+            entries.any((node) => isBackupPcOutbound(node.outbound)),
       );
       final normal = XrayJson(
         env: XrayEnv(
@@ -546,9 +559,14 @@ class ConnectionCompiler {
     Map<String, dynamic> raw,
     Iterator<int> ports,
     List<({int port, Map<String, dynamic> config})> tunnels,
-    RuntimeOptions options,
-  ) {
+    RuntimeOptions options, {
+    bool useNativeOutbound = false,
+  }) {
     final config = JsonTool.copyMap(raw);
+    if (useNativeOutbound) {
+      // ядро понимает protocol: backuppc само (backuppc-core в libXray)
+      return _rawRuntimeMap(config, options);
+    }
     final outbounds = _objects(config, 'outbounds');
     for (var i = 0; i < outbounds.length; i++) {
       final outbound = outbounds[i];

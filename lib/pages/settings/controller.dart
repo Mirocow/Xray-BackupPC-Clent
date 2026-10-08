@@ -18,6 +18,7 @@ import 'package:onexray/service/shared/event_bus/enum.dart';
 import 'package:onexray/service/shared/event_bus/service.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:onexray/core/constants/branding.dart';
 
 class SettingsPageState {
   final String appVersion;
@@ -244,10 +245,8 @@ class SettingsController extends PageCubit<SettingsPageState> {
       SettingsLink.documentation => DocURLHelper.docUri(),
       SettingsLink.review => null,
       SettingsLink.community => Uri.parse('https://t.me/OneXrayApp'),
-      SettingsLink.feedback => Uri.parse(
-        'https://github.com/OneXray/OneXray/issues/new',
-      ),
-      SettingsLink.source => Uri.parse('https://github.com/OneXray/OneXray'),
+      SettingsLink.feedback => Uri.parse(AppBranding.issuesUrl),
+      SettingsLink.source => Uri.parse(AppBranding.sourceUrl),
       SettingsLink.credits => DocURLHelper.creditsUri(),
       SettingsLink.privacy => DocURLHelper.privacyUri(),
     };

@@ -1,6 +1,7 @@
 import 'package:flutter/services.dart';
 import 'package:onexray/core/tools/platform.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:onexray/core/constants/branding.dart';
 
 enum ShareDestination { system, clipboard }
 
@@ -38,7 +39,7 @@ class OutgoingShare {
       return;
     }
     final title = content.title.trim();
-    final metadata = title.isEmpty ? 'OneXray' : title;
+    final metadata = title.isEmpty ? AppBranding.name : title;
     // None of the three native statuses guarantees delivery or warrants a
     // clipboard fallback. Invocation errors propagate with their original cause.
     await _platform.share(

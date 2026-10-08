@@ -450,7 +450,7 @@ void main() {
 
     await tester.tap(find.text('Back'));
     await tester.pumpAndSettle();
-    expect(find.text('Add servers to OneXray'), findsOneWidget);
+    expect(find.text('Add servers to backuppc-vpn'), findsOneWidget);
     expect(completed, isFalse);
 
     await tester.tap(find.text('Paste link'));
@@ -466,7 +466,7 @@ void main() {
     expect(completed, isTrue);
     expect(result, isNull);
     expect(find.byType(ServerImportFormPage), findsNothing);
-    expect(find.text('Add servers to OneXray'), findsNothing);
+    expect(find.text('Add servers to backuppc-vpn'), findsNothing);
     expect(find.text('Open'), findsOneWidget);
     expect(Navigator.of(tester.element(find.text('Open'))).canPop(), isFalse);
     expect(tester.takeException(), isNull);

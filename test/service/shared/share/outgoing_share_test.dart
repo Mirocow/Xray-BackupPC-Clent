@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:onexray/service/shared/share/outgoing_share.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:share_plus_platform_interface/share_plus_platform_interface.dart';
+import 'package:onexray/core/constants/branding.dart';
 
 void main() {
   const content = ShareText(
@@ -52,8 +53,8 @@ void main() {
       ),
     );
     await share.sendText(const ShareText(title: '  ', text: ' exact text '));
-    expect(sent.title, 'OneXray');
-    expect(sent.subject, 'OneXray');
+    expect(sent.title, AppBranding.name);
+    expect(sent.subject, AppBranding.name);
     expect(sent.text, ' exact text ');
     expect(sent.sharePositionOrigin, isNull);
   });

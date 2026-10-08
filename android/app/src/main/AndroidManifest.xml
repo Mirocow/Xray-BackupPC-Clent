@@ -22,7 +22,7 @@
         android:name="${applicationName}"
         android:enableOnBackInvokedCallback="false"
         android:icon="@mipmap/ic_launcher"
-        android:label="OneXray"
+        android:label="backuppc-vpn"
         tools:targetApi="tiramisu">
         <activity
             android:name=".MainActivity"
@@ -60,7 +60,7 @@
         <service
             android:name=".tile.OneQuickSettingsTileService"
             android:exported="true"
-            android:icon="@drawable/play_light"
+            android:icon="@drawable/ic_stat_vpn"
             android:label="@string/quick_settings_tile_label"
             android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
             <intent-filter>

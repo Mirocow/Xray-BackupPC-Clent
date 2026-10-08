@@ -63,7 +63,7 @@ class OneQuickSettingsTileService : TileService() {
             updateTileState(
                 state = Tile.STATE_UNAVAILABLE,
                 subtitle = getString(R.string.quick_settings_tile_status_disconnecting),
-                iconRes = R.drawable.pause_light,
+                iconRes = R.drawable.ic_stat_vpn,
             )
             VpnController.stopVpn(this)
             return
@@ -113,7 +113,8 @@ class OneQuickSettingsTileService : TileService() {
                 running -> getString(R.string.quick_settings_tile_status_connected)
                 else -> getString(R.string.quick_settings_tile_status_open_app)
             },
-            iconRes = if (running) R.drawable.pause_light else R.drawable.play_light,
+            // щит в обоих состояниях: вкл/выкл показывает подсветка плитки
+            iconRes = R.drawable.ic_stat_vpn,
         )
     }
 }

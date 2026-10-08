@@ -4,6 +4,7 @@ import 'package:onexray/pages/theme/font.dart';
 import 'package:onexray/pages/theme/layout.dart';
 import 'package:onexray/pages/shared/widgets/page_action_bar.dart';
 import 'package:onexray/pages/shared/widgets/button_progress.dart';
+import 'package:onexray/core/constants/branding.dart';
 
 /// Small setup forms fill the viewport but still scroll on a short screen or
 /// with a larger system text size. Long selector lists use slivers instead.
@@ -66,7 +67,7 @@ class SetupDesktopBody extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('OneXray', style: AppTypography.setupBrand),
+          Text(AppBranding.name, style: AppTypography.setupBrand),
           const SizedBox(height: 10),
           Center(
             child: ConstrainedBox(

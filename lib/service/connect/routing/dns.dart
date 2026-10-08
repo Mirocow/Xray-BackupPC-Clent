@@ -24,6 +24,7 @@ abstract final class RoutingDns {
     Iterable<String> directDomains = const [],
     bool ipv6 = true,
     bool fakeDns = false,
+    bool proxyOverTcp = false,
   }) {
     final queryStrategy = ipv6 ? 'UseIP' : 'UseIPv4';
     return XrayDns(
@@ -35,7 +36,8 @@ abstract final class RoutingDns {
             queryStrategy: queryStrategy,
           ),
         XrayDnsServer(
-          address: defaultAddress,
+          // backuppc не переносит UDP: через такой прокси DNS — по TCP
+          address: proxyOverTcp ? 'tcp://$defaultAddress' : defaultAddress,
           tag: proxyTag,
           queryStrategy: queryStrategy,
         ),

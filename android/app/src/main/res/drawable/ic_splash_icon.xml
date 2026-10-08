@@ -1,30 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- backuppc-vpn: щит со стрелками (отправка/приём) -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="288dp"
     android:height="288dp"
-    android:viewportWidth="288"
-    android:viewportHeight="288">
-    <path
-        android:fillColor="#00000000"
-        android:pathData="M188.98,188.98L99.02,99.02"
-        android:strokeColor="#ffffff"
-        android:strokeLineCap="round"
-        android:strokeWidth="17.39" />
-    <path
-        android:fillColor="#00000000"
-        android:pathData="M90.03,108.02L108.02,90.03"
-        android:strokeColor="#ffffff"
-        android:strokeLineCap="round"
-        android:strokeWidth="17.39" />
-    <path
-        android:fillColor="#00000000"
-        android:pathData="M99.02,188.98L188.98,99.02"
-        android:strokeColor="#ffffff"
-        android:strokeLineCap="round"
-        android:strokeWidth="17.39" />
-    <path
-        android:fillColor="#00000000"
-        android:pathData="M179.98,90.03L197.97,108.02"
-        android:strokeColor="#ffffff"
-        android:strokeLineCap="round"
-        android:strokeWidth="17.39" />
+    android:viewportWidth="432"
+    android:viewportHeight="432">
+  <path android:pathData="M216,100 L304,132 L304,212 C304,268 266,308 216,332 C166,308 128,268 128,212 L128,132 Z" android:fillColor="#FFFFFF"/>
+  <path android:pathData="M190,268 L190,166" android:strokeColor="#0F6E56" android:strokeWidth="18"
+      android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#00000000"/>
+  <path android:pathData="M168,190 L190,166 L212,190" android:strokeColor="#0F6E56" android:strokeWidth="18"
+      android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#00000000"/>
+  <path android:pathData="M242,166 L242,268" android:strokeColor="#0F6E56" android:strokeWidth="18"
+      android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#00000000"/>
+  <path android:pathData="M220,244 L242,268 L264,244" android:strokeColor="#0F6E56" android:strokeWidth="18"
+      android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#00000000"/>
 </vector>
