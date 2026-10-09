@@ -43,6 +43,10 @@ class XrayShareReader {
   ///    в значениях параметров, что ломает startsWith('/') проверку для
   ///    endpoints.
   /// 4. Show clear error if URL is malformed after sanitization.
+  /// 5. DETECT TRUNCATED backuppc URLs: if input contains backuppc-related
+  ///    patterns (backuppc.ReplicationService, endpoints=, fp=, host=)
+  ///    but doesn't start with backuppc:// scheme, throw a clear error
+  ///    explaining the URL is truncated.
   @visibleForTesting
   (List<Map<String, dynamic>>, String) splitBackupPcLinks(String text) {
     final backuppcOutbounds = <Map<String, dynamic>>[];
@@ -67,11 +71,69 @@ class XrayShareReader {
           );
         }
         backuppcOutbounds.add(link.toOutboundJson());
+      } else if (_looksLikeTruncatedBackupPcUrl(trimmed)) {
+        // URL contains backuppc-related patterns but doesn't start with
+        // backuppc:// — likely truncated when copied from chat/email.
+        // Throw a clear error explaining the issue.
+        throw FormatException(
+          'Pasted text contains backuppc share-link fragments (endpoints=, '
+          'fp=, backuppc.ReplicationService, etc.) but doesn\'t start with '
+          '"backuppc://" scheme. The URL appears to be TRUNCATED — the '
+          'beginning is missing. Please copy the FULL URL from the server '
+          'panel (Clients page → ⧉ copy button), not from chat/email that '
+          'may wrap or truncate long URLs.',
+        );
       } else {
         other.add(line);
       }
     }
     return (backuppcOutbounds, other.join('\n'));
+  }
+
+  /// Detects if input looks like a TRUNCATED backuppc:// share-link.
+  /// Returns true if input contains backuppc-related patterns (endpoint
+  /// paths, query params) but doesn't have a URL scheme.
+  ///
+  /// Patterns checked (case-insensitive):
+  /// - Query params: `endpoints=`, `fp=`, `host=`, `insecure=`, `pad=`, `ua=`
+  /// - Endpoint service names: `backuppc.BackupService`,
+  ///   `backuppc.ChunkService`, `backuppc.StorageService`,
+  ///   `backuppc.SnapshotService`, `backuppc.RsyncService`,
+  ///   `backuppc.ArchiveService`, `backuppc.DedupService`,
+  ///   `backuppc.ReplicationService`, `backuppc.CatalogService`,
+  ///   `backuppc.TransferService`
+  /// - URL-encoded path chars: `%2Fbackuppc.` (slash + backuppc prefix)
+  ///
+  /// Returns false for normal text, valid URLs with schemes, etc.
+  static bool _looksLikeTruncatedBackupPcUrl(String input) {
+    if (input.isEmpty) return false;
+    // If input has a URL scheme (anything before `://`), it's not truncated.
+    if (input.contains('://')) return false;
+    final lower = input.toLowerCase();
+    // Check for backuppc share-link query params.
+    final hasBackupPcParams = lower.contains('endpoints=') ||
+        lower.contains('fp=') ||
+        lower.contains('&host=') ||
+        lower.contains('?host=') ||
+        lower.contains('insecure=') ||
+        lower.contains('pad=') ||
+        lower.contains('&ua=') ||
+        lower.contains('?ua=');
+    // Check for backuppc endpoint service names.
+    final hasBackupPcServices = lower.contains('backuppc.') &&
+        (lower.contains('backupservice') ||
+            lower.contains('chunkservice') ||
+            lower.contains('storageservice') ||
+            lower.contains('snapshotservice') ||
+            lower.contains('rsyncservice') ||
+            lower.contains('archiveservice') ||
+            lower.contains('dedupservice') ||
+            lower.contains('replicationservice') ||
+            lower.contains('catalogservice') ||
+            lower.contains('transferservice'));
+    // Check for URL-encoded backuppc paths.
+    final hasEncodedBackupPc = lower.contains('%2fbackuppc.');
+    return hasBackupPcParams || hasBackupPcServices || hasEncodedBackupPc;
   }
 
   /// Joins continuation lines: if a line doesn't start with a URL scheme

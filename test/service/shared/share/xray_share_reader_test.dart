@@ -344,5 +344,48 @@ void main() {
       final settings = outbounds.single['settings'] as Map<String, dynamic>;
       expect(settings['endpointPaths'], hasLength(10));
     });
+
+    test('TRUNCATED URL (user\'s real case) gives clear "TRUNCATED" error', () {
+      // This is the EXACT URL from user's screenshot (commit history shows
+      // user reported "нет изменений" / "no changes" with this URL pasted).
+      // URL starts with 'ndexStream' (end of 'BackupStream') — missing
+      // 'backuppc://uuid@host:port?endpoints=%2Fbackuppc.BackupService%2FBacku'
+      // prefix. Has '+++' chars (form-encoded spaces from chat wrap).
+      //
+      // Before my fix: this URL went to "other" list, native parser failed,
+      // user saw generic "Поддерживаемые ссылки не найдены" (no supported
+      // links recognized) — no clue about the real issue.
+      //
+      // After my fix: _looksLikeTruncatedBackupPcUrl detects backuppc
+      // patterns + no scheme → throws clear FormatException mentioning
+      // TRUNCATED + how to copy full URL from server panel.
+      const userUrl =
+          'ndexStream%2C%2Fbackuppc.ReplicationService%2FReplicateStream'
+          '+++%2Fbackuppc.CatalogService%2FPutIndex%2C%2Fbackuppc.'
+          'TransferService%2FUploadBackup+++%2Fbackuppc.TransferService'
+          '%2FRestoreStream&fp=371302f5228fadd799e62e64b6897010dbaefce1'
+          '78ae4d55d45f56e838bbad80&host=lampa-tv.ru#thinkpad';
+      expect(
+        () => XrayShareReader().splitBackupPcLinks(userUrl),
+        throwsFormatException,
+      );
+    });
+
+    test('text WITHOUT backuppc patterns is NOT flagged as truncated', () {
+      // Plain text and non-backuppc URLs should NOT trigger the truncated
+      // detection — they go to "other" list normally for native parser.
+      const plainTexts = [
+        'just some text',
+        'https://example.com/subscription',
+        'vless://uuid@host:443',
+        'vmess://base64data',
+        '',
+      ];
+      for (final text in plainTexts) {
+        final (outbounds, other) = XrayShareReader().splitBackupPcLinks(text);
+        expect(outbounds, isEmpty, reason: 'text: "$text"');
+        expect(other, isNot(contains('TRUNCATED')));
+      }
+    });
   });
 }
