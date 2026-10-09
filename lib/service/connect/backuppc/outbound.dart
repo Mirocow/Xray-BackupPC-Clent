@@ -56,6 +56,10 @@ ClientConfig? backuppcClientConfig(Map<String, dynamic> outbound) {
       transport[key] = settings[key];
     }
   }
+  // clientInfo — real client app info sent via X-Backup-Client-Info header.
+  // Server displays this in device grid + Sessions for device identification.
+  // Format: "BackupPC VPN/0.2.0 (Linux x86_64)"
+  transport['clientInfo'] = _buildClientInfo();
   final backuppc = settings['backuppc'];
   if (backuppc is Map<String, dynamic>) {
     transport['backuppc'] = backuppc;
@@ -67,6 +71,39 @@ ClientConfig? backuppcClientConfig(Map<String, dynamic> outbound) {
     'certFingerprint': settings['certFingerprint'],
     'transport': transport,
   });
+}
+
+/// Builds client info string for X-Backup-Client-Info header.
+/// Format: "BackupPC VPN/<version> (<OS> <arch>)"
+String _buildClientInfo() {
+  // AppBranding.name = "BackupPC VPN" (from lib/core/constants/branding.dart)
+  // Platform.operatingSystem = "linux" | "macos" | "windows" | "android" | "ios"
+  // We use a simple format without async PackageInfo (which would require
+  // awaiting). Version comes from pubspec at build time — but we can't
+  // access it synchronously, so we use a static string.
+  const appName = 'BackupPC VPN';
+  const appVersion = '0.2.0';
+  // Platform.operatingSystem gives "linux", "macos", "windows", "android", "ios"
+  // We capitalize for readability.
+  final os = _capitalizeOS(Platform.operatingSystem);
+  return '$appName/$appVersion ($os)';
+}
+
+String _capitalizeOS(String os) {
+  switch (os) {
+    case 'linux':
+      return 'Linux';
+    case 'macos':
+      return 'macOS';
+    case 'windows':
+      return 'Windows';
+    case 'android':
+      return 'Android';
+    case 'ios':
+      return 'iOS';
+    default:
+      return os;
+  }
 }
 
 /// Кандидаты адресов сервера для анти-петлевого правила маршрутизации

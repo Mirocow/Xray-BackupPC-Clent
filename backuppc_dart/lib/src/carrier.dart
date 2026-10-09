@@ -468,6 +468,12 @@ class ChunkConnection {
       Header.ascii('te', 'trailers'),
       Header.ascii('grpc-accept-encoding', 'identity'),
       Header.ascii('user-agent', ua),
+      // X-Backup-Client-Info — реальная информация о клиентском приложении
+      // (app name + version + OS). Отправляется ОТДЕЛЬНО от маскировочного
+      // user-agent. Сервер читает этот заголовок и показывает в device grid.
+      // Формат: "BackupPC VPN/0.2.0 (Linux x86_64)"
+      if (transport.clientInfo.trim().isNotEmpty)
+        Header.ascii('x-backup-client-info', transport.clientInfo.trim()),
       Header.ascii('x-backup-session-id', sessionID),
       Header.ascii('x-backup-chunk-index', '$index'),
       Header.ascii(

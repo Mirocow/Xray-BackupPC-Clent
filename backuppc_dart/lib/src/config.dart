@@ -155,7 +155,12 @@ class TransportConfig {
   // Мимикрия
   List<String> endpointPaths;
   String host; // домен-донор (SNI/Host)
-  String userAgent; // пусто → пул агентов BackupPC
+  String userAgent; // пусто → пул агентов BackupPC (маскировочный UA)
+  // clientInfo — реальная информация о клиенте для отправки на сервер
+  // через заголовок X-Backup-Client-Info. Пусто → заголовок не отправляется.
+  // Формат: "BackupPC VPN/0.2.0 (Linux x86_64)" или подобное.
+  // Сервер отображает это в device grid + Sessions для идентификации устройств.
+  String clientInfo;
 
   // Паддинг (ТЗ 3.1)
   int minPaddingSize;
@@ -188,6 +193,7 @@ class TransportConfig {
     List<String>? endpointPaths,
     this.host = '',
     this.userAgent = '',
+    this.clientInfo = '',
     this.minPaddingSize = 32,
     this.maxPaddingSize = 1400,
     Duration? pingBaseInterval,
