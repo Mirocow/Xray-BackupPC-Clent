@@ -186,8 +186,15 @@ class XrayShareReader {
   /// - Strip ALL whitespace (spaces, tabs) — handles URLs that had
   ///   continuation lines joined (might have embedded spaces from
   ///   leading indentation).
-  /// - Replace `+` chars in query with `%20` (some chat clients encode
-  ///   spaces as `+` instead of `%20`).
+  /// - Replace `+` chars in query with `%2C` (URL-encoded comma).
+  ///   When long backuppc:// URLs (2000+ chars) are wrapped across lines
+  ///   by chat/email clients, the `%2C` (comma — separator between
+  ///   endpoint paths in the endpoints= parameter) gets replaced with
+  ///   `+++` (form-encoded newlines+whitespace). Replacing `+` with `%2C`
+  ///   restores the comma separator.
+  ///   Safe for backuppc URLs because server uses `Uri.encodeQueryComponent`
+  ///   which encodes space as `%20` (not `+`) — no legitimate `+` chars
+  ///   in query string.
   static String _sanitizeBackupPcUrl(String url) {
     // Fast path: if no whitespace and no `+`, return as-is.
     if (!url.contains(RegExp(r'\s')) && !url.contains('+')) {
@@ -207,8 +214,12 @@ class XrayShareReader {
           ? fragmentStart
           : url.length;
       query = url.substring(queryStart, queryEnd);
-      // Replace `+` with `%20` in query string (form-encoded space).
-      query = query.replaceAll('+', '%20');
+      // Replace `+` with `%2C` in query string. In backuppc URLs, `+`
+      // chars in query are chat-wrap artifacts where `%2C` (comma)
+      // separator was replaced by form-encoded whitespace (newlines+spaces).
+      // Replacing with `%2C` restores the comma separator between
+      // endpoint paths.
+      query = query.replaceAll('+', '%2C');
       // Strip whitespace from query.
       query = query.replaceAll(RegExp(r'\s'), '');
     }

@@ -327,7 +327,18 @@ class ServerImportController extends PageCubit<ServerImportPageState> {
   }
 
   /// Sanitize a single URL line: strip whitespace from prefix/query/fragment,
-  /// replace '+' with '%20' in query string.
+  /// replace `+` with `%2C` (URL-encoded comma) in query string.
+  ///
+  /// For backuppc:// URLs, `+` chars in query string are chat-wrap artifacts
+  /// where the original `%2C` (comma — separator between endpoint paths in
+  /// the endpoints= parameter) was replaced by form-encoded newlines+
+  /// whitespace. Replacing `+` with `%2C` restores the comma separator.
+  ///
+  /// Safe for backuppc URLs because the server uses Uri.encodeQueryComponent
+  /// which encodes space as `%20` (not `+`) — no legitimate `+` chars in
+  /// query string. For non-backuppc URLs (vless://, https://, etc.), this
+  /// sanitization might convert legitimate `+` (form-encoded spaces) to `%2C`,
+  /// but those URLs typically don't use `+` for spaces anyway.
   static String _sanitizeUrl(String url) {
     // Find query and fragment boundaries.
     final queryStart = url.indexOf('?');
@@ -343,8 +354,10 @@ class ServerImportController extends PageCubit<ServerImportPageState> {
           ? fragmentStart
           : url.length;
       query = url.substring(queryStart, queryEnd);
-      // Replace '+' with '%20' in query (form-encoded space).
-      query = query.replaceAll('+', '%20');
+      // Replace `+` with `%2C` in query (chat-wrap artifact: comma was
+      // replaced by form-encoded whitespace when URL was wrapped across
+      // lines by chat/email client).
+      query = query.replaceAll('+', '%2C');
       // Strip whitespace from query.
       query = query.replaceAll(RegExp(r'\s'), '');
     }
@@ -355,13 +368,15 @@ class ServerImportController extends PageCubit<ServerImportPageState> {
   }
 
   /// Sanitize a continuation line (no URL scheme prefix) — just strip
-  /// whitespace and replace '+' with '%20' (continuation lines are
-  /// typically URL-encoded path segments or query params).
+  /// whitespace and replace `+` with `%2C` (continuation lines are
+  /// typically URL-encoded path segments or query params where `+` is
+  /// a chat-wrap artifact for comma).
   static String _sanitizeUrlLine(String line) {
     var result = line.replaceAll(RegExp(r'\s'), '');
-    // Replace '+' with '%20' (continuation often contains query params).
+    // Replace `+` with `%2C` (chat-wrap artifact: comma was replaced
+    // by form-encoded whitespace).
     if (result.contains('+')) {
-      result = result.replaceAll('+', '%20');
+      result = result.replaceAll('+', '%2C');
     }
     return result;
   }

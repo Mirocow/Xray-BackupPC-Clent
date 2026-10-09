@@ -272,15 +272,20 @@ void main() {
       expect(outbounds.single['tag'], 'Office Backup');
     });
 
-    test('URL with `+` chars in query (form-encoded space) parses', () {
-      // Some chat clients / clipboard managers encode spaces as `+` instead
-      // of `%20`. Uri.parse doesn't decode `+` in standard URL query —
-      // it stays as `+` in parameter values. This breaks the
-      // startsWith('/') check for endpoints.
+    test('URL with `+` chars in query (chat-wrap artifact) parses', () {
+      // When long backuppc:// URLs are wrapped across lines by chat/email
+      // clients, the `%2C` (comma — separator between endpoint paths in
+      // the endpoints= parameter) gets replaced by `+` (form-encoded
+      // whitespace from newlines+spaces).
       //
-      // Our sanitizer replaces `+` with `%20` in query string, which
-      // Uri.parse then decodes to space. The space is then stripped from
-      // endpoint path splits.
+      // Our sanitizer replaces `+` with `%2C` in query string, restoring
+      // the comma separator. This handles the user's actual case where
+      // URL has `+++` between endpoint paths.
+      //
+      // Test case: URL with `+` between two comma-separated paths.
+      // After sanitization, `+` becomes `%2C`, value becomes
+      // `/backuppc.BackupService/BackupStream,,/backuppc.ChunkService/PutChunk`
+      // (with double comma — empty entry filtered out by split+filter).
       final url =
           'backuppc://uuid@example.com:8443'
           '?endpoints=%2Fbackuppc.BackupService%2FBackupStream+'
@@ -288,12 +293,34 @@ void main() {
       final (outbounds, _) = XrayShareReader().splitBackupPcLinks(url);
       expect(outbounds, hasLength(1));
       final settings = outbounds.single['settings'] as Map<String, dynamic>;
-      // After sanitization, endpoints split by comma yields 2 paths,
-      // each starting with '/'. Without sanitization, `+` would be
-      // literal in the value, and split by comma would yield 1 path
-      // "/backuppc.BackupService/BackupStream+/backuppc.ChunkService/PutChunk"
-      // (which starts with '/' so passes validation, but is wrong at runtime).
+      // After sanitization, endpoints split by comma yields 2 paths
+      // (empty entry between double comma is filtered out).
       expect(settings['endpointPaths'], hasLength(2));
+    });
+
+    test('URL with `+++` between paths (user\'s real case) parses', () {
+      // EXACT pattern from user's screenshot: `+++` between two endpoint
+      // paths where original had `%2C` (comma). After sanitization,
+      // `+++` becomes `%2C%2C%2C`, value becomes
+      // `...ReplicateStream,,,/backuppc.CatalogService...` (with triple
+      // comma — empty entries filtered out by split+filter).
+      final url =
+          'backuppc://uuid@example.com:8443'
+          '?endpoints=%2Fbackuppc.BackupService%2FBackupStream%2C'
+          '%2Fbackuppc.ReplicationService%2FReplicateStream+++'
+          '%2Fbackuppc.CatalogService%2FPutIndex';
+      final (outbounds, _) = XrayShareReader().splitBackupPcLinks(url);
+      expect(outbounds, hasLength(1));
+      final settings = outbounds.single['settings'] as Map<String, dynamic>;
+      expect(settings['endpointPaths'], hasLength(3));
+      expect(
+        (settings['endpointPaths'] as List).first,
+        '/backuppc.BackupService/BackupStream',
+      );
+      expect(
+        (settings['endpointPaths'] as List).last,
+        '/backuppc.CatalogService/PutIndex',
+      );
     });
 
     test('truncated URL (no backuppc:// prefix) gives clear error', () {
