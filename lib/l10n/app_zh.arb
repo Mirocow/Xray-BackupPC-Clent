@@ -297,7 +297,7 @@
   "prototypeNoSupportedLinks": "未识别到支持的链接，请检查后重试。",
   "prototypeSubscriptionName": "订阅名称",
   "prototypeSubscriptionLink": "订阅链接",
-  "prototypeSubscriptionDescription": "订阅是服务商提供的服务器列表，BackupPC VPN 后续可以检查更新。仅支持 VMessAEAD / VLESS 分享链接。",
+  "prototypeSubscriptionDescription": "订阅 URL 必须是 HTTPS —— 服务商提供的服务器列表，BackupPC VPN 后续可以检查更新。订阅内容支持 VMessAEAD / VLESS / backuppc:// 分享链接。如需导入单个 backuppc:// 或 vless:// 分享链接，请使用「粘贴链接」。",
   "prototypeAgeEncryption": "Age 加密",
   "prototypeAgeOptional": "可选 · 需要供应商支持",
   "prototypeAgeSupportNotice": "仅在订阅供应商支持 Age 加密时填写密钥；Age 不能替代 HTTPS。",

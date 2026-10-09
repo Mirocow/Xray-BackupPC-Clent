@@ -793,7 +793,7 @@
   "@prototypeSubscriptionLink": {
     "description": "Approved prototype copy: Subscription link"
   },
-  "prototypeSubscriptionDescription": "A subscription is a server list supplied by your provider. BackupPC VPN can check it for updates later. Only VMessAEAD / VLESS share links are supported.",
+  "prototypeSubscriptionDescription": "Subscription URL must be HTTPS — a server list supplied by your provider that BackupPC VPN can check for updates. Subscription content supports VMessAEAD / VLESS / backuppc:// share links. To import a single backuppc:// or vless:// share link, use \"Paste link\" instead.",
   "@prototypeSubscriptionDescription": {
     "description": "Subscription explanation and supported share formats, shown in both the add and edit forms."
   },

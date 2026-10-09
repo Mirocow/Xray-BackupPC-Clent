@@ -51,8 +51,9 @@ Download `backuppc-vpn-<version>-arm64.apk` from the releases and allow installa
 
 ## Linux and OpenWrt
 
+
 - **Linux** — `backuppc-client` runs as a systemd service: a local SOCKS5 proxy, or a TUN mode that routes the whole host, with a server mode that keeps incoming connections to the host's public services working. See [deploy/linux](./deploy/linux/README.md).
-- **OpenWrt** — `backuppc-socks` (≈6 MB, no Xray core) runs one SOCKS5 port per server; [podkop](https://github.com/itdoginfo/podkop) decides which domains and subnets go where, with URLTest/Selector for several servers. See [openwrt](./openwrt/README.md).
+- **OpenWrt** — `backuppc-socks` (≈6 MB, no Xray core) runs one SOCKS5 port per server; [podkop](https://github.com/itdoginfo/podkop) decides which domains and subnets go where, with URLTest/Selector for several servers. See [openwrt](./openwrt/README.md).in
 
 ## Privacy
 

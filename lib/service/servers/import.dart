@@ -379,11 +379,13 @@ class ServerImportService {
         }
       }
       if (other.any((line) => line.trim().isNotEmpty)) {
-        try {
-          rows.addAll(await _parse(other.join('\n')));
-        } catch (_) {
-          // Other valid App links in this input may still be imported.
-        }
+        // Parse non-app links (vless://, vmess://, trojan://, ss://,
+        // backuppc://, https://) through the native share reader + Dart
+        // BackupPcLink parser. If splitBackupPcLinks throws FormatException
+        // (e.g. invalid backuppc:// URL — bad fingerprint/endpoints/uuid),
+        // let it propagate so the user sees the actual error instead of a
+        // silent "no supported links recognized" message.
+        rows.addAll(await _parse(other.join('\n')));
       }
       geoData.removeWhere(
         (link) => usedGeoData.any(
