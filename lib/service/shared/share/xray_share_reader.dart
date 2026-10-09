@@ -248,13 +248,11 @@ class XrayShareReader {
         continue;
       }
       final outbound = copyOutboundMap(value);
-      try {
-        res.add(outboundCompanion(outbound));
-      } catch (error, stackTrace) {
-        ygLogger(
-          "Failed to read imported outbound (${error.runtimeType})\n$stackTrace",
-        );
-      }
+      // DO NOT silently catch errors — let them propagate so the user
+      // sees the actual error message (e.g., "Invalid JSON value" from
+      // JsonTool.copyMap) instead of a generic "no supported links
+      // recognized" error from preview.hasItems being false.
+      res.add(outboundCompanion(outbound));
     }
     return res;
   }
