@@ -1,8 +1,8 @@
-display_name: OneXray
-package_name: onexray
+display_name: BackupPC VPN
+package_name: backuppcvpn
 maintainer:
-  name: Yuan Dev LLC
-  email: yuan@yuandev.net
+  name: Mirocow
+  email: mr.mirocow@gmail.com
 priority: optional
 section: net
 # Fallback for direct Fastforge use. The App build script replaces this with
@@ -17,15 +17,16 @@ icon: assets/logo.png
 postinstall_scripts:
   - setcap cap_net_admin,cap_net_raw+eip /opt/OneXray/OneXrayCore
 keywords:
-  - OneXray
-  - Xray
+  - BackupPC
   - VPN
   - Proxy
+  - Xray
+  - OneXray
 generic_name: VPN and Proxy Client
 categories:
   - Network
 startup_notify: true
 startup_wm_class: OneXray
 supported_mime_type:
-  - x-scheme-handler/onexray
+  - x-scheme-handler/backuppcvpn
   - x-scheme-handler/backuppc
