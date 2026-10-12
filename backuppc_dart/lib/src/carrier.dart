@@ -544,32 +544,92 @@ class ChunkConnection {
     ];
 
     // --- TCP ---
-    final raw = await Socket.connect(
-      host,
-      port,
-      timeout: chunkDialTimeout,
-    );
+    // uTLS sidecar support (audit 2026-10-12, Marvia-inspired):
+    // Когда transport.utlsTunnelPath непустой — spawn utls-tunnel binary,
+    // он делает TLS handshake с Chrome ClientHello fingerprint (real Chrome
+    // JA3, не Dart BoringSSL default). Dart подключается к local port
+    // utls-tunnel'а по raw TCP, TLS-layer полностью handled Go binary.
+    //
+    // См. docs/UTLS-TUNNEL-SIDECAR.md в xray-backuppc repo.
+    Socket raw;
+    Process? utlsProcess;
+    if (transport.utlsTunnelPath.trim().isNotEmpty) {
+      // Spawn utls-tunnel subprocess.
+      final args = <String>[
+        '--listen', '127.0.0.1:0',
+        '--remote', '$host:$port',
+        '--sni', authorityHost,
+        '--fingerprint',
+        transport.utFingerprint.trim().isEmpty
+            ? 'chrome'
+            : transport.utFingerprint.trim(),
+        '--h2-only',
+        if (tls.insecure) '--insecure',
+        if (tls.certFingerprint.isNotEmpty)
+          '--cert-fingerprint=${tls.certFingerprint}',
+      ];
+      utlsProcess = await Process.start(
+        transport.utlsTunnelPath.trim(),
+        args,
+      );
+      // Read local port from first line of stdout.
+      final portLine = await utlsProcess.stdout
+          .transform(utf8.decoder)
+          .transform(const LineSplitter())
+          .first
+          .timeout(chunkDialTimeout);
+      final localPort = int.parse(portLine.trim());
+      // Connect to local utls-tunnel listener (raw TCP, no TLS).
+      raw = await Socket.connect(
+        '127.0.0.1',
+        localPort,
+        timeout: chunkDialTimeout,
+      );
+    } else {
+      // Default path: direct TCP to remote (legacy, no uTLS).
+      raw = await Socket.connect(
+        host,
+        port,
+        timeout: chunkDialTimeout,
+      );
+    }
     // tcpNoDelay намеренно НЕ включаем: A/B-замеры показали, что Nagle
     // улучшает цикл WINDOW_UPDATE/TLS-записей (6.6 против 0.8 МиБ/с)
     // --- TLS: предлагаем только h2 — либо ALPN согласует h2, либо отказ ---
-    SecureSocket secure;
-    try {
-      secure = await SecureSocket.secure(
-        raw,
-        host: authorityHost,
-        context: _tlsContext(tls),
-        onBadCertificate: _onBadCertificate(tls),
-        supportedProtocols: const ['h2'],
-      );
-    } catch (error) {
-      raw.destroy();
-      rethrow;
-    }
-    if (secure.selectedProtocol case final alpn? when alpn != 'h2') {
-      secure.destroy();
-      throw StreamException_(
-        'carrier: сервер согласовал ALPN "$alpn" вместо h2',
-      );
+    //
+    // Когда utlsTunnelPath непустой: TLS уже done utls-tunnel binary,
+    // raw socket — это raw byte stream поверх uTLS-wrapped connection.
+    // Dart НЕ делает TLS handshake, использует raw socket напрямую для
+    // HTTP/2 (prior-knowledge h2c, negotiated by utls-tunnel ALPN).
+    //
+    // Когда utlsTunnelPath пустой: legacy SecureSocket.secure path.
+    Socket secure;
+    if (transport.utlsTunnelPath.trim().isNotEmpty) {
+      // utls-tunnel already established TLS + ALPN h2 — use raw socket
+      // directly. http2 ClientTransport speaks h2c (prior knowledge)
+      // over this raw socket.
+      secure = raw;
+    } else {
+      SecureSocket secureSocket;
+      try {
+        secureSocket = await SecureSocket.secure(
+          raw,
+          host: authorityHost,
+          context: _tlsContext(tls),
+          onBadCertificate: _onBadCertificate(tls),
+          supportedProtocols: const ['h2'],
+        );
+      } catch (error) {
+        raw.destroy();
+        rethrow;
+      }
+      if (secureSocket.selectedProtocol case final alpn? when alpn != 'h2') {
+        secureSocket.destroy();
+        throw StreamException_(
+          'carrier: сервер согласовал ALPN "$alpn" вместо h2',
+        );
+      }
+      secure = secureSocket;
     }
     // selectedProtocol == null → prior-knowledge h2 (строгий ALPN
     // согласуется настоящим Go-сервером; Dart-фальшивый сервер его

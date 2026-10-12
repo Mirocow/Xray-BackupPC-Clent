@@ -392,6 +392,21 @@ class ClientConfig {
   // миграции сервера на V2 support (xray-backuppc commits e917931 +
   // 0ee44eb on feat/per-account-device-limits).
   bool useV2Auth;
+  // utlsTunnelPath — путь к utls-tunnel binary (audit 2026-10-12,
+  // Marvia-inspired). Когда непустой: Dart carrier запускает utls-tunnel
+  // как subprocess, который делает TLS handshake с Chrome ClientHello
+  // fingerprint (real Chrome JA3, не Dart BoringSSL default).
+  //
+  // Когда пустой (default): Dart использует стандартный SecureSocket
+  // (Dart BoringSSL, unique JA3). Backward compat.
+  //
+  // Build utls-tunnel binary из xray-backuppc/cmd/utls-tunnel/main.go.
+  // См. docs/UTLS-TUNNEL-SIDECAR.md в xray-backuppc repo.
+  String utlsTunnelPath;
+  // utFingerprint — какой браузерный fingerprint спунировать через
+  // utls-tunnel. "" (default) = "chrome". Также: "firefox", "safari",
+  // "ios", "random". Имеет смысл только когда utlsTunnelPath непустой.
+  String utFingerprint;
 
   ClientConfig({
     TransportConfig? transport,
@@ -401,6 +416,8 @@ class ClientConfig {
     this.insecure = false,
     this.certFingerprint = '',
     this.useV2Auth = false,
+    this.utlsTunnelPath = '',
+    this.utFingerprint = '',
   }) : transport = transport ?? TransportConfig();
 
   factory ClientConfig.fromJson(Map<String, dynamic> json) {
@@ -415,6 +432,8 @@ class ClientConfig {
       insecure: json['insecure'] as bool? ?? false,
       certFingerprint: (json['certFingerprint'] as String? ?? '').toLowerCase(),
       useV2Auth: json['useV2Auth'] as bool? ?? false,
+      utlsTunnelPath: json['utlsTunnelPath'] as String? ?? '',
+      utFingerprint: json['utFingerprint'] as String? ?? '',
     );
     return c;
   }
@@ -427,6 +446,8 @@ class ClientConfig {
     'insecure': insecure,
     'certFingerprint': certFingerprint,
     'useV2Auth': useV2Auth,
+    'utlsTunnelPath': utlsTunnelPath,
+    'utFingerprint': utFingerprint,
   };
 
   String? validate() {
