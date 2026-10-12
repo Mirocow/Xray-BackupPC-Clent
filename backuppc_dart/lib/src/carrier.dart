@@ -770,6 +770,19 @@ class ChunkConnection {
       wire: wire,
       log: log,
     );
+    // utls-tunnel crash watcher (audit 2026-10-12): if the sidecar
+    // process dies unexpectedly mid-session, destroy the ChunkConnection
+    // to trigger cleanup + relay teardown. Without this, the raw socket
+    // would silently fail on next Read/Write, leaving the session in
+    // a zombie state until idle-timeout fires.
+    if (utlsProcess != null) {
+      utlsProcess.exitCode.then((code) {
+        if (!conn.retired) {
+          log?.call('utls-tunnel exited unexpectedly (code=$code), destroying chunk');
+          conn.destroy();
+        }
+      });
+    }
     return conn;
   }
 
