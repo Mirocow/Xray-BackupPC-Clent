@@ -84,6 +84,17 @@ class BackupPcLink {
       serverAddr: _netJoinHostPort(host, port),
       uuid: uuid,
     );
+    // V2 path prefix (audit 2026-10-12): /v2 in URL path → useV2Auth=true.
+    // Alternative to ?useV2Auth=1 query param. Both work — /v2 is the
+    // primary indicator, query param is backward compat.
+    //   backuppc://uuid@host:8443/v2?host=... → V2 auth
+    //   backuppc://uuid@host:8443?host=...   → V1 auth (legacy)
+    if (uri.path.isNotEmpty) {
+      final pathSeg = uri.path.split('/').where((s) => s.isNotEmpty).toList();
+      if (pathSeg.isNotEmpty && pathSeg.first.toLowerCase() == 'v2') {
+        out.useV2Auth = true;
+      }
+    }
     final q = uri.queryParameters;
     out.host = (q['host'] ?? q['sni'] ?? '').trim();
     var fp = (q['fp'] ?? q['fingerprint'] ?? '').trim().toLowerCase();
@@ -242,6 +253,11 @@ class BackupPcLink {
       ..write(Uri.encodeComponent(uuid))
       ..write('@')
       ..write(_netJoinHostPort(host, port));
+    // V2 path prefix: /v2 in URL path when useV2Auth=true.
+    // Primary indicator of V2 auth mode (cleaner than ?useV2Auth=1).
+    if (useV2Auth) {
+      b.write('/v2');
+    }
     if (params.isNotEmpty) {
       final query = params.entries
           .map(
