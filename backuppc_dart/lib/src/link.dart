@@ -84,15 +84,42 @@ class BackupPcLink {
       serverAddr: _netJoinHostPort(host, port),
       uuid: uuid,
     );
-    // V2 path prefix (audit 2026-10-12): /v2 in URL path → useV2Auth=true.
-    // Alternative to ?useV2Auth=1 query param. Both work — /v2 is the
-    // primary indicator, query param is backward compat.
-    //   backuppc://uuid@host:8443/v2?host=... → V2 auth
-    //   backuppc://uuid@host:8443?host=...   → V1 auth (legacy)
+    // V2 path encoding (audit 2026-10-12): feature flags encoded in
+    // URL path segments instead of query params. Cleaner, more readable.
+    //
+    // Path scheme:
+    //   /v2              → V2 auth only
+    //   /v2/utls         → V2 + uTLS (Chrome default)
+    //   /v2/utls/firefox → V2 + uTLS Firefox fingerprint
+    //   /v2/full         → V2 + uTLS + adaptivePadding (max stealth)
+    //   /v2/full/safari  → V2 + uTLS Safari + adaptivePadding
+    //   (no /v2)         → V1 auth (legacy)
+    //
+    // Query params (?useV2Auth=1&useUTLS=1) still work for backward compat.
     if (uri.path.isNotEmpty) {
-      final pathSeg = uri.path.split('/').where((s) => s.isNotEmpty).toList();
-      if (pathSeg.isNotEmpty && pathSeg.first.toLowerCase() == 'v2') {
+      final segs = uri.path.split('/').where((s) => s.isNotEmpty).toList();
+      if (segs.isNotEmpty && segs.first.toLowerCase() == 'v2') {
         out.useV2Auth = true;
+        // Second segment: 'utls' or 'full' (both enable uTLS).
+        if (segs.length >= 2) {
+          final mode = segs[1].toLowerCase();
+          if (mode == 'utls' || mode == 'full') {
+            // uTLS enabled — set utlsTunnelPath to default if not already
+            // set via query param. Carrier will spawn utls-tunnel binary.
+            if (out.utlsTunnelPath.isEmpty) {
+              out.utlsTunnelPath = '/usr/local/bin/utls-tunnel';
+            }
+            // 'full' = all stealth features (uTLS + adaptivePadding).
+            if (mode == 'full') {
+              out.minPadding = 32; // adaptivePadding on (non-zero = custom)
+              out.maxPadding = 4096; // wider range for full stealth
+            }
+            // Third segment: browser fingerprint (chrome/firefox/safari/ios/random).
+            if (segs.length >= 3) {
+              out.utFingerprint = segs[2].toLowerCase();
+            }
+          }
+        }
       }
     }
     final q = uri.queryParameters;
@@ -253,10 +280,25 @@ class BackupPcLink {
       ..write(Uri.encodeComponent(uuid))
       ..write('@')
       ..write(_netJoinHostPort(host, port));
-    // V2 path prefix: /v2 in URL path when useV2Auth=true.
-    // Primary indicator of V2 auth mode (cleaner than ?useV2Auth=1).
+    // V2 path encoding: feature flags in path segments.
+    //   /v2              → V2 auth
+    //   /v2/utls         → V2 + uTLS (Chrome)
+    //   /v2/utls/firefox → V2 + uTLS Firefox
+    //   /v2/full         → V2 + uTLS + adaptivePadding
+    //   /v2/full/safari  → all + Safari fingerprint
     if (useV2Auth) {
       b.write('/v2');
+      if (utlsTunnelPath.isNotEmpty || utFingerprint.isNotEmpty) {
+        // Determine mode: 'full' if adaptivePadding (minPadding != 0 &&
+        // maxPadding > 1400), otherwise 'utls'.
+        final isFull = minPadding != 0 && maxPadding > 1400;
+        b.write('/');
+        b.write(isFull ? 'full' : 'utls');
+        if (utFingerprint.isNotEmpty && utFingerprint != 'chrome') {
+          b.write('/');
+          b.write(utFingerprint);
+        }
+      }
     }
     if (params.isNotEmpty) {
       final query = params.entries
