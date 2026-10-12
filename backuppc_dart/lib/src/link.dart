@@ -85,39 +85,27 @@ class BackupPcLink {
       uuid: uuid,
     );
     // V2 path encoding (audit 2026-10-12): feature flags encoded in
-    // URL path segments instead of query params. Cleaner, more readable.
+    // URL path segments. V2 ALWAYS includes uTLS (no opt-out).
     //
     // Path scheme:
-    //   /v2              → V2 auth + uTLS (Chrome, DEFAULT in V2)
-    //   /v2/no-utls      → V2 auth WITHOUT uTLS (opt-out for environments
-    //                      without utls-tunnel binary)
+    //   /v2              → V2 auth + uTLS (Chrome, DEFAULT)
     //   /v2/firefox      → V2 + uTLS Firefox fingerprint
     //   /v2/full         → V2 + uTLS + adaptivePadding (max stealth)
     //   /v2/full/safari  → V2 + uTLS Safari + adaptivePadding
     //   (no /v2)         → V1 auth (legacy, no uTLS)
     //
-    // V2 DEFAULT: uTLS is ON by default. Use /v2/no-utls to opt out.
-    // Query params (?useV2Auth=1&useUTLS=1) still work for backward compat.
+    // V2 = uTLS всегда. Если нет utls-tunnel binary — используйте V1.
     if (uri.path.isNotEmpty) {
       final segs = uri.path.split('/').where((s) => s.isNotEmpty).toList();
       if (segs.isNotEmpty && segs.first.toLowerCase() == 'v2') {
         out.useV2Auth = true;
-        // V2 default: uTLS ON (Chrome fingerprint).
-        var enableUTLS = true;
         var fingerprint = 'chrome'; // default
         if (segs.length >= 2) {
           final mode = segs[1].toLowerCase();
-          if (mode == 'no-utls') {
-            // Explicit opt-out of uTLS.
-            enableUTLS = false;
-          } else if (mode == 'utls' || mode == 'full') {
-            // Explicit uTLS (redundant since it's default, but supports /v2/utls).
-            enableUTLS = true;
-            if (mode == 'full') {
-              // Full stealth = uTLS + adaptivePadding.
-              out.minPadding = 32;
-              out.maxPadding = 4096;
-            }
+          if (mode == 'full') {
+            // Full stealth = uTLS + adaptivePadding.
+            out.minPadding = 32;
+            out.maxPadding = 4096;
           } else {
             // Second segment is a fingerprint name (e.g. /v2/firefox).
             fingerprint = mode;
@@ -127,12 +115,11 @@ class BackupPcLink {
         if (segs.length >= 3) {
           fingerprint = segs[2].toLowerCase();
         }
-        if (enableUTLS) {
-          if (out.utlsTunnelPath.isEmpty) {
-            out.utlsTunnelPath = '/usr/local/bin/utls-tunnel';
-          }
-          out.utFingerprint = fingerprint;
+        // V2 = uTLS всегда (no opt-out).
+        if (out.utlsTunnelPath.isEmpty) {
+          out.utlsTunnelPath = '/usr/local/bin/utls-tunnel';
         }
+        out.utFingerprint = fingerprint;
       }
     }
     final q = uri.queryParameters;
