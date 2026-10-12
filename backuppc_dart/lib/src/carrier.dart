@@ -495,7 +495,13 @@ class ChunkConnection {
     // X-Backup-Timestamp header AND BackupAuthHeaderV2 computation.
     // Same value across both ensures server's V2 verification window
     // check finds a match for at least one minute in [-2, +2].
+    //
+    // V2 opt-in (useV2Auth): backward compat со старыми серверами (pre-V2).
+    // Когда useV2Auth=false → V1 auth (sid|idx only), old servers accept.
+    // Когда useV2Auth=true → V2 auth (sid|idx|tsMin) + X-Backup-Timestamp,
+    // server проверяет в окне ±2min + replayGuard.
     final currentTsMin = currentUnixMinute();
+    final v2Auth = transport.useV2Auth;
 
     final headers = [
       Header.ascii(':method', 'POST'),
@@ -519,12 +525,16 @@ class ChunkConnection {
       // HMAC for each minute in window [-ReplayWindowMin, +ReplayWindowMin].
       // Captured auth годен только ±2 min — потом HMAC не сойдётся.
       //
-      // Old servers (pre-V2) ignore X-Backup-Timestamp and fall back
-      // to V1 auth (sid|idx only) — backward compat.
-      Header.ascii('x-backup-timestamp', '$currentTsMin'),
+      // V1 fallback (useV2Auth=false): legacy auth without timestamp.
+      // Old servers (pre-V2) expect V1 — V2 HMAC != V1 → auth FAILS.
+      // Opt-in: enable only after server migration to V2 support.
+      if (v2Auth)
+        Header.ascii('x-backup-timestamp', '$currentTsMin'),
       Header.ascii(
         'x-backup-auth',
-        backupAuthHeaderV2(uuid, sessionID, index, currentTsMin),
+        v2Auth
+            ? backupAuthHeaderV2(uuid, sessionID, index, currentTsMin)
+            : backupAuthHeader(uuid, sessionID, index),
       ),
       // Mesh-extension: добавляем extra HTTP/2 headers если переданы.
       // См. docs/PROTOCOL.md §11.1 (X-Backup-Next-Hop, X-Backup-Peer-Sig).

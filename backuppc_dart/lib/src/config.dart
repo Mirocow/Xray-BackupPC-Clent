@@ -381,6 +381,17 @@ class ClientConfig {
   String socksListen; // локальный SOCKS5, дефолт 127.0.0.1:1080
   bool insecure; // пропуск TLS-верификации (только тесты)
   String certFingerprint; // SHA-256 hex сервера — пиннинг
+  // useV2Auth — включить V2 replay-protected auth (audit 2026-10-12,
+  // Marvia-inspired). Когда true: клиент шлёт X-Backup-Timestamp header
+  // + V2 auth HMAC (sid|idx|tsMin). Сервер с V2 support проверяет в окне
+  // ±2min + replayGuard.
+  //
+  // Когда false (default): V1 auth (sid|idx only, no timestamp).
+  // Old servers (pre-V2) НЕ understand V2 auth — V2 HMAC != V1 HMAC
+  // → bad-auth → cover page. Поэтому V2 opt-in: включайте только после
+  // миграции сервера на V2 support (xray-backuppc commits e917931 +
+  // 0ee44eb on feat/per-account-device-limits).
+  bool useV2Auth;
 
   ClientConfig({
     TransportConfig? transport,
@@ -389,6 +400,7 @@ class ClientConfig {
     this.socksListen = '127.0.0.1:1080',
     this.insecure = false,
     this.certFingerprint = '',
+    this.useV2Auth = false,
   }) : transport = transport ?? TransportConfig();
 
   factory ClientConfig.fromJson(Map<String, dynamic> json) {
@@ -402,6 +414,7 @@ class ClientConfig {
       socksListen: json['socksListen'] as String? ?? '127.0.0.1:1080',
       insecure: json['insecure'] as bool? ?? false,
       certFingerprint: (json['certFingerprint'] as String? ?? '').toLowerCase(),
+      useV2Auth: json['useV2Auth'] as bool? ?? false,
     );
     return c;
   }
@@ -413,6 +426,7 @@ class ClientConfig {
     'socksListen': socksListen,
     'insecure': insecure,
     'certFingerprint': certFingerprint,
+    'useV2Auth': useV2Auth,
   };
 
   String? validate() {
