@@ -52,9 +52,16 @@ String backupAuthHeader(Uint8List key, String sid, int index) {
 ///
 /// [tsMin] — unix time in minutes (time.now.millisecondsSinceEpoch ~ /
 ///   60000), как int.
+///
+/// V2 PROTOCOL CHANGE (audit 2026-10-12): HMAC key = SHA256(uuid), NOT
+/// raw uuid. Защита: если DB утёчет, attacker получит SHA256(uuid),
+/// но НЕ raw uuid. Raw uuid нужен для VLESS handshake — без него
+/// нельзя установить легит-сессию.
 String backupAuthHeaderV2(
     Uint8List key, String sid, int index, int tsMin) {
-  final mac = Hmac(sha256, key)
+  // V2: derive HMAC key = SHA256(uuid) — raw uuid НЕ используется как HMAC key.
+  final hashedKey = sha256.convert(key);
+  final mac = Hmac(sha256, hashedKey.bytes)
       .convert(utf8.encode('$sid|$index|$tsMin'))
       .toString();
   return mac;

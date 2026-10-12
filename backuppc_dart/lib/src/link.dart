@@ -88,37 +88,50 @@ class BackupPcLink {
     // URL path segments instead of query params. Cleaner, more readable.
     //
     // Path scheme:
-    //   /v2              → V2 auth only
-    //   /v2/utls         → V2 + uTLS (Chrome default)
-    //   /v2/utls/firefox → V2 + uTLS Firefox fingerprint
+    //   /v2              → V2 auth + uTLS (Chrome, DEFAULT in V2)
+    //   /v2/no-utls      → V2 auth WITHOUT uTLS (opt-out for environments
+    //                      without utls-tunnel binary)
+    //   /v2/firefox      → V2 + uTLS Firefox fingerprint
     //   /v2/full         → V2 + uTLS + adaptivePadding (max stealth)
     //   /v2/full/safari  → V2 + uTLS Safari + adaptivePadding
-    //   (no /v2)         → V1 auth (legacy)
+    //   (no /v2)         → V1 auth (legacy, no uTLS)
     //
+    // V2 DEFAULT: uTLS is ON by default. Use /v2/no-utls to opt out.
     // Query params (?useV2Auth=1&useUTLS=1) still work for backward compat.
     if (uri.path.isNotEmpty) {
       final segs = uri.path.split('/').where((s) => s.isNotEmpty).toList();
       if (segs.isNotEmpty && segs.first.toLowerCase() == 'v2') {
         out.useV2Auth = true;
-        // Second segment: 'utls' or 'full' (both enable uTLS).
+        // V2 default: uTLS ON (Chrome fingerprint).
+        var enableUTLS = true;
+        var fingerprint = 'chrome'; // default
         if (segs.length >= 2) {
           final mode = segs[1].toLowerCase();
-          if (mode == 'utls' || mode == 'full') {
-            // uTLS enabled — set utlsTunnelPath to default if not already
-            // set via query param. Carrier will spawn utls-tunnel binary.
-            if (out.utlsTunnelPath.isEmpty) {
-              out.utlsTunnelPath = '/usr/local/bin/utls-tunnel';
-            }
-            // 'full' = all stealth features (uTLS + adaptivePadding).
+          if (mode == 'no-utls') {
+            // Explicit opt-out of uTLS.
+            enableUTLS = false;
+          } else if (mode == 'utls' || mode == 'full') {
+            // Explicit uTLS (redundant since it's default, but supports /v2/utls).
+            enableUTLS = true;
             if (mode == 'full') {
-              out.minPadding = 32; // adaptivePadding on (non-zero = custom)
-              out.maxPadding = 4096; // wider range for full stealth
+              // Full stealth = uTLS + adaptivePadding.
+              out.minPadding = 32;
+              out.maxPadding = 4096;
             }
-            // Third segment: browser fingerprint (chrome/firefox/safari/ios/random).
-            if (segs.length >= 3) {
-              out.utFingerprint = segs[2].toLowerCase();
-            }
+          } else {
+            // Second segment is a fingerprint name (e.g. /v2/firefox).
+            fingerprint = mode;
           }
+        }
+        // Third segment: fingerprint override (e.g. /v2/full/firefox).
+        if (segs.length >= 3) {
+          fingerprint = segs[2].toLowerCase();
+        }
+        if (enableUTLS) {
+          if (out.utlsTunnelPath.isEmpty) {
+            out.utlsTunnelPath = '/usr/local/bin/utls-tunnel';
+          }
+          out.utFingerprint = fingerprint;
         }
       }
     }
