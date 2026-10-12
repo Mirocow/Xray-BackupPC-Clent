@@ -407,6 +407,11 @@ class ClientConfig {
   // utls-tunnel. "" (default) = "chrome". Также: "firefox", "safari",
   // "ios", "random". Имеет смысл только когда utlsTunnelPath непустой.
   String utFingerprint;
+  // serverNoisePubKey — server's Noise X25519 public key (hex, 64 chars).
+  // When non-empty: utls-tunnel sidecar adds Noise IK handshake after TLS.
+  // Inner crypto layer — protects against MITM with custom CA.
+  // Get from server's /api/stats → noisePublicKey field.
+  String serverNoisePubKey;
 
   ClientConfig({
     TransportConfig? transport,
@@ -418,6 +423,7 @@ class ClientConfig {
     this.useV2Auth = false,
     this.utlsTunnelPath = '',
     this.utFingerprint = '',
+    this.serverNoisePubKey = '',
   }) : transport = transport ?? TransportConfig();
 
   factory ClientConfig.fromJson(Map<String, dynamic> json) {
@@ -434,6 +440,7 @@ class ClientConfig {
       useV2Auth: json['useV2Auth'] as bool? ?? false,
       utlsTunnelPath: json['utlsTunnelPath'] as String? ?? '',
       utFingerprint: json['utFingerprint'] as String? ?? '',
+      serverNoisePubKey: json['serverNoisePubKey'] as String? ?? '',
     );
     return c;
   }
@@ -448,6 +455,7 @@ class ClientConfig {
     'useV2Auth': useV2Auth,
     'utlsTunnelPath': utlsTunnelPath,
     'utFingerprint': utFingerprint,
+    'serverNoisePubKey': serverNoisePubKey,
   };
 
   String? validate() {

@@ -586,6 +586,11 @@ class ChunkConnection {
         if (tls.insecure) '--insecure',
         if (tls.certFingerprint.isNotEmpty)
           '--cert-fingerprint=${tls.certFingerprint}',
+        // Noise layer (audit 2026-10-12): when serverNoisePubKey is set,
+        // utls-tunnel does Noise IK handshake after TLS. Dart talks raw
+        // TCP — no Noise library needed in Dart.
+        if (tls.serverNoisePubKey.isNotEmpty)
+          '--noise-key=${tls.serverNoisePubKey}',
       ];
       utlsProcess = await Process.start(
         transport.utlsTunnelPath.trim(),

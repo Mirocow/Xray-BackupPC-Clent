@@ -24,6 +24,7 @@ class BackupPcLink {
   bool useV2Auth; // ?useV2Auth=1 → V2 auth (sid|idx|tsMin)
   String utlsTunnelPath; // ?utlsTunnelPath=/path → spawn utls-tunnel sidecar
   String utFingerprint; // ?utFingerprint=chrome|firefox|safari|ios|random
+  String serverNoisePubKey; // ?noisePubKey=<hex> or /v2/full/noise path
 
   BackupPcLink({
     this.tag = '',
@@ -39,6 +40,7 @@ class BackupPcLink {
     this.useV2Auth = false,
     this.utlsTunnelPath = '',
     this.utFingerprint = '',
+    this.serverNoisePubKey = '',
   }) : endpointPaths =
            endpointPaths == null ? const [] : List.unmodifiable(endpointPaths);
 
@@ -120,6 +122,13 @@ class BackupPcLink {
           out.utlsTunnelPath = '/usr/local/bin/utls-tunnel';
         }
         out.utFingerprint = fingerprint;
+        // Check for "noise" in path segments → enable Noise layer.
+        for (final seg in segs) {
+          if (seg.toLowerCase() == 'noise') {
+            out.serverNoisePubKey = 'auto'; // marker — fetch from server
+            break;
+          }
+        }
       }
     }
     final q = uri.queryParameters;
@@ -154,6 +163,12 @@ class BackupPcLink {
     // ?utFingerprint=chrome|firefox|safari|ios|random
     // (only used when utlsTunnelPath is non-empty)
     out.utFingerprint = (q['utFingerprint'] ?? q['utfp'] ?? '').trim();
+    // ?noisePubKey=<hex> or ?npk=<hex> → server's Noise public key.
+    // Overrides 'auto' marker from /v2/full/noise path.
+    final noiseKey = (q['noisePubKey'] ?? q['npk'] ?? '').trim();
+    if (noiseKey.isNotEmpty) {
+      out.serverNoisePubKey = noiseKey;
+    }
     final eps = q['endpoints'];
     if (eps != null && eps.trim().isNotEmpty) {
       final list = [
