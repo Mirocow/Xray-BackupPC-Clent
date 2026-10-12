@@ -27,6 +27,14 @@ class BackupPcLink {
   String utlsTunnelPath; // ?utlsTunnelPath=/path → spawn utls-tunnel sidecar
   String utFingerprint; // ?utFingerprint=chrome|firefox|safari|ios|random
   String serverNoisePubKey; // ?noisePubKey=<hex> or /v2/full/noise path
+  // ECH (Encrypted Client Hello, RFC 9460, audit 2026-10-13):
+  // ?echConfigList=<base64> → base64-encoded ECHConfigList from /api/ech-config.
+  // When set: utls-tunnel uses native crypto/tls + ECH (uTLS disabled —
+  // incompatible with ECH). SNI is encrypted via HPKE, invisible to TSPU/DPI.
+  // ?ech=1 → client auto-fetches ECHConfigList from /api/ech-config at connect
+  // time (one extra HTTP round-trip before TLS handshake).
+  String echConfigList; // ?echConfigList=<base64>
+  bool echAutoFetch; // ?ech=1 → fetch config list from /api/ech-config
 
   BackupPcLink({
     this.tag = '',
@@ -43,6 +51,8 @@ class BackupPcLink {
     this.utlsTunnelPath = '',
     this.utFingerprint = '',
     this.serverNoisePubKey = '',
+    this.echConfigList = '',
+    this.echAutoFetch = false,
   }) : endpointPaths =
            endpointPaths == null ? const [] : List.unmodifiable(endpointPaths);
 
@@ -147,6 +157,17 @@ class BackupPcLink {
     final noiseKey = (q['noisePubKey'] ?? q['npk'] ?? '').trim();
     if (noiseKey.isNotEmpty) {
       out.serverNoisePubKey = noiseKey;
+    }
+    // ?echConfigList=<base64> → ECHConfigList from /api/ech-config.
+    // Direct config (no auto-fetch needed).
+    final echList = (q['echConfigList'] ?? q['ech'] ?? '').trim();
+    if (echList.isNotEmpty && echList != '1' && echList.toLowerCase() != 'true') {
+      out.echConfigList = echList;
+    }
+    // ?ech=1 or ?ech=true → auto-fetch ECHConfigList from /api/ech-config
+    // at connect time (one extra HTTP round-trip before TLS handshake).
+    if (echList == '1' || echList.toLowerCase() == 'true') {
+      out.echAutoFetch = true;
     }
     // ?quic=1 → enable QUIC fallback (HTTP/3 over UDP when TCP blocked).
     if (v == '1' || v == 'true') { // reuses switch below pattern
@@ -290,6 +311,13 @@ class BackupPcLink {
     if (utlsTunnelPath.isNotEmpty) params['utlsTunnelPath'] = utlsTunnelPath;
     if (utFingerprint.isNotEmpty) params['utFingerprint'] = utFingerprint;
     if (serverNoisePubKey.isNotEmpty) params['noisePubKey'] = serverNoisePubKey;
+    // ECH (audit 2026-10-13): prefer explicit config list when available;
+    // fall back to ?ech=1 marker for auto-fetch.
+    if (echConfigList.isNotEmpty) {
+      params['echConfigList'] = echConfigList;
+    } else if (echAutoFetch) {
+      params['ech'] = '1';
+    }
     final b = StringBuffer()
       ..write(backuppcScheme)
       ..write('://')

@@ -572,6 +572,22 @@ class ChunkConnection {
     // См. docs/UTLS-TUNNEL-SIDECAR.md в xray-backuppc repo.
     Socket raw;
     Process? utlsProcess;
+    // ECH auto-fetch (audit 2026-10-13, RFC 9460): when echAutoFetch=true,
+    // fetch ECHConfigList from /api/ech-config before spawning utls-tunnel.
+    // One extra HTTP round-trip, but ensures config list is fresh even after
+    // server-side ECH key rotation.
+    String _resolvedEchConfigList = tls.echConfigList;
+    if (tls.echAutoFetch && _resolvedEchConfigList.isEmpty) {
+      try {
+        _resolvedEchConfigList = await _fetchEchConfigList(
+          authorityHost, port, tls.insecure, tls.certFingerprint,
+        );
+      } catch (e) {
+        // ECH fetch failed — continue without ECH (fallback to uTLS).
+        // Server may not have ECH enabled, or network blocked /api/ech-config.
+        _resolvedEchConfigList = '';
+      }
+    }
     if (transport.utlsTunnelPath.trim().isNotEmpty) {
       // Spawn utls-tunnel subprocess.
       final args = <String>[
@@ -594,6 +610,13 @@ class ChunkConnection {
         // instead of HTTP/2 over TCP. For when TCPU blocks TCP HTTP/2.
         if (tls.quicFallback)
           '--quic',
+        // ECH (audit 2026-10-13, RFC 9460): when echConfigList is set,
+        // utls-tunnel uses native crypto/tls + ECH (uTLS disabled —
+        // incompatible). SNI encrypted via HPKE, invisible to TSPU/DPI.
+        // Auto-fetch: when echAutoFetch=true, fetch from /api/ech-config
+        // before spawning tunnel (one extra HTTP round-trip).
+        if (_resolvedEchConfigList.isNotEmpty)
+          '--ech-config-list=$_resolvedEchConfigList',
       ];
       utlsProcess = await Process.start(
         transport.utlsTunnelPath.trim(),
@@ -825,5 +848,55 @@ class ChunkConnection {
       return (_) => true;
     }
     return null;
+  }
+}
+
+/// _fetchEchConfigList — fetch ECHConfigList (base64) from server's
+/// /api/ech-config endpoint. One extra HTTP round-trip before TLS handshake
+/// to ensure config list is fresh (after server-side ECH key rotation).
+///
+/// Returns base64-encoded ECHConfigList or throws on error.
+///
+/// Uses HttpClient directly (no uTLS — this is a plain HTTP request).
+/// Cert verification: pin by fingerprint, or insecure (dev mode).
+/// /api/ech-config is a public endpoint (no auth needed).
+Future<String> _fetchEchConfigList(
+  String host,
+  int port,
+  bool insecure,
+  String certFingerprint,
+) async {
+  final client = HttpClient();
+  // BadCertificateCallback for pin/insecure.
+  if (certFingerprint.isNotEmpty || insecure) {
+    client.badCertificateCallback = (cert, host, port) {
+      if (certFingerprint.isNotEmpty) {
+        final der = cert.der;
+        final actual = sha256.convert(der).toString();
+        return actual == certFingerprint;
+      }
+      return insecure;
+    };
+  }
+  final url = Uri.parse('https://$host:$port/api/ech-config');
+  try {
+    final req = await client.getUrl(url);
+    final resp = await req.close();
+    if (resp.statusCode != 200) {
+      throw Exception('ech-config: HTTP ${resp.statusCode}');
+    }
+    final body = await resp.transform(utf8.decoder).join();
+    final data = jsonDecode(body) as Map<String, dynamic>;
+    final b64 = data['echConfigListB64'] as String? ?? '';
+    if (b64.isEmpty) {
+      throw Exception('ech-config: server returned empty config list (ECH disabled?)');
+    }
+    final enabled = data['echEnabled'] as bool? ?? false;
+    if (!enabled) {
+      throw Exception('ech-config: server has ECH disabled');
+    }
+    return b64;
+  } finally {
+    client.close(force: true);
   }
 }

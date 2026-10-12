@@ -416,6 +416,16 @@ class ClientConfig {
   // instead of HTTP/2 over TCP. For when TCPU blocks TCP HTTP/2.
   // Default: false (try TCP first, only use QUIC if explicitly enabled).
   bool quicFallback;
+  // echConfigList — base64-encoded ECHConfigList (RFC 9460) from /api/ech-config.
+  // When non-empty: utls-tunnel uses native crypto/tls + ECH (uTLS disabled —
+  // incompatible with ECH). SNI is encrypted via HPKE, invisible to TSPU/DPI.
+  // ECH gives stronger passive-DPI defense than JA3 mimicry.
+  // Get from server's /api/ech-config → echConfigListB64 field.
+  String echConfigList;
+  // echAutoFetch — when true: client auto-fetches ECHConfigList from
+  // /api/ech-config at connect time (one extra HTTP round-trip before TLS).
+  // Useful when server rotates ECH key frequently.
+  bool echAutoFetch;
 
   ClientConfig({
     TransportConfig? transport,
@@ -429,6 +439,8 @@ class ClientConfig {
     this.utFingerprint = '',
     this.serverNoisePubKey = '',
     this.quicFallback = false,
+    this.echConfigList = '',
+    this.echAutoFetch = false,
   }) : transport = transport ?? TransportConfig();
 
   factory ClientConfig.fromJson(Map<String, dynamic> json) {
@@ -447,6 +459,8 @@ class ClientConfig {
       utFingerprint: json['utFingerprint'] as String? ?? '',
       serverNoisePubKey: json['serverNoisePubKey'] as String? ?? '',
       quicFallback: json['quicFallback'] as bool? ?? false,
+      echConfigList: json['echConfigList'] as String? ?? '',
+      echAutoFetch: json['echAutoFetch'] as bool? ?? false,
     );
     return c;
   }
@@ -463,6 +477,8 @@ class ClientConfig {
     'utFingerprint': utFingerprint,
     'serverNoisePubKey': serverNoisePubKey,
     'quicFallback': quicFallback,
+    'echConfigList': echConfigList,
+    'echAutoFetch': echAutoFetch,
   };
 
   String? validate() {
