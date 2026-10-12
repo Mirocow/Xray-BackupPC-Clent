@@ -20,6 +20,10 @@ class BackupPcLink {
   List<String> endpointPaths;
   int minPadding;
   int maxPadding;
+  // V2 auth + uTLS support (audit 2026-10-12, Marvia-inspired).
+  bool useV2Auth; // ?useV2Auth=1 → V2 auth (sid|idx|tsMin)
+  String utlsTunnelPath; // ?utlsTunnelPath=/path → spawn utls-tunnel sidecar
+  String utFingerprint; // ?utFingerprint=chrome|firefox|safari|ios|random
 
   BackupPcLink({
     this.tag = '',
@@ -32,6 +36,9 @@ class BackupPcLink {
     List<String>? endpointPaths,
     this.minPadding = 0,
     this.maxPadding = 0,
+    this.useV2Auth = false,
+    this.utlsTunnelPath = '',
+    this.utFingerprint = '',
   }) : endpointPaths =
            endpointPaths == null ? const [] : List.unmodifiable(endpointPaths);
 
@@ -93,6 +100,22 @@ class BackupPcLink {
         return null;
     }
     out.userAgent = q['ua'] ?? '';
+    // V2 auth + uTLS opt-in flags (audit 2026-10-12, Marvia-inspired).
+    // ?useV2Auth=1 → V2 auth (sid|idx|tsMin + X-Backup-Timestamp header)
+    switch (q['useV2Auth']?.toLowerCase() ?? '') {
+      case '1' || 'true' || 'yes':
+        out.useV2Auth = true;
+      case '' || '0' || 'false' || 'no':
+        break;
+      default:
+        return null;
+    }
+    // ?utlsTunnelPath=/usr/local/bin/utls-tunnel → spawn sidecar subprocess
+    // for uTLS Chrome ClientHello fingerprint spoofing.
+    out.utlsTunnelPath = (q['utlsTunnelPath'] ?? q['utls'] ?? '').trim();
+    // ?utFingerprint=chrome|firefox|safari|ios|random
+    // (only used when utlsTunnelPath is non-empty)
+    out.utFingerprint = (q['utFingerprint'] ?? q['utfp'] ?? '').trim();
     final eps = q['endpoints'];
     if (eps != null && eps.trim().isNotEmpty) {
       final list = [
@@ -145,6 +168,10 @@ class BackupPcLink {
       settings['minPaddingSize'] = minPadding;
       settings['maxPaddingSize'] = maxPadding;
     }
+    // V2 auth + uTLS opt-in (audit 2026-10-12, Marvia-inspired).
+    if (useV2Auth) settings['useV2Auth'] = true;
+    if (utlsTunnelPath.isNotEmpty) settings['utlsTunnelPath'] = utlsTunnelPath;
+    if (utFingerprint.isNotEmpty) settings['utFingerprint'] = utFingerprint;
     final outbound = <String, dynamic>{
       'protocol': backuppcScheme,
       'settings': settings,
@@ -205,6 +232,10 @@ class BackupPcLink {
     if (minPadding != 0 && maxPadding != 0) {
       params['pad'] = '$minPadding-$maxPadding';
     }
+    // V2 auth + uTLS opt-in (audit 2026-10-12, Marvia-inspired).
+    if (useV2Auth) params['useV2Auth'] = '1';
+    if (utlsTunnelPath.isNotEmpty) params['utlsTunnelPath'] = utlsTunnelPath;
+    if (utFingerprint.isNotEmpty) params['utFingerprint'] = utFingerprint;
     final b = StringBuffer()
       ..write(backuppcScheme)
       ..write('://')

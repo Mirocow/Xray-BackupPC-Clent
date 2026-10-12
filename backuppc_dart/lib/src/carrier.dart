@@ -264,7 +264,13 @@ class CarrierTls {
 class ChunkConnection {
   final ClientTransportConnection connection;
   final ClientTransportStream stream;
-  final SecureSocket socket;
+  // Когда utls-tunnel sidecar used: это plain Socket connected to local
+  // utls-tunnel listener. Когда legacy path: SecureSocket to remote.
+  // SecureSocket extends Socket, so plain Socket field works for both.
+  final Socket socket;
+  // Process — utls-tunnel subprocess (nullable, set when used sidecar).
+  // Killed in destroy()/retire() to avoid leaked processes.
+  final Process? utlsProcess;
   final ByteFeeder feeder;
   final GrpcMessageWriter writer;
   final GrpcMessageReader reader;
@@ -282,6 +288,7 @@ class ChunkConnection {
     required this.connection,
     required this.stream,
     required this.socket,
+    this.utlsProcess,
     required this.feeder,
     required this.writer,
     required this.reader,
@@ -432,6 +439,9 @@ class ChunkConnection {
     } catch (_) {}
     unawaited(connection.terminate().catchError((_) {}));
     socket.destroy();
+    // Kill utls-tunnel subprocess if used (audit 2026-10-12):
+    // prevents leaked processes when chunk is destroyed.
+    utlsProcess?.kill(ProcessSignal.sigterm);
   }
 
   /// Отставка чанка: соединение закрывается через задержку (дать
@@ -445,6 +455,8 @@ class ChunkConnection {
         unawaited(connection.finish().catchError((_) {}));
       } catch (_) {}
       socket.destroy();
+      // Kill utls-tunnel subprocess after delay (give it time to flush).
+      utlsProcess?.kill(ProcessSignal.sigterm);
     });
   }
 
@@ -621,10 +633,12 @@ class ChunkConnection {
         );
       } catch (error) {
         raw.destroy();
+        utlsProcess?.kill(ProcessSignal.sigterm); // cleanup on TLS failure
         rethrow;
       }
       if (secureSocket.selectedProtocol case final alpn? when alpn != 'h2') {
         secureSocket.destroy();
+        utlsProcess?.kill(ProcessSignal.sigterm); // cleanup on ALPN mismatch
         throw StreamException_(
           'carrier: сервер согласовал ALPN "$alpn" вместо h2',
         );
@@ -741,6 +755,7 @@ class ChunkConnection {
       connection: connection,
       stream: stream,
       socket: secure,
+      utlsProcess: utlsProcess, // null when no sidecar; non-null kills on destroy
       feeder: feeder,
       writer: GrpcMessageWriter((bytes) async {
         // Возвращает OK когда сообщение поставлено в очередь HTTP/2;
