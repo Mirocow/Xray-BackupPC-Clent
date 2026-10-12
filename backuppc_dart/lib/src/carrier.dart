@@ -26,11 +26,43 @@ const Duration chunkDialTimeout = Duration(seconds: 10);
 const Duration responseHeaderTimeout = Duration(seconds: 20);
 
 /// X-Backup-Auth: hex(HMAC-SHA256(key=UUID 16B, msg="sid|index")).
+///
+/// V1 — legacy, no replay protection. Captured auth годен навсегда
+/// (для того же sid|idx). Implicit protection: idx monotonic per
+/// session, но цензор с captured request может replay пока сессия
+/// активна или после её завершения.
 String backupAuthHeader(Uint8List key, String sid, int index) {
   final mac = Hmac(sha256, key)
       .convert(utf8.encode('$sid|$index'))
       .toString();
   return mac;
+}
+
+/// X-Backup-Auth V2 (audit 2026-10-12, Marvia-inspired):
+/// hex(HMAC-SHA256(key=UUID 16B, msg="sid|index|tsMin")).
+///
+/// Includes unix-minute in HMAC payload. Captured auth годен только
+/// ±2 минуты (см. ReplayWindowMin на сервере) — после этого HMAC не
+/// сойдётся. Совместимо с server-side V2 verification (commits
+/// e917931 + 0ee44eb on xray-backuppc feat/per-account-device-limits).
+///
+/// Клиент ДОЛЖЕН также передать header X-Backup-Timestamp со значением
+/// tsMin (decimal). Сервер без V2 support игнорирует timestamp и
+/// fallback на V1 — backward compat.
+///
+/// [tsMin] — unix time in minutes (time.now.millisecondsSinceEpoch ~ /
+///   60000), как int.
+String backupAuthHeaderV2(
+    Uint8List key, String sid, int index, int tsMin) {
+  final mac = Hmac(sha256, key)
+      .convert(utf8.encode('$sid|$index|$tsMin'))
+      .toString();
+  return mac;
+}
+
+/// Возвращает текущее unix-время в минутах (int).
+int currentUnixMinute() {
+  return DateTime.now().millisecondsSinceEpoch ~/ 60000;
 }
 
 /// Обёртка исходящего сокета: считает DATA-payload, фактически ушедший в
@@ -458,6 +490,12 @@ class ChunkConnection {
     final ua = transport.userAgent.trim().isNotEmpty
         ? transport.userAgent.trim()
         : pickBackupPCUserAgent();
+    // V2 replay protection (audit 2026-10-12, Marvia-inspired):
+    // Snapshot unix-minute ONCE per chunk request. Used in both
+    // X-Backup-Timestamp header AND BackupAuthHeaderV2 computation.
+    // Same value across both ensures server's V2 verification window
+    // check finds a match for at least one minute in [-2, +2].
+    final currentTsMin = currentUnixMinute();
 
     final headers = [
       Header.ascii(':method', 'POST'),
@@ -476,9 +514,17 @@ class ChunkConnection {
         Header.ascii('x-backup-client-info', transport.clientInfo.trim()),
       Header.ascii('x-backup-session-id', sessionID),
       Header.ascii('x-backup-chunk-index', '$index'),
+      // V2 auth (audit 2026-10-12, Marvia-inspired): include unix-minute
+      // in HMAC payload + send X-Backup-Timestamp header. Server checks
+      // HMAC for each minute in window [-ReplayWindowMin, +ReplayWindowMin].
+      // Captured auth годен только ±2 min — потом HMAC не сойдётся.
+      //
+      // Old servers (pre-V2) ignore X-Backup-Timestamp and fall back
+      // to V1 auth (sid|idx only) — backward compat.
+      Header.ascii('x-backup-timestamp', '$currentTsMin'),
       Header.ascii(
         'x-backup-auth',
-        backupAuthHeader(uuid, sessionID, index),
+        backupAuthHeaderV2(uuid, sessionID, index, currentTsMin),
       ),
       // Mesh-extension: добавляем extra HTTP/2 headers если переданы.
       // См. docs/PROTOCOL.md §11.1 (X-Backup-Next-Hop, X-Backup-Peer-Sig).
