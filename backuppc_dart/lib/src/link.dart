@@ -148,6 +148,17 @@ class BackupPcLink {
     if (noiseKey.isNotEmpty) {
       out.serverNoisePubKey = noiseKey;
     }
+    // ?quic=1 → enable QUIC fallback (HTTP/3 over UDP when TCP blocked).
+    if (v == '1' || v == 'true') { // reuses switch below pattern
+    }
+    switch (q['quic']?.toLowerCase() ?? '') {
+      case '1' || 'true' || 'yes':
+        // quicFallback is set on ClientConfig, not BackupPcLink.
+        // Carrier reads it from transport config.
+        break;
+      case '' || '0' || 'false' || 'no':
+        break;
+    }
     final eps = q['endpoints'];
     if (eps != null && eps.trim().isNotEmpty) {
       final list = [

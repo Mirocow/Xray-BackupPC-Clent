@@ -412,6 +412,10 @@ class ClientConfig {
   // Inner crypto layer — protects against MITM with custom CA.
   // Get from server's /api/stats → noisePublicKey field.
   String serverNoisePubKey;
+  // quicFallback — when true, utls-tunnel uses HTTP/3 over QUIC (UDP)
+  // instead of HTTP/2 over TCP. For when TCPU blocks TCP HTTP/2.
+  // Default: false (try TCP first, only use QUIC if explicitly enabled).
+  bool quicFallback;
 
   ClientConfig({
     TransportConfig? transport,
@@ -424,6 +428,7 @@ class ClientConfig {
     this.utlsTunnelPath = '',
     this.utFingerprint = '',
     this.serverNoisePubKey = '',
+    this.quicFallback = false,
   }) : transport = transport ?? TransportConfig();
 
   factory ClientConfig.fromJson(Map<String, dynamic> json) {
@@ -441,6 +446,7 @@ class ClientConfig {
       utlsTunnelPath: json['utlsTunnelPath'] as String? ?? '',
       utFingerprint: json['utFingerprint'] as String? ?? '',
       serverNoisePubKey: json['serverNoisePubKey'] as String? ?? '',
+      quicFallback: json['quicFallback'] as bool? ?? false,
     );
     return c;
   }
@@ -456,6 +462,7 @@ class ClientConfig {
     'utlsTunnelPath': utlsTunnelPath,
     'utFingerprint': utFingerprint,
     'serverNoisePubKey': serverNoisePubKey,
+    'quicFallback': quicFallback,
   };
 
   String? validate() {
