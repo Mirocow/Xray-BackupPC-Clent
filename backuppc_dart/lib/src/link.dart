@@ -6,6 +6,8 @@
 /// settings совпадают со схемой транспортной библиотеки.
 library;
 
+import 'package:crypto/crypto.dart';
+
 const String backuppcScheme = 'backuppc';
 
 /// Модель outbound-а для генерации/разбора ссылки.
@@ -86,49 +88,26 @@ class BackupPcLink {
       serverAddr: _netJoinHostPort(host, port),
       uuid: uuid,
     );
-    // V2 path encoding (audit 2026-10-12): feature flags encoded in
-    // URL path segments. V2 ALWAYS includes uTLS (no opt-out).
+    // V2 path encoding (audit 2026-10-12): /v2 = ALL features ON.
+    // V2 = V2 auth (SHA256(uuid) HMAC key) + uTLS (Chrome) + adaptivePadding.
+    // Noise layer enabled if serverNoisePubKey is set via ?noisePubKey=.
+    // User info in V2 URL = hash(uuid) (SHA256 hex), NOT raw UUID.
     //
-    // Path scheme:
-    //   /v2              → V2 auth + uTLS (Chrome, DEFAULT)
-    //   /v2/firefox      → V2 + uTLS Firefox fingerprint
-    //   /v2/full         → V2 + uTLS + adaptivePadding (max stealth)
-    //   /v2/full/safari  → V2 + uTLS Safari + adaptivePadding
-    //   (no /v2)         → V1 auth (legacy, no uTLS)
-    //
-    // V2 = uTLS всегда. Если нет utls-tunnel binary — используйте V1.
+    //   /v2?host=...           → V2 everything ON
+    //   (no /v2)               → V1 legacy (raw UUID, V1 auth, no uTLS)
     if (uri.path.isNotEmpty) {
       final segs = uri.path.split('/').where((s) => s.isNotEmpty).toList();
       if (segs.isNotEmpty && segs.first.toLowerCase() == 'v2') {
         out.useV2Auth = true;
-        var fingerprint = 'chrome'; // default
-        if (segs.length >= 2) {
-          final mode = segs[1].toLowerCase();
-          if (mode == 'full') {
-            // Full stealth = uTLS + adaptivePadding.
-            out.minPadding = 32;
-            out.maxPadding = 4096;
-          } else {
-            // Second segment is a fingerprint name (e.g. /v2/firefox).
-            fingerprint = mode;
-          }
-        }
-        // Third segment: fingerprint override (e.g. /v2/full/firefox).
-        if (segs.length >= 3) {
-          fingerprint = segs[2].toLowerCase();
-        }
-        // V2 = uTLS всегда (no opt-out).
+        // V2 = uTLS always ON.
         if (out.utlsTunnelPath.isEmpty) {
           out.utlsTunnelPath = '/usr/local/bin/utls-tunnel';
         }
-        out.utFingerprint = fingerprint;
-        // Check for "noise" in path segments → enable Noise layer.
-        for (final seg in segs) {
-          if (seg.toLowerCase() == 'noise') {
-            out.serverNoisePubKey = 'auto'; // marker — fetch from server
-            break;
-          }
-        }
+        // V2 = adaptivePadding ON (wider range for stealth).
+        out.minPadding = 32;
+        out.maxPadding = 4096;
+        // Noise: query param only (?noisePubKey=<hex> or ?npk=<hex>).
+        // Not a path segment — V2 path is just /v2, nothing more.
       }
     }
     final q = uri.queryParameters;
@@ -204,6 +183,16 @@ class BackupPcLink {
     } on FormatException {
       return t; // невалидные побегы — оставляем как есть (мягкий режим)
     }
+  }
+
+  /// _hashUuid — SHA256(uuid) → hex (64 chars). V2 URL user info.
+  static String _hashUuid(String uuid) {
+    final clean = uuid.replaceAll('-', '').toLowerCase();
+    final bytes = <int>[];
+    for (var i = 0; i < clean.length; i += 2) {
+      bytes.add(int.parse(clean.substring(i, i + 2), radix: 16));
+    }
+    return sha256.convert(bytes).toString();
   }
 
   /// JSON outbound-а Xray (один элемент outbounds), совместим с Go.
@@ -289,31 +278,19 @@ class BackupPcLink {
     if (useV2Auth) params['useV2Auth'] = '1';
     if (utlsTunnelPath.isNotEmpty) params['utlsTunnelPath'] = utlsTunnelPath;
     if (utFingerprint.isNotEmpty) params['utFingerprint'] = utFingerprint;
+    if (serverNoisePubKey.isNotEmpty) params['noisePubKey'] = serverNoisePubKey;
     final b = StringBuffer()
       ..write(backuppcScheme)
       ..write('://')
-      ..write(Uri.encodeComponent(uuid))
+      // V2: user info = hash(uuid) (SHA256 hex), NOT raw UUID.
+      // V1: user info = raw UUID.
+      ..write(Uri.encodeComponent(
+          useV2Auth ? _hashUuid(uuid) : uuid))
       ..write('@')
       ..write(_netJoinHostPort(host, port));
-    // V2 path encoding: feature flags in path segments.
-    //   /v2              → V2 auth
-    //   /v2/utls         → V2 + uTLS (Chrome)
-    //   /v2/utls/firefox → V2 + uTLS Firefox
-    //   /v2/full         → V2 + uTLS + adaptivePadding
-    //   /v2/full/safari  → all + Safari fingerprint
+    // V2 path = just /v2 (ALL features ON, no sub-paths).
     if (useV2Auth) {
       b.write('/v2');
-      if (utlsTunnelPath.isNotEmpty || utFingerprint.isNotEmpty) {
-        // Determine mode: 'full' if adaptivePadding (minPadding != 0 &&
-        // maxPadding > 1400), otherwise 'utls'.
-        final isFull = minPadding != 0 && maxPadding > 1400;
-        b.write('/');
-        b.write(isFull ? 'full' : 'utls');
-        if (utFingerprint.isNotEmpty && utFingerprint != 'chrome') {
-          b.write('/');
-          b.write(utFingerprint);
-        }
-      }
     }
     if (params.isNotEmpty) {
       final query = params.entries
