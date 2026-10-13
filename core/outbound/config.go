@@ -43,6 +43,8 @@ type settingsJSON struct {
         UtFingerprint    string   `json:"utFingerprint,omitempty"`
         UtlsTunnelPath   string   `json:"utlsTunnelPath,omitempty"`
         AllowedProtocols []string `json:"allowedProtocols,omitempty"`
+        // V2 user token (audit 2026-10-14) — replaces UUID in V2 protocol.
+        UserToken string `json:"userToken,omitempty"`
 }
 
 // ParseSettingsJSON разбирает JSON settings backuppc-outbound и собирает
@@ -100,6 +102,8 @@ func ParseSettingsJSON(raw []byte) (*backuppcpb.Config, error) {
         cfg.UtFingerprint = strings.ToLower(s.UtFingerprint)
         cfg.UtlsTunnelPath = s.UtlsTunnelPath
         cfg.AllowedProtocols = s.AllowedProtocols
+        // V2 user token (audit 2026-10-14): server-issued, replaces UUID in V2.
+        cfg.UserToken = strings.ToLower(s.UserToken)
         return cfg, nil
 }
 
@@ -163,6 +167,8 @@ func ClientConfigFromProto(p *backuppcpb.Config) *backuppc.ClientConfig {
         c.UtFingerprint = strings.ToLower(p.GetUtFingerprint())
         c.UtlsTunnelPath = p.GetUtlsTunnelPath()
         c.AllowedProtocols = p.GetAllowedProtocols()
+        // V2 user token (audit 2026-10-14): replaces UUID in V2 protocol.
+        c.UserToken = strings.ToLower(p.GetUserToken())
         return c
 }
 
@@ -209,6 +215,8 @@ func SettingsJSONFromProto(p *backuppcpb.Config) ([]byte, error) {
         s.UtFingerprint = p.GetUtFingerprint()
         s.UtlsTunnelPath = p.GetUtlsTunnelPath()
         s.AllowedProtocols = p.GetAllowedProtocols()
+        // V2 user token (audit 2026-10-14): replaces UUID in V2 protocol.
+        s.UserToken = p.GetUserToken()
 
         return json.Marshal(s)
 }

@@ -172,6 +172,24 @@ type ClientConfig struct {
         // Пустой список = оба (V1 и V2). ["v2"] = V2-only (V1 отклоняется сервером).
         AllowedProtocols []string `json:"allowedProtocols,omitempty"`
 
+        // UserToken — V2 user token (audit 2026-10-14). Server-issued 32-byte
+        // random token (hex-encoded, 64 chars). Replaces UUID in V2 protocol:
+        // the client does NOT store or transmit the VLESS UUID — only this token.
+        //
+        // When UseV2Auth && UserToken != "" (preferred V2 path):
+        //   - HMAC key for X-Backup-Auth = hex-decoded UserToken bytes (32 bytes,
+        //     no SHA256). Server looks up user by token.
+        //   - VLESS UUID (for VLESS handshake) derived = token[:16] — client
+        //     computes deterministically, server uses same derivation.
+        //
+        // When UseV2Auth && UserToken == "" (legacy V2 path, deprecated):
+        //   - HMAC key = SHA256(UUID string). Old behavior, kept for back-compat
+        //     with already-deployed V2 clients (pre-2026-10-14).
+        //
+        // When !UseV2Auth (V1 mode):
+        //   - UserToken ignored. UUID (VLESS user ID) is used as before.
+        UserToken string `json:"userToken,omitempty"`
+
         // SidecarAddr — local TCP address of utls-tunnel sidecar
         // (e.g., "127.0.0.1:54321"). When non-empty, the client uses h2c
         // (HTTP/2 over cleartext TCP) instead of HTTPS, sending raw HTTP/2

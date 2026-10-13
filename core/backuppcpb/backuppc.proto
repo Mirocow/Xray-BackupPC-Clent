@@ -100,4 +100,24 @@ message Config {
   // ["v1"] = V1-only (V2 auth заголовки не отправляются).
   // Сервер использует это для per-user policy enforcement.
   repeated string allowed_protocols = 23;
+
+  // user_token — V2 user token (audit 2026-10-14). Заменяет uuid в V2
+  // протоколе. 32 байта, hex-encoded (64 chars), сервер-выданный случайный
+  // токен. НЕ UUID — V2 протокол полностью убирает UUID из клиентского
+  // конфига. VLESS UUID выводится на сервере детерминистически = token[:16].
+  //
+  // Когда use_v2_auth=true AND user_token непустой:
+  //   - HMAC key для X-Backup-Auth = user_token bytes (32 байта, без SHA256).
+  //   - VLESS UUID (для VLESS handshake) = token[:16] (выводится клиентом).
+  //   - Сервер смотрит user_token, находит user по токену, использует token[:16]
+  //     как ожидаемый VLESS UUID.
+  //
+  // Когда use_v2_auth=true AND user_token пустой (legacy V2 path):
+  //   - Fallback на старый V2 path: HMAC key = SHA256(uuid string).
+  //   - Используется только для back-compat с уже развёрнутыми V2 клиентами.
+  //   - При первой возможности мигрировать на user_token.
+  //
+  // Когда use_v2_auth=false (V1 mode):
+  //   - user_token игнорируется, используется uuid (proto field 3) как раньше.
+  string user_token = 24;
 }

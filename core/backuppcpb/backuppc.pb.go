@@ -106,8 +106,27 @@ type Config struct {
 	// ["v1"] = V1-only (V2 auth заголовки не отправляются).
 	// Сервер использует это для per-user policy enforcement.
 	AllowedProtocols []string `protobuf:"bytes,23,rep,name=allowed_protocols,json=allowedProtocols,proto3" json:"allowed_protocols,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// user_token — V2 user token (audit 2026-10-14). Заменяет uuid в V2
+	// протоколе. 32 байта, hex-encoded (64 chars), сервер-выданный случайный
+	// токен. НЕ UUID — V2 протокол полностью убирает UUID из клиентского
+	// конфига. VLESS UUID выводится на сервере детерминистически = token[:16].
+	//
+	// Когда use_v2_auth=true AND user_token непустой:
+	//   - HMAC key для X-Backup-Auth = user_token bytes (32 байта, без SHA256).
+	//   - VLESS UUID (для VLESS handshake) = token[:16] (выводится клиентом).
+	//   - Сервер смотрит user_token, находит user по токену, использует token[:16]
+	//     как ожидаемый VLESS UUID.
+	//
+	// Когда use_v2_auth=true AND user_token пустой (legacy V2 path):
+	//   - Fallback на старый V2 path: HMAC key = SHA256(uuid string).
+	//   - Используется только для back-compat с уже развёрнутыми V2 клиентами.
+	//   - При первой возможности мигрировать на user_token.
+	//
+	// Когда use_v2_auth=false (V1 mode):
+	//   - user_token игнорируется, используется uuid (proto field 3) как раньше.
+	UserToken     string `protobuf:"bytes,24,opt,name=user_token,json=userToken,proto3" json:"user_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Config) Reset() {
@@ -301,11 +320,18 @@ func (x *Config) GetAllowedProtocols() []string {
 	return nil
 }
 
+func (x *Config) GetUserToken() string {
+	if x != nil {
+		return x.UserToken
+	}
+	return ""
+}
+
 var File_backuppc_proto protoreflect.FileDescriptor
 
 const file_backuppc_proto_rawDesc = "" +
 	"\n" +
-	"\x0ebackuppc.proto\x12\bbackuppc\"\xb3\x06\n" +
+	"\x0ebackuppc.proto\x12\bbackuppc\"\xd2\x06\n" +
 	"\x06Config\x12\x18\n" +
 	"\aaddress\x18\x01 \x01(\tR\aaddress\x12\x12\n" +
 	"\x04port\x18\x02 \x01(\rR\x04port\x12\x12\n" +
@@ -334,7 +360,9 @@ const file_backuppc_proto_rawDesc = "" +
 	"\rquic_fallback\x18\x14 \x01(\bR\fquicFallback\x12%\n" +
 	"\x0eut_fingerprint\x18\x15 \x01(\tR\rutFingerprint\x12(\n" +
 	"\x10utls_tunnel_path\x18\x16 \x01(\tR\x0eutlsTunnelPath\x12+\n" +
-	"\x11allowed_protocols\x18\x17 \x03(\tR\x10allowedProtocolsB\x1aZ\x18backuppc-core/backuppcpbb\x06proto3"
+	"\x11allowed_protocols\x18\x17 \x03(\tR\x10allowedProtocols\x12\x1d\n" +
+	"\n" +
+	"user_token\x18\x18 \x01(\tR\tuserTokenB\x1aZ\x18backuppc-core/backuppcpbb\x06proto3"
 
 var (
 	file_backuppc_proto_rawDescOnce sync.Once

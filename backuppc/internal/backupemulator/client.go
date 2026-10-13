@@ -60,9 +60,26 @@ func NewClient(cfg *ClientConfig, logger *slog.Logger) (*Client, error) {
         if err := cfg.Validate(); err != nil {
                 return nil, err
         }
-        uuid, err := ParseUUID(cfg.UUID)
-        if err != nil {
-                return nil, err
+        // V2 token path (audit 2026-10-14): when UserToken is set,
+        // derive VLESS UUID from token = token[:16] (RFC 4122 variant bits
+        // set). Client doesn't store UUID separately — only token.
+        // Server uses same derivation to look up user by VLESS UUID.
+        //
+        // Legacy path: when UserToken is empty, use cfg.UUID directly (V1
+        // and pre-2026-10-14 V2 clients that still store UUID).
+        var uuid [16]byte
+        if cfg.UserToken != "" {
+                derived, err := DeriveVLESSUUIDFromToken(cfg.UserToken)
+                if err != nil {
+                        return nil, fmt.Errorf("v2: derive UUID from token: %w", err)
+                }
+                uuid = derived
+        } else {
+                u, err := ParseUUID(cfg.UUID)
+                if err != nil {
+                        return nil, err
+                }
+                uuid = u
         }
         if logger == nil {
                 logger = slog.Default()
@@ -187,15 +204,31 @@ func (c *Client) DialChunk(ctx context.Context, sessionID string, index uint32, 
         req.Header.Set("grpc-accept-encoding", "identity")
         req.Header.Set(hdrSessionID, sessionID)
         req.Header.Set(hdrChunkIndex, strconv.FormatUint(uint64(index), 10))
-        // V2 auth (audit 2026-10-13): when cfg.UseV2Auth is true, send
-        // X-Backup-Timestamp + V2 HMAC (includes tsMin in message).
-        // Server validates ±2-min window + replay guard sync.Map.
-        // When V2 disabled (UseV2Auth=false) OR allowedProtocols=["v1"]:
-        // send V1 HMAC (no timestamp, no replay protection).
+        // V2 auth (audit 2026-10-13, updated 2026-10-14):
+        //   Preferred path (audit 2026-10-14): when UserToken is set,
+        //   use token bytes as HMAC key (no SHA256). Server looks up user
+        //   by token. VLESS UUID derived = token[:16] server-side.
+        //
+        //   Legacy path (pre-2026-10-14): when UserToken is empty,
+        //   fall back to SHA256(uuid) as HMAC key. Deprecated — kept for
+        //   back-compat with already-deployed V2 clients.
+        //
+        //   V1 path: when UseV2Auth=false OR allowedProtocols=["v1"],
+        //   send V1 HMAC (no timestamp, no replay protection).
         if c.cfg.UseV2Auth && !c.isV1Only() {
                 tsMin := currentTsMin()
                 req.Header.Set(HdrTimestamp, formatTsMinHeader(tsMin))
-                req.Header.Set(hdrChunkAuth, BackupAuthHeaderV2(c.cfg.UUID, sessionID, index, tsMin))
+                if c.cfg.UserToken != "" {
+                        // Preferred V2 path: token-based HMAC.
+                        authV2, err := BackupAuthHeaderV2FromToken(c.cfg.UserToken, sessionID, index, tsMin)
+                        if err != nil {
+                                return nil, fmt.Errorf("v2 auth: %w", err)
+                        }
+                        req.Header.Set(hdrChunkAuth, authV2)
+                } else {
+                        // Legacy V2 path: UUID-based HMAC (deprecated).
+                        req.Header.Set(hdrChunkAuth, BackupAuthHeaderV2(c.cfg.UUID, sessionID, index, tsMin))
+                }
         } else {
                 req.Header.Set(hdrChunkAuth, BackupAuthHeader(c.uuid, sessionID, index))
         }
