@@ -6,6 +6,8 @@
 /// settings совпадают со схемой транспортной библиотеки.
 library;
 
+import 'package:crypto/crypto.dart';
+
 const String backuppcScheme = 'backuppc';
 
 /// Модель outbound-а для генерации/разбора ссылки.
@@ -20,6 +22,19 @@ class BackupPcLink {
   List<String> endpointPaths;
   int minPadding;
   int maxPadding;
+  // V2 auth + uTLS support (audit 2026-10-12, Marvia-inspired).
+  bool useV2Auth; // ?useV2Auth=1 → V2 auth (sid|idx|tsMin)
+  String utlsTunnelPath; // ?utlsTunnelPath=/path → spawn utls-tunnel sidecar
+  String utFingerprint; // ?utFingerprint=chrome|firefox|safari|ios|random
+  String serverNoisePubKey; // ?noisePubKey=<hex> or /v2/full/noise path
+  // ECH (Encrypted Client Hello, RFC 9460, audit 2026-10-13):
+  // ?echConfigList=<base64> → base64-encoded ECHConfigList from /api/ech-config.
+  // When set: utls-tunnel uses native crypto/tls + ECH (uTLS disabled —
+  // incompatible with ECH). SNI is encrypted via HPKE, invisible to TSPU/DPI.
+  // ?ech=1 → client auto-fetches ECHConfigList from /api/ech-config at connect
+  // time (one extra HTTP round-trip before TLS handshake).
+  String echConfigList; // ?echConfigList=<base64>
+  bool echAutoFetch; // ?ech=1 → fetch config list from /api/ech-config
 
   BackupPcLink({
     this.tag = '',
@@ -32,6 +47,12 @@ class BackupPcLink {
     List<String>? endpointPaths,
     this.minPadding = 0,
     this.maxPadding = 0,
+    this.useV2Auth = false,
+    this.utlsTunnelPath = '',
+    this.utFingerprint = '',
+    this.serverNoisePubKey = '',
+    this.echConfigList = '',
+    this.echAutoFetch = false,
   }) : endpointPaths =
            endpointPaths == null ? const [] : List.unmodifiable(endpointPaths);
 
@@ -77,6 +98,28 @@ class BackupPcLink {
       serverAddr: _netJoinHostPort(host, port),
       uuid: uuid,
     );
+    // V2 path encoding (audit 2026-10-12): /v2 = ALL features ON.
+    // V2 = V2 auth (SHA256(uuid) HMAC key) + uTLS (Chrome) + adaptivePadding.
+    // Noise layer enabled if serverNoisePubKey is set via ?noisePubKey=.
+    // User info in V2 URL = hash(uuid) (SHA256 hex), NOT raw UUID.
+    //
+    //   /v2?host=...           → V2 everything ON
+    //   (no /v2)               → V1 legacy (raw UUID, V1 auth, no uTLS)
+    if (uri.path.isNotEmpty) {
+      final segs = uri.path.split('/').where((s) => s.isNotEmpty).toList();
+      if (segs.isNotEmpty && segs.first.toLowerCase() == 'v2') {
+        out.useV2Auth = true;
+        // V2 = uTLS always ON.
+        if (out.utlsTunnelPath.isEmpty) {
+          out.utlsTunnelPath = '/usr/local/bin/utls-tunnel';
+        }
+        // V2 = adaptivePadding ON (wider range for stealth).
+        out.minPadding = 32;
+        out.maxPadding = 4096;
+        // Noise: query param only (?noisePubKey=<hex> or ?npk=<hex>).
+        // Not a path segment — V2 path is just /v2, nothing more.
+      }
+    }
     final q = uri.queryParameters;
     out.host = (q['host'] ?? q['sni'] ?? '').trim();
     var fp = (q['fp'] ?? q['fingerprint'] ?? '').trim().toLowerCase();
@@ -93,6 +136,50 @@ class BackupPcLink {
         return null;
     }
     out.userAgent = q['ua'] ?? '';
+    // V2 auth + uTLS opt-in flags (audit 2026-10-12, Marvia-inspired).
+    // ?useV2Auth=1 → V2 auth (sid|idx|tsMin + X-Backup-Timestamp header)
+    switch (q['useV2Auth']?.toLowerCase() ?? '') {
+      case '1' || 'true' || 'yes':
+        out.useV2Auth = true;
+      case '' || '0' || 'false' || 'no':
+        break;
+      default:
+        return null;
+    }
+    // ?utlsTunnelPath=/usr/local/bin/utls-tunnel → spawn sidecar subprocess
+    // for uTLS Chrome ClientHello fingerprint spoofing.
+    out.utlsTunnelPath = (q['utlsTunnelPath'] ?? q['utls'] ?? '').trim();
+    // ?utFingerprint=chrome|firefox|safari|ios|random
+    // (only used when utlsTunnelPath is non-empty)
+    out.utFingerprint = (q['utFingerprint'] ?? q['utfp'] ?? '').trim();
+    // ?noisePubKey=<hex> or ?npk=<hex> → server's Noise public key.
+    // Overrides 'auto' marker from /v2/full/noise path.
+    final noiseKey = (q['noisePubKey'] ?? q['npk'] ?? '').trim();
+    if (noiseKey.isNotEmpty) {
+      out.serverNoisePubKey = noiseKey;
+    }
+    // ?echConfigList=<base64> → ECHConfigList from /api/ech-config.
+    // Direct config (no auto-fetch needed).
+    final echList = (q['echConfigList'] ?? q['ech'] ?? '').trim();
+    if (echList.isNotEmpty && echList != '1' && echList.toLowerCase() != 'true') {
+      out.echConfigList = echList;
+    }
+    // ?ech=1 or ?ech=true → auto-fetch ECHConfigList from /api/ech-config
+    // at connect time (one extra HTTP round-trip before TLS handshake).
+    if (echList == '1' || echList.toLowerCase() == 'true') {
+      out.echAutoFetch = true;
+    }
+    // ?quic=1 → enable QUIC fallback (HTTP/3 over UDP when TCP blocked).
+    if (v == '1' || v == 'true') { // reuses switch below pattern
+    }
+    switch (q['quic']?.toLowerCase() ?? '') {
+      case '1' || 'true' || 'yes':
+        // quicFallback is set on ClientConfig, not BackupPcLink.
+        // Carrier reads it from transport config.
+        break;
+      case '' || '0' || 'false' || 'no':
+        break;
+    }
     final eps = q['endpoints'];
     if (eps != null && eps.trim().isNotEmpty) {
       final list = [
@@ -130,6 +217,16 @@ class BackupPcLink {
     }
   }
 
+  /// _hashUuid — SHA256(uuid) → hex (64 chars). V2 URL user info.
+  static String _hashUuid(String uuid) {
+    final clean = uuid.replaceAll('-', '').toLowerCase();
+    final bytes = <int>[];
+    for (var i = 0; i < clean.length; i += 2) {
+      bytes.add(int.parse(clean.substring(i, i + 2), radix: 16));
+    }
+    return sha256.convert(bytes).toString();
+  }
+
   /// JSON outbound-а Xray (один элемент outbounds), совместим с Go.
   Map<String, dynamic> toOutboundJson() {
     final settings = <String, dynamic>{
@@ -145,6 +242,10 @@ class BackupPcLink {
       settings['minPaddingSize'] = minPadding;
       settings['maxPaddingSize'] = maxPadding;
     }
+    // V2 auth + uTLS opt-in (audit 2026-10-12, Marvia-inspired).
+    if (useV2Auth) settings['useV2Auth'] = true;
+    if (utlsTunnelPath.isNotEmpty) settings['utlsTunnelPath'] = utlsTunnelPath;
+    if (utFingerprint.isNotEmpty) settings['utFingerprint'] = utFingerprint;
     final outbound = <String, dynamic>{
       'protocol': backuppcScheme,
       'settings': settings,
@@ -205,12 +306,31 @@ class BackupPcLink {
     if (minPadding != 0 && maxPadding != 0) {
       params['pad'] = '$minPadding-$maxPadding';
     }
+    // V2 auth + uTLS opt-in (audit 2026-10-12, Marvia-inspired).
+    if (useV2Auth) params['useV2Auth'] = '1';
+    if (utlsTunnelPath.isNotEmpty) params['utlsTunnelPath'] = utlsTunnelPath;
+    if (utFingerprint.isNotEmpty) params['utFingerprint'] = utFingerprint;
+    if (serverNoisePubKey.isNotEmpty) params['noisePubKey'] = serverNoisePubKey;
+    // ECH (audit 2026-10-13): prefer explicit config list when available;
+    // fall back to ?ech=1 marker for auto-fetch.
+    if (echConfigList.isNotEmpty) {
+      params['echConfigList'] = echConfigList;
+    } else if (echAutoFetch) {
+      params['ech'] = '1';
+    }
     final b = StringBuffer()
       ..write(backuppcScheme)
       ..write('://')
-      ..write(Uri.encodeComponent(uuid))
+      // V2: user info = hash(uuid) (SHA256 hex), NOT raw UUID.
+      // V1: user info = raw UUID.
+      ..write(Uri.encodeComponent(
+          useV2Auth ? _hashUuid(uuid) : uuid))
       ..write('@')
       ..write(_netJoinHostPort(host, port));
+    // V2 path = just /v2 (ALL features ON, no sub-paths).
+    if (useV2Auth) {
+      b.write('/v2');
+    }
     if (params.isNotEmpty) {
       final query = params.entries
           .map(

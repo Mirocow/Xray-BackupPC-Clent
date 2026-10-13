@@ -381,6 +381,51 @@ class ClientConfig {
   String socksListen; // локальный SOCKS5, дефолт 127.0.0.1:1080
   bool insecure; // пропуск TLS-верификации (только тесты)
   String certFingerprint; // SHA-256 hex сервера — пиннинг
+  // useV2Auth — включить V2 replay-protected auth (audit 2026-10-12,
+  // Marvia-inspired). Когда true: клиент шлёт X-Backup-Timestamp header
+  // + V2 auth HMAC (sid|idx|tsMin). Сервер с V2 support проверяет в окне
+  // ±2min + replayGuard.
+  //
+  // Когда false (default): V1 auth (sid|idx only, no timestamp).
+  // Old servers (pre-V2) НЕ understand V2 auth — V2 HMAC != V1 HMAC
+  // → bad-auth → cover page. Поэтому V2 opt-in: включайте только после
+  // миграции сервера на V2 support (xray-backuppc commits e917931 +
+  // 0ee44eb on feat/per-account-device-limits).
+  bool useV2Auth;
+  // utlsTunnelPath — путь к utls-tunnel binary (audit 2026-10-12,
+  // Marvia-inspired). Когда непустой: Dart carrier запускает utls-tunnel
+  // как subprocess, который делает TLS handshake с Chrome ClientHello
+  // fingerprint (real Chrome JA3, не Dart BoringSSL default).
+  //
+  // Когда пустой (default): Dart использует стандартный SecureSocket
+  // (Dart BoringSSL, unique JA3). Backward compat.
+  //
+  // Build utls-tunnel binary из xray-backuppc/cmd/utls-tunnel/main.go.
+  // См. docs/UTLS-TUNNEL-SIDECAR.md в xray-backuppc repo.
+  String utlsTunnelPath;
+  // utFingerprint — какой браузерный fingerprint спунировать через
+  // utls-tunnel. "" (default) = "chrome". Также: "firefox", "safari",
+  // "ios", "random". Имеет смысл только когда utlsTunnelPath непустой.
+  String utFingerprint;
+  // serverNoisePubKey — server's Noise X25519 public key (hex, 64 chars).
+  // When non-empty: utls-tunnel sidecar adds Noise IK handshake after TLS.
+  // Inner crypto layer — protects against MITM with custom CA.
+  // Get from server's /api/stats → noisePublicKey field.
+  String serverNoisePubKey;
+  // quicFallback — when true, utls-tunnel uses HTTP/3 over QUIC (UDP)
+  // instead of HTTP/2 over TCP. For when TCPU blocks TCP HTTP/2.
+  // Default: false (try TCP first, only use QUIC if explicitly enabled).
+  bool quicFallback;
+  // echConfigList — base64-encoded ECHConfigList (RFC 9460) from /api/ech-config.
+  // When non-empty: utls-tunnel uses native crypto/tls + ECH (uTLS disabled —
+  // incompatible with ECH). SNI is encrypted via HPKE, invisible to TSPU/DPI.
+  // ECH gives stronger passive-DPI defense than JA3 mimicry.
+  // Get from server's /api/ech-config → echConfigListB64 field.
+  String echConfigList;
+  // echAutoFetch — when true: client auto-fetches ECHConfigList from
+  // /api/ech-config at connect time (one extra HTTP round-trip before TLS).
+  // Useful when server rotates ECH key frequently.
+  bool echAutoFetch;
 
   ClientConfig({
     TransportConfig? transport,
@@ -389,6 +434,13 @@ class ClientConfig {
     this.socksListen = '127.0.0.1:1080',
     this.insecure = false,
     this.certFingerprint = '',
+    this.useV2Auth = false,
+    this.utlsTunnelPath = '',
+    this.utFingerprint = '',
+    this.serverNoisePubKey = '',
+    this.quicFallback = false,
+    this.echConfigList = '',
+    this.echAutoFetch = false,
   }) : transport = transport ?? TransportConfig();
 
   factory ClientConfig.fromJson(Map<String, dynamic> json) {
@@ -402,6 +454,13 @@ class ClientConfig {
       socksListen: json['socksListen'] as String? ?? '127.0.0.1:1080',
       insecure: json['insecure'] as bool? ?? false,
       certFingerprint: (json['certFingerprint'] as String? ?? '').toLowerCase(),
+      useV2Auth: json['useV2Auth'] as bool? ?? false,
+      utlsTunnelPath: json['utlsTunnelPath'] as String? ?? '',
+      utFingerprint: json['utFingerprint'] as String? ?? '',
+      serverNoisePubKey: json['serverNoisePubKey'] as String? ?? '',
+      quicFallback: json['quicFallback'] as bool? ?? false,
+      echConfigList: json['echConfigList'] as String? ?? '',
+      echAutoFetch: json['echAutoFetch'] as bool? ?? false,
     );
     return c;
   }
@@ -413,6 +472,13 @@ class ClientConfig {
     'socksListen': socksListen,
     'insecure': insecure,
     'certFingerprint': certFingerprint,
+    'useV2Auth': useV2Auth,
+    'utlsTunnelPath': utlsTunnelPath,
+    'utFingerprint': utFingerprint,
+    'serverNoisePubKey': serverNoisePubKey,
+    'quicFallback': quicFallback,
+    'echConfigList': echConfigList,
+    'echAutoFetch': echAutoFetch,
   };
 
   String? validate() {

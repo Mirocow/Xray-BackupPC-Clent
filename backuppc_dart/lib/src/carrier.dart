@@ -26,11 +26,50 @@ const Duration chunkDialTimeout = Duration(seconds: 10);
 const Duration responseHeaderTimeout = Duration(seconds: 20);
 
 /// X-Backup-Auth: hex(HMAC-SHA256(key=UUID 16B, msg="sid|index")).
+///
+/// V1 — legacy, no replay protection. Captured auth годен навсегда
+/// (для того же sid|idx). Implicit protection: idx monotonic per
+/// session, но цензор с captured request может replay пока сессия
+/// активна или после её завершения.
 String backupAuthHeader(Uint8List key, String sid, int index) {
   final mac = Hmac(sha256, key)
       .convert(utf8.encode('$sid|$index'))
       .toString();
   return mac;
+}
+
+/// X-Backup-Auth V2 (audit 2026-10-12, Marvia-inspired):
+/// hex(HMAC-SHA256(key=UUID 16B, msg="sid|index|tsMin")).
+///
+/// Includes unix-minute in HMAC payload. Captured auth годен только
+/// ±2 минуты (см. ReplayWindowMin на сервере) — после этого HMAC не
+/// сойдётся. Совместимо с server-side V2 verification (commits
+/// e917931 + 0ee44eb on xray-backuppc feat/per-account-device-limits).
+///
+/// Клиент ДОЛЖЕН также передать header X-Backup-Timestamp со значением
+/// tsMin (decimal). Сервер без V2 support игнорирует timestamp и
+/// fallback на V1 — backward compat.
+///
+/// [tsMin] — unix time in minutes (time.now.millisecondsSinceEpoch ~ /
+///   60000), как int.
+///
+/// V2 PROTOCOL CHANGE (audit 2026-10-12): HMAC key = SHA256(uuid), NOT
+/// raw uuid. Защита: если DB утёчет, attacker получит SHA256(uuid),
+/// но НЕ raw uuid. Raw uuid нужен для VLESS handshake — без него
+/// нельзя установить легит-сессию.
+String backupAuthHeaderV2(
+    Uint8List key, String sid, int index, int tsMin) {
+  // V2: derive HMAC key = SHA256(uuid) — raw uuid НЕ используется как HMAC key.
+  final hashedKey = sha256.convert(key);
+  final mac = Hmac(sha256, hashedKey.bytes)
+      .convert(utf8.encode('$sid|$index|$tsMin'))
+      .toString();
+  return mac;
+}
+
+/// Возвращает текущее unix-время в минутах (int).
+int currentUnixMinute() {
+  return DateTime.now().millisecondsSinceEpoch ~/ 60000;
 }
 
 /// Обёртка исходящего сокета: считает DATA-payload, фактически ушедший в
@@ -232,7 +271,13 @@ class CarrierTls {
 class ChunkConnection {
   final ClientTransportConnection connection;
   final ClientTransportStream stream;
-  final SecureSocket socket;
+  // Когда utls-tunnel sidecar used: это plain Socket connected to local
+  // utls-tunnel listener. Когда legacy path: SecureSocket to remote.
+  // SecureSocket extends Socket, so plain Socket field works for both.
+  final Socket socket;
+  // Process — utls-tunnel subprocess (nullable, set when used sidecar).
+  // Killed in destroy()/retire() to avoid leaked processes.
+  final Process? utlsProcess;
   final ByteFeeder feeder;
   final GrpcMessageWriter writer;
   final GrpcMessageReader reader;
@@ -250,6 +295,7 @@ class ChunkConnection {
     required this.connection,
     required this.stream,
     required this.socket,
+    this.utlsProcess,
     required this.feeder,
     required this.writer,
     required this.reader,
@@ -400,6 +446,9 @@ class ChunkConnection {
     } catch (_) {}
     unawaited(connection.terminate().catchError((_) {}));
     socket.destroy();
+    // Kill utls-tunnel subprocess if used (audit 2026-10-12):
+    // prevents leaked processes when chunk is destroyed.
+    utlsProcess?.kill(ProcessSignal.sigterm);
   }
 
   /// Отставка чанка: соединение закрывается через задержку (дать
@@ -413,6 +462,8 @@ class ChunkConnection {
         unawaited(connection.finish().catchError((_) {}));
       } catch (_) {}
       socket.destroy();
+      // Kill utls-tunnel subprocess after delay (give it time to flush).
+      utlsProcess?.kill(ProcessSignal.sigterm);
     });
   }
 
@@ -458,6 +509,18 @@ class ChunkConnection {
     final ua = transport.userAgent.trim().isNotEmpty
         ? transport.userAgent.trim()
         : pickBackupPCUserAgent();
+    // V2 replay protection (audit 2026-10-12, Marvia-inspired):
+    // Snapshot unix-minute ONCE per chunk request. Used in both
+    // X-Backup-Timestamp header AND BackupAuthHeaderV2 computation.
+    // Same value across both ensures server's V2 verification window
+    // check finds a match for at least one minute in [-2, +2].
+    //
+    // V2 opt-in (useV2Auth): backward compat со старыми серверами (pre-V2).
+    // Когда useV2Auth=false → V1 auth (sid|idx only), old servers accept.
+    // Когда useV2Auth=true → V2 auth (sid|idx|tsMin) + X-Backup-Timestamp,
+    // server проверяет в окне ±2min + replayGuard.
+    final currentTsMin = currentUnixMinute();
+    final v2Auth = transport.useV2Auth;
 
     final headers = [
       Header.ascii(':method', 'POST'),
@@ -476,9 +539,21 @@ class ChunkConnection {
         Header.ascii('x-backup-client-info', transport.clientInfo.trim()),
       Header.ascii('x-backup-session-id', sessionID),
       Header.ascii('x-backup-chunk-index', '$index'),
+      // V2 auth (audit 2026-10-12, Marvia-inspired): include unix-minute
+      // in HMAC payload + send X-Backup-Timestamp header. Server checks
+      // HMAC for each minute in window [-ReplayWindowMin, +ReplayWindowMin].
+      // Captured auth годен только ±2 min — потом HMAC не сойдётся.
+      //
+      // V1 fallback (useV2Auth=false): legacy auth without timestamp.
+      // Old servers (pre-V2) expect V1 — V2 HMAC != V1 → auth FAILS.
+      // Opt-in: enable only after server migration to V2 support.
+      if (v2Auth)
+        Header.ascii('x-backup-timestamp', '$currentTsMin'),
       Header.ascii(
         'x-backup-auth',
-        backupAuthHeader(uuid, sessionID, index),
+        v2Auth
+            ? backupAuthHeaderV2(uuid, sessionID, index, currentTsMin)
+            : backupAuthHeader(uuid, sessionID, index),
       ),
       // Mesh-extension: добавляем extra HTTP/2 headers если переданы.
       // См. docs/PROTOCOL.md §11.1 (X-Backup-Next-Hop, X-Backup-Peer-Sig).
@@ -488,32 +563,125 @@ class ChunkConnection {
     ];
 
     // --- TCP ---
-    final raw = await Socket.connect(
-      host,
-      port,
-      timeout: chunkDialTimeout,
-    );
+    // uTLS sidecar support (audit 2026-10-12, Marvia-inspired):
+    // Когда transport.utlsTunnelPath непустой — spawn utls-tunnel binary,
+    // он делает TLS handshake с Chrome ClientHello fingerprint (real Chrome
+    // JA3, не Dart BoringSSL default). Dart подключается к local port
+    // utls-tunnel'а по raw TCP, TLS-layer полностью handled Go binary.
+    //
+    // См. docs/UTLS-TUNNEL-SIDECAR.md в xray-backuppc repo.
+    Socket raw;
+    Process? utlsProcess;
+    // ECH auto-fetch (audit 2026-10-13, RFC 9460): when echAutoFetch=true,
+    // fetch ECHConfigList from /api/ech-config before spawning utls-tunnel.
+    // One extra HTTP round-trip, but ensures config list is fresh even after
+    // server-side ECH key rotation.
+    String _resolvedEchConfigList = tls.echConfigList;
+    if (tls.echAutoFetch && _resolvedEchConfigList.isEmpty) {
+      try {
+        _resolvedEchConfigList = await _fetchEchConfigList(
+          authorityHost, port, tls.insecure, tls.certFingerprint,
+        );
+      } catch (e) {
+        // ECH fetch failed — continue without ECH (fallback to uTLS).
+        // Server may not have ECH enabled, or network blocked /api/ech-config.
+        _resolvedEchConfigList = '';
+      }
+    }
+    if (transport.utlsTunnelPath.trim().isNotEmpty) {
+      // Spawn utls-tunnel subprocess.
+      final args = <String>[
+        '--listen', '127.0.0.1:0',
+        '--remote', '$host:$port',
+        '--sni', authorityHost,
+        '--fingerprint',
+        transport.utFingerprint.trim().isEmpty
+            ? 'chrome'
+            : transport.utFingerprint.trim(),
+        '--h2-only',
+        if (tls.insecure) '--insecure',
+        if (tls.certFingerprint.isNotEmpty)
+          '--cert-fingerprint=${tls.certFingerprint}',
+        // Noise layer: when serverNoisePubKey is set,
+        // utls-tunnel does Noise IK handshake after TLS.
+        if (tls.serverNoisePubKey.isNotEmpty)
+          '--noise-key=${tls.serverNoisePubKey}',
+        // QUIC fallback: when --quic is set, use HTTP/3 over QUIC (UDP)
+        // instead of HTTP/2 over TCP. For when TCPU blocks TCP HTTP/2.
+        if (tls.quicFallback)
+          '--quic',
+        // ECH (audit 2026-10-13, RFC 9460): when echConfigList is set,
+        // utls-tunnel uses native crypto/tls + ECH (uTLS disabled —
+        // incompatible). SNI encrypted via HPKE, invisible to TSPU/DPI.
+        // Auto-fetch: when echAutoFetch=true, fetch from /api/ech-config
+        // before spawning tunnel (one extra HTTP round-trip).
+        if (_resolvedEchConfigList.isNotEmpty)
+          '--ech-config-list=$_resolvedEchConfigList',
+      ];
+      utlsProcess = await Process.start(
+        transport.utlsTunnelPath.trim(),
+        args,
+      );
+      // Read local port from first line of stdout.
+      final portLine = await utlsProcess.stdout
+          .transform(utf8.decoder)
+          .transform(const LineSplitter())
+          .first
+          .timeout(chunkDialTimeout);
+      final localPort = int.parse(portLine.trim());
+      // Connect to local utls-tunnel listener (raw TCP, no TLS).
+      raw = await Socket.connect(
+        '127.0.0.1',
+        localPort,
+        timeout: chunkDialTimeout,
+      );
+    } else {
+      // Default path: direct TCP to remote (legacy, no uTLS).
+      raw = await Socket.connect(
+        host,
+        port,
+        timeout: chunkDialTimeout,
+      );
+    }
     // tcpNoDelay намеренно НЕ включаем: A/B-замеры показали, что Nagle
     // улучшает цикл WINDOW_UPDATE/TLS-записей (6.6 против 0.8 МиБ/с)
     // --- TLS: предлагаем только h2 — либо ALPN согласует h2, либо отказ ---
-    SecureSocket secure;
-    try {
-      secure = await SecureSocket.secure(
-        raw,
-        host: authorityHost,
-        context: _tlsContext(tls),
-        onBadCertificate: _onBadCertificate(tls),
-        supportedProtocols: const ['h2'],
-      );
-    } catch (error) {
-      raw.destroy();
-      rethrow;
-    }
-    if (secure.selectedProtocol case final alpn? when alpn != 'h2') {
-      secure.destroy();
-      throw StreamException_(
-        'carrier: сервер согласовал ALPN "$alpn" вместо h2',
-      );
+    //
+    // Когда utlsTunnelPath непустой: TLS уже done utls-tunnel binary,
+    // raw socket — это raw byte stream поверх uTLS-wrapped connection.
+    // Dart НЕ делает TLS handshake, использует raw socket напрямую для
+    // HTTP/2 (prior-knowledge h2c, negotiated by utls-tunnel ALPN).
+    //
+    // Когда utlsTunnelPath пустой: legacy SecureSocket.secure path.
+    Socket secure;
+    if (transport.utlsTunnelPath.trim().isNotEmpty) {
+      // utls-tunnel already established TLS + ALPN h2 — use raw socket
+      // directly. http2 ClientTransport speaks h2c (prior knowledge)
+      // over this raw socket.
+      secure = raw;
+    } else {
+      SecureSocket secureSocket;
+      try {
+        secureSocket = await SecureSocket.secure(
+          raw,
+          host: authorityHost,
+          context: _tlsContext(tls),
+          onBadCertificate: _onBadCertificate(tls),
+          supportedProtocols: const ['h2'],
+        );
+      } catch (error) {
+        raw.destroy();
+        utlsProcess?.kill(ProcessSignal.sigterm); // cleanup on TLS failure
+        rethrow;
+      }
+      if (secureSocket.selectedProtocol case final alpn? when alpn != 'h2') {
+        secureSocket.destroy();
+        utlsProcess?.kill(ProcessSignal.sigterm); // cleanup on ALPN mismatch
+        throw StreamException_(
+          'carrier: сервер согласовал ALPN "$alpn" вместо h2',
+        );
+      }
+      secure = secureSocket;
     }
     // selectedProtocol == null → prior-knowledge h2 (строгий ALPN
     // согласуется настоящим Go-сервером; Dart-фальшивый сервер его
@@ -625,6 +793,7 @@ class ChunkConnection {
       connection: connection,
       stream: stream,
       socket: secure,
+      utlsProcess: utlsProcess, // null when no sidecar; non-null kills on destroy
       feeder: feeder,
       writer: GrpcMessageWriter((bytes) async {
         // Возвращает OK когда сообщение поставлено в очередь HTTP/2;
@@ -639,6 +808,19 @@ class ChunkConnection {
       wire: wire,
       log: log,
     );
+    // utls-tunnel crash watcher (audit 2026-10-12): if the sidecar
+    // process dies unexpectedly mid-session, destroy the ChunkConnection
+    // to trigger cleanup + relay teardown. Without this, the raw socket
+    // would silently fail on next Read/Write, leaving the session in
+    // a zombie state until idle-timeout fires.
+    if (utlsProcess != null) {
+      utlsProcess.exitCode.then((code) {
+        if (!conn.retired) {
+          log?.call('utls-tunnel exited unexpectedly (code=$code), destroying chunk');
+          conn.destroy();
+        }
+      });
+    }
     return conn;
   }
 
@@ -666,5 +848,55 @@ class ChunkConnection {
       return (_) => true;
     }
     return null;
+  }
+}
+
+/// _fetchEchConfigList — fetch ECHConfigList (base64) from server's
+/// /api/ech-config endpoint. One extra HTTP round-trip before TLS handshake
+/// to ensure config list is fresh (after server-side ECH key rotation).
+///
+/// Returns base64-encoded ECHConfigList or throws on error.
+///
+/// Uses HttpClient directly (no uTLS — this is a plain HTTP request).
+/// Cert verification: pin by fingerprint, or insecure (dev mode).
+/// /api/ech-config is a public endpoint (no auth needed).
+Future<String> _fetchEchConfigList(
+  String host,
+  int port,
+  bool insecure,
+  String certFingerprint,
+) async {
+  final client = HttpClient();
+  // BadCertificateCallback for pin/insecure.
+  if (certFingerprint.isNotEmpty || insecure) {
+    client.badCertificateCallback = (cert, host, port) {
+      if (certFingerprint.isNotEmpty) {
+        final der = cert.der;
+        final actual = sha256.convert(der).toString();
+        return actual == certFingerprint;
+      }
+      return insecure;
+    };
+  }
+  final url = Uri.parse('https://$host:$port/api/ech-config');
+  try {
+    final req = await client.getUrl(url);
+    final resp = await req.close();
+    if (resp.statusCode != 200) {
+      throw Exception('ech-config: HTTP ${resp.statusCode}');
+    }
+    final body = await resp.transform(utf8.decoder).join();
+    final data = jsonDecode(body) as Map<String, dynamic>;
+    final b64 = data['echConfigListB64'] as String? ?? '';
+    if (b64.isEmpty) {
+      throw Exception('ech-config: server returned empty config list (ECH disabled?)');
+    }
+    final enabled = data['echEnabled'] as bool? ?? false;
+    if (!enabled) {
+      throw Exception('ech-config: server has ECH disabled');
+    }
+    return b64;
+  } finally {
+    client.close(force: true);
   }
 }
