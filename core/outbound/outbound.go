@@ -11,6 +11,7 @@ import (
         "context"
         "fmt"
         "log/slog"
+        "strings"
         "time"
 
         "backuppc"
@@ -46,11 +47,12 @@ const defaultIdleTimeout = 5 * time.Minute
 
 // Handler — outbound-протокол backuppc для ядра Xray.
 type Handler struct {
-        client    *backuppc.Client
-        logger    *slog.Logger
-        idleCache time.Duration
-        idleOnce  bool
-        dialerSet bool // true after first Process() sets internet.Dialer on client
+        client     *backuppc.Client
+        logger     *slog.Logger
+        idleCache  time.Duration
+        idleOnce   bool
+        dialerSet  bool // true after first Process() sets internet.Dialer on client
+        sidecar    *sidecarManager // nil when no sidecar needed (no V2 transport features)
 }
 
 // New создает handler и транспортного клиента библиотеки.
@@ -73,9 +75,32 @@ func New(ctx context.Context, config *backuppcpb.Config) (*Handler, error) {
                         }
                 }
         }
+        // Sidecar (audit 2026-10-13): spawn utls-tunnel when V2 transport
+        // features are active. Sidecar's local port overrides ClientConfig.
+        // SidecarAddr — client uses h2c (HTTP/2 over TCP) to talk to sidecar.
+        if sm := newSidecarManager(ccfg); sm != nil {
+                h.sidecar = sm
+                // Defer actual sidecar start to first Process() call —
+                // avoids spawning process if outbound never used.
+                logger.Info("backuppc outbound: sidecar configured (lazy start on first dial)",
+                        "binary", sm.binaryPath, "features", v2FeaturesList(ccfg))
+        }
         logger.Info("backuppc outbound registered",
                 "server", ccfg.ServerAddr, "host", ccfg.Host)
         return h, nil
+}
+
+// v2FeaturesList — comma-separated list of V2 features active for this outbound.
+// Used in log messages for operator visibility.
+func v2FeaturesList(c *backuppc.ClientConfig) string {
+        var features []string
+        if c.UseV2Auth { features = append(features, "V2Auth") }
+        if c.EchAutoFetch || c.EchConfigList != "" { features = append(features, "ECH") }
+        if c.NoisePubKey != "" { features = append(features, "Noise") }
+        if c.QuicFallback { features = append(features, "QUIC") }
+        if c.UtFingerprint != "" { features = append(features, "uTLS:"+c.UtFingerprint) }
+        if len(features) == 0 { return "none" }
+        return strings.Join(features, ",")
 }
 
 // idleTimeout возвращает таймаут простоя соединения.
@@ -110,6 +135,18 @@ func (h *Handler) Process(ctx context.Context, link *transport.Link, dialer inte
         // первом Process(). После этого все http.Transport.DialContext вызовы
         // внутри клиента идут через Xray dialer → VpnService.protect() на Android.
         if !h.dialerSet {
+                // Sidecar lazy-start (audit 2026-10-13): spawn utls-tunnel now
+                // if V2 transport features are configured. Sidecar's local
+                // port overrides ClientConfig.SidecarAddr — client switches
+                // to h2c mode (HTTP/2 over cleartext TCP) for sidecar routing.
+                if h.sidecar != nil {
+                        localAddr, err := h.sidecar.start(ctx)
+                        if err != nil {
+                                return errors.New(ctx, "backuppc: sidecar start: ").Base(err)
+                        }
+                        h.client.SetSidecarAddr(localAddr)
+                        h.logger.Info("backuppc: sidecar started", "local", localAddr)
+                }
                 h.client.SetDialContext(func(ctx context.Context, network, addr string) (stdnet.Conn, error) {
                         // Адаптер: Go net → Xray net.Destination
                         // ParseDestination expects "tcp:host:port" format

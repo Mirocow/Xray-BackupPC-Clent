@@ -129,6 +129,66 @@ type ClientConfig struct {
         // значении включается пиннинг вместо CA-верификации.
         CertFingerprint string `json:"certFingerprint"`
 
+        // ─── V2 Security Features (audit 2026-10-13) ───────────────────
+        // V2 = replay-protected auth + ECH + Noise + QUIC + uTLS.
+        // Все поля опциональны. Когда все пустые/false → V1 (legacy).
+        //
+        // UseV2Auth — V2 аутентификация: X-Backup-Timestamp +
+        // HMAC-SHA256(SHA256(uuid), sid|idx|tsMin). ±2-минутное окно +
+        // sync.Map replay guard (4-мин TTL на сервере).
+        UseV2Auth bool `json:"useV2Auth,omitempty"`
+
+        // EchConfigList — base64-encoded ECHConfigList (RFC 9460).
+        // Когда непусто + EchAutoFetch=false: используется указанный список.
+        // ECH шифрует SNI через HPKE — ТСПУ не видит servername.
+        // Несовместимо с UtFingerprint (uTLS не поддерживает ECH extension).
+        EchConfigList string `json:"echConfigList,omitempty"`
+
+        // EchAutoFetch — авто-fetch ECHConfigList с /api/ech-config сервера
+        // до первого TLS handshake. Когда true: UtFingerprint игнорируется.
+        EchAutoFetch bool `json:"echAutoFetch,omitempty"`
+
+        // NoisePubKey — публичный X25519 ключ сервера (hex, 64 символа) для
+        // Noise IK inner layer (X25519+ChaCha20-Poly1305+BLAKE2s).
+        // Когда непусто: после TLS, клиент делает Noise IK handshake с сервером.
+        NoisePubKey string `json:"noisePubKey,omitempty"`
+
+        // QuicFallback — HTTP/3 over QUIC (UDP) fallback когда TCP HTTP/2
+        // заблокирован ТСПУ. Когда true: клиент пытается QUIC dial перед TCP.
+        QuicFallback bool `json:"quicFallback,omitempty"`
+
+        // UtFingerprint — uTLS JA3 fingerprint: chrome|firefox|safari|ios|random.
+        // Когда непусто: клиент использует uTLS UClient вместо stdlib TLS.
+        // Отключено когда EchAutoFetch=true (ECH несовместим с uTLS).
+        UtFingerprint string `json:"utFingerprint,omitempty"`
+
+        // UtlsTunnelPath — путь к utls-tunnel sidecar binary. Когда непусто:
+        // outbound spawnит utls-tunnel как локальный TCP-relay, весь трафик
+        // идёт через sidecar (который делает uTLS/ECH/Noise/QUIC). Когда пусто:
+        // V2 фичи активны только в этом клиенте (если поддерживается).
+        UtlsTunnelPath string `json:"utlsTunnelPath,omitempty"`
+
+        // AllowedProtocols — какие auth-протоколы разрешены этому пользователю.
+        // Пустой список = оба (V1 и V2). ["v2"] = V2-only (V1 отклоняется сервером).
+        AllowedProtocols []string `json:"allowedProtocols,omitempty"`
+
+        // SidecarAddr — local TCP address of utls-tunnel sidecar
+        // (e.g., "127.0.0.1:54321"). When non-empty, the client uses h2c
+        // (HTTP/2 over cleartext TCP) instead of HTTPS, sending raw HTTP/2
+        // frames to the sidecar. The sidecar wraps them in uTLS+TLS+ECH+
+        // Noise and relays to the real server (ServerAddr).
+        //
+        // When SidecarAddr is set:
+        //   - URL scheme becomes http:// (not https://)
+        //   - http.Transport uses h2c wrapper (golang.org/x/net/http2/h2c)
+        //   - TLSClientConfig is ignored (sidecar does TLS)
+        //   - Host header is still cfg.Host (server sees correct SNI via sidecar)
+        //
+        // The router's outbound.Handler sets this field when it spawns the
+        // utls-tunnel sidecar (cfg.UtlsTunnelPath is non-empty AND any of
+        // UtFingerprint/EchConfigList/NoisePubKey/QuicFallback is set).
+        SidecarAddr string `json:"sidecarAddr,omitempty"`
+
         // DialContext — кастомный диалер для TCP-соединений к серверу.
         // nil → стандартный net.Dialer (текущее поведение: Linux/OpenWrt/desktop).
         // Не-nil → используется в http.Transport.DialContext.

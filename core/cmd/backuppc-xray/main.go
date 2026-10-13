@@ -7,48 +7,48 @@
 //
 // Поддерживаются два стиля аргументов:
 //
-//	стиль xray (роутер asuswrt-merlin-xrayui, drop-in замена бинарника):
-//	    xray -c app.json [-c extra.json …] [-test]   # без -test — запуск
-//	    xray version                                  # «Xray 26.3.27 …»
-//	несколько -c сливаются: объекты — рекурсивно, массивы (outbounds,
-//	inbounds, rules) — конкатенацией, как в multi-json загрузчике Xray;
-//	плюс подкоманды официального CLI: api (rmo/ado/statsquery — hot-swap
-//	и «клиенты онлайн»), tls (ech/ping), uuid, convert, x25519, wg, help;
+//      стиль xray (роутер asuswrt-merlin-xrayui, drop-in замена бинарника):
+//          xray -c app.json [-c extra.json …] [-test]   # без -test — запуск
+//          xray version                                  # «Xray 26.3.27 …»
+//      несколько -c сливаются: объекты — рекурсивно, массивы (outbounds,
+//      inbounds, rules) — конкатенацией, как в multi-json загрузчике Xray;
+//      плюс подкоманды официального CLI: api (rmo/ado/statsquery — hot-swap
+//      и «клиенты онлайн»), tls (ech/ping), uuid, convert, x25519, wg, help;
 //
-//	прежний стиль (совместимость, OneXray/скрипты):
-//	    backuppc-xray run  -config app.json        # запуск (до SIGINT/SIGTERM)
-//	    backuppc-xray test -config app.json        # валидация (TestXray-режим)
+//      прежний стиль (совместимость, OneXray/скрипты):
+//          backuppc-xray run  -config app.json        # запуск (до SIGINT/SIGTERM)
+//          backuppc-xray test -config app.json        # валидация (TestXray-режим)
 //
 // Отладка (инструментарий разработки, см. DEVELOPMENT.md):
 //
-//	BACKUPPC_PPROF=127.0.0.1:6060 backuppc-xray run -config app.json
-//	    — net/http/pprof: профили горутин/аллокаций/CPU туннеля.
+//      BACKUPPC_PPROF=127.0.0.1:6060 backuppc-xray run -config app.json
+//          — net/http/pprof: профили горутин/аллокаций/CPU туннеля.
 package main
 
 import (
-	"encoding/json"
-	"flag"
-	"fmt"
-	"net/http"
-	_ "net/http/pprof"
-	"os"
-	"os/signal"
-	"strings"
-	"syscall"
-	"time"
+        "encoding/json"
+        "flag"
+        "fmt"
+        "net/http"
+        _ "net/http/pprof"
+        "os"
+        "os/signal"
+        "strings"
+        "syscall"
+        "time"
 
-	"backuppc-core/preprocess"
+        "backuppc-core/preprocess"
 
-	"github.com/xtls/xray-core/core"
-	"github.com/xtls/xray-core/main/commands/base"
-	_ "github.com/xtls/xray-core/main/distro/all"
+        "github.com/xtls/xray-core/core"
+        "github.com/xtls/xray-core/main/commands/base"
+        _ "github.com/xtls/xray-core/main/distro/all"
 )
 
 func main() {
-	startDebugHooks()
-	if code := run(os.Args[1:]); code != 0 {
-		os.Exit(code)
-	}
+        startDebugHooks()
+        if code := run(os.Args[1:]); code != 0 {
+                os.Exit(code)
+        }
 }
 
 // startDebugHooks — отладочные возможности ядра: pprof-листенер по
@@ -56,66 +56,93 @@ func main() {
 // задается конфигом ("log": {"loglevel": ...}). В нормальном режиме
 // хук бездействует.
 func startDebugHooks() {
-	if addr := os.Getenv("BACKUPPC_PPROF"); addr != "" {
-		go func() {
-			fmt.Printf("backuppc-xray: pprof на http://%s/debug/pprof/\n", addr)
-			srv := &http.Server{
-				Addr:              addr,
-				ReadHeaderTimeout: 10 * time.Second,
-			}
-			_ = srv.ListenAndServe()
-		}()
-	}
+        if addr := os.Getenv("BACKUPPC_PPROF"); addr != "" {
+                go func() {
+                        fmt.Printf("backuppc-xray: pprof на http://%s/debug/pprof/\n", addr)
+                        srv := &http.Server{
+                                Addr:              addr,
+                                ReadHeaderTimeout: 10 * time.Second,
+                        }
+                        _ = srv.ListenAndServe()
+                }()
+        }
 }
 
 func run(args []string) int {
-	if len(args) == 0 {
-		usage()
-		return 2
-	}
-	switch args[0] {
-	case "run":
-		return withConfigs(args[1:], startAndWait, false)
-	case "test":
-		return withConfigs(args[1:], validateOnly, false)
-	case "version", "-version", "--version":
-		printVersion()
-		return 0
-	case "help", "-help", "--help", "-h":
-		return delegateSubcommand([]string{"help"})
-	}
-	// Стиль xray: xray -c file [-c file2] [-test] — запуск без -test.
-	if strings.HasPrefix(args[0], "-") {
-		return withConfigs(args, startAndWait, true)
-	}
-	// Подкоманды официального CLI: api (rmo/ado/statsquery — XRAYUI
-	// hot-swap и «клиенты онлайн»), tls (ech/ping), uuid, convert, x25519,
-	// wg… — штатный каркас команд Xray.
-	return delegateSubcommand(args)
+        if len(args) == 0 {
+                usage()
+                return 2
+        }
+        switch args[0] {
+        case "run":
+                return withConfigs(args[1:], startAndWait, false)
+        case "test":
+                return withConfigs(args[1:], validateOnly, false)
+        case "version", "-version", "--version":
+                printVersion()
+                return 0
+        case "help", "-help", "--help", "-h":
+                return delegateSubcommand([]string{"help"})
+        }
+        // Стиль xray: xray -c file [-c file2] [-test] — запуск без -test.
+        if strings.HasPrefix(args[0], "-") {
+                return withConfigs(args, startAndWait, true)
+        }
+        // Подкоманды официального CLI: api (rmo/ado/statsquery — XRAYUI
+        // hot-swap и «клиенты онлайн»), tls (ech/ping), uuid, convert, x25519,
+        // wg… — штатный каркас команд Xray.
+        return delegateSubcommand(args)
 }
 
 // delegateSubcommand передаёт подкоманду официальному каркасу Xray.
 // base.Execute завершает процесс штатным кодом возврата (os.Exit),
 // как это делает официальный бинарник.
 func delegateSubcommand(args []string) int {
-	os.Args = append([]string{os.Args[0]}, args...)
-	base.RootCommand.Long = "Xray is a platform for building proxies."
-	base.Execute()
-	return 0 // недостижимо: Execute завершает процесс
+        os.Args = append([]string{os.Args[0]}, args...)
+        base.RootCommand.Long = "Xray is a platform for building proxies."
+        base.Execute()
+        return 0 // недостижимо: Execute завершает процесс
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "использование: xray <run|test|version> -config <xray.json>")
-	fmt.Fprintln(os.Stderr, "          или: xray -c <xray.json> [-c <extra.json>…] [-test]  (стиль xray)")
-	fmt.Fprintln(os.Stderr, "          или: xray <api|tls|uuid|convert|x25519|wg|help> …   (подкоманды Xray)")
+        fmt.Fprintln(os.Stderr, "использование: xray <run|test|version> -config <xray.json>")
+        fmt.Fprintln(os.Stderr, "          или: xray -c <xray.json> [-c <extra.json>…] [-test]  (стиль xray)")
+        fmt.Fprintln(os.Stderr, "          или: xray <api|tls|uuid|convert|x25519|wg|help> …   (подкоманды Xray)")
 }
 
 func printVersion() {
-	lines := core.VersionStatement()
-	for _, line := range lines {
-		fmt.Println(line)
-	}
-	fmt.Println("Custom core: backuppc outbound enabled (xray-vless-backuppc)")
+        lines := core.VersionStatement()
+        for _, line := range lines {
+                fmt.Println(line)
+        }
+        // Custom core line: advertise V2 protocol support + features.
+        //
+        // Format: "Custom core: backuppc outbound v2 enabled (xray-vless-backuppc)"
+        // Followed by feature list (one per line, indented) — readable in
+        // router CLI (`xray version`) and parseable by upstream tooling.
+        //
+        // V2 features compiled in this binary:
+        //   - V2 auth: X-Backup-Timestamp + HMAC-SHA256(SHA256(uuid), sid|idx|tsMin)
+        //     ±2-min time window + replay guard (sync.Map, 4-min TTL on server)
+        //   - ECH: Encrypted Client Hello (RFC 9460) — HPKE-encrypted SNI,
+        //     TSPU cannot see servername. Auto-fetch from /api/ech-config
+        //     or manual ECHConfigList (base64).
+        //   - Noise IK: X25519 + ChaCha20-Poly1305 + BLAKE2s inner layer.
+        //     MITM defense — even if TLS compromised, payload stays encrypted.
+        //   - QUIC fallback: HTTP/3 over UDP when TCP HTTP/2 blocked by TSPU.
+        //   - uTLS fingerprint: Chrome/Firefox/Safari/iOS/Random JA3 mimicry.
+        //     Requires utls-tunnel sidecar binary (utlsTunnelPath field).
+        //   - Adaptive padding: random frame sizes + size-based buckets
+        //     (inherited from V1, applies to V2 too).
+        //   - Cover fallback: byte-identical HTML for all 17 probe types
+        //     (server-side; client benefits indirectly).
+        //   - Encrypted users.json: AES-256-GCM at rest (server-side).
+        fmt.Println("Custom core: backuppc outbound v2 enabled (xray-vless-backuppc)")
+        fmt.Println("  Protocol: v2 (V1 backward-compatible)")
+        fmt.Println("  Features: V2Auth, ECH (RFC 9460), Noise IK, QUIC fallback, uTLS,")
+        fmt.Println("            adaptive padding, cover fallback, encrypted users.json")
+        fmt.Println("  Sidecar:  utls-tunnel (path configurable via utlsTunnelPath field)")
+        fmt.Println("  V1 fallback: when useV2Auth=false OR allowedProtocols=[\"v1\"] → V1 mode")
 }
 
 // withConfigs разбирает аргументы обоих стилей и выполняет действие.
@@ -124,43 +151,43 @@ func printVersion() {
 // флаг -test переключает validateOnly вместо запуска. Иначе — одиночный
 // -config подкоманд run|test.
 func withConfigs(args []string, action func(config []byte) error, xrayStyle bool) int {
-	fs := flag.NewFlagSet("", flag.ContinueOnError)
-	fs.SetOutput(os.Stderr)
-	configPath := fs.String("config", "", "путь к Xray JSON (подкоманды run|test)")
-	configFiles := multiFlag{}
-	fs.Var(&configFiles, "c", "путь Xray JSON; повторяется — конфиги сливаются")
-	testOnly := fs.Bool("test", false, "валидировать конфиг и выйти")
-	if err := fs.Parse(args); err != nil {
-		return 2
-	}
+        fs := flag.NewFlagSet("", flag.ContinueOnError)
+        fs.SetOutput(os.Stderr)
+        configPath := fs.String("config", "", "путь к Xray JSON (подкоманды run|test)")
+        configFiles := multiFlag{}
+        fs.Var(&configFiles, "c", "путь Xray JSON; повторяется — конфиги сливаются")
+        testOnly := fs.Bool("test", false, "валидировать конфиг и выйти")
+        if err := fs.Parse(args); err != nil {
+                return 2
+        }
 
-	files := configFiles
-	if *configPath != "" {
-		files = append(files, *configPath)
-	}
-	if len(files) == 0 {
-		fmt.Fprintln(os.Stderr, "укажите -config или -c")
-		return 2
-	}
+        files := configFiles
+        if *configPath != "" {
+                files = append(files, *configPath)
+        }
+        if len(files) == 0 {
+                fmt.Fprintln(os.Stderr, "укажите -config или -c")
+                return 2
+        }
 
-	config, err := readMerged(files)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "чтение конфига: %v\n", err)
-		return 1
-	}
+        config, err := readMerged(files)
+        if err != nil {
+                fmt.Fprintf(os.Stderr, "чтение конфига: %v\n", err)
+                return 1
+        }
 
-	// -test означает «валидировать и выйти» в любом стиле аргументов:
-	// и в xray-стиле (xrayui: xray -c a [-c b] -test), и в подкоманде
-	// run (failover-скрипты xrayui: xray run -test -config f). Без этого
-	// run -test запускал бы настоящий демон и ждал сигналы вечно.
-	if *testOnly {
-		return execValidate(config)
-	}
-	if err := action(config); err != nil {
-		fmt.Fprintf(os.Stderr, "ошибка: %v\n", err)
-		return 1
-	}
-	return 0
+        // -test означает «валидировать и выйти» в любом стиле аргументов:
+        // и в xray-стиле (xrayui: xray -c a [-c b] -test), и в подкоманде
+        // run (failover-скрипты xrayui: xray run -test -config f). Без этого
+        // run -test запускал бы настоящий демон и ждал сигналы вечно.
+        if *testOnly {
+                return execValidate(config)
+        }
+        if err := action(config); err != nil {
+                fmt.Fprintf(os.Stderr, "ошибка: %v\n", err)
+                return 1
+        }
+        return 0
 }
 
 // multiFlag — повторяемый строковый флаг (-c a -c b).
@@ -168,97 +195,97 @@ type multiFlag []string
 
 func (m *multiFlag) String() string { return strings.Join(*m, ",") }
 func (m *multiFlag) Set(v string) error {
-	*m = append(*m, v)
-	return nil
+        *m = append(*m, v)
+        return nil
 }
 
 // readMerged читает конфиги и сливает их: объекты — рекурсивно, массивы —
 // конкатенацией (как multi-json загрузчик Xray; порядок = порядок -c).
 func readMerged(paths []string) ([]byte, error) {
-	merged := map[string]any{}
-	for _, p := range paths {
-		raw, err := os.ReadFile(p)
-		if err != nil {
-			return nil, err
-		}
-		var doc map[string]any
-		if err := json.Unmarshal(raw, &doc); err != nil {
-			return nil, fmt.Errorf("%s: %w", p, err)
-		}
-		mergeJSON(merged, doc)
-	}
-	return json.Marshal(merged)
+        merged := map[string]any{}
+        for _, p := range paths {
+                raw, err := os.ReadFile(p)
+                if err != nil {
+                        return nil, err
+                }
+                var doc map[string]any
+                if err := json.Unmarshal(raw, &doc); err != nil {
+                        return nil, fmt.Errorf("%s: %w", p, err)
+                }
+                mergeJSON(merged, doc)
+        }
+        return json.Marshal(merged)
 }
 
 func mergeJSON(dst, src map[string]any) {
-	for k, v := range src {
-		if prev, ok := dst[k]; ok {
-			if pm, ok1 := prev.(map[string]any); ok1 {
-				if vm, ok2 := v.(map[string]any); ok2 {
-					mergeJSON(pm, vm)
-					continue
-				}
-			}
-			if pa, ok1 := prev.([]any); ok1 {
-				if va, ok2 := v.([]any); ok2 {
-					dst[k] = append(pa, va...)
-					continue
-				}
-			}
-		}
-		dst[k] = v
-	}
+        for k, v := range src {
+                if prev, ok := dst[k]; ok {
+                        if pm, ok1 := prev.(map[string]any); ok1 {
+                                if vm, ok2 := v.(map[string]any); ok2 {
+                                        mergeJSON(pm, vm)
+                                        continue
+                                }
+                        }
+                        if pa, ok1 := prev.([]any); ok1 {
+                                if va, ok2 := v.([]any); ok2 {
+                                        dst[k] = append(pa, va...)
+                                        continue
+                                }
+                        }
+                }
+                dst[k] = v
+        }
 }
 
 func execValidate(config []byte) int {
-	if err := validateOnly(config); err != nil {
-		fmt.Fprintf(os.Stderr, "ошибка: %v\n", err)
-		return 1
-	}
-	return 0
+        if err := validateOnly(config); err != nil {
+                fmt.Fprintf(os.Stderr, "ошибка: %v\n", err)
+                return 1
+        }
+        return 0
 }
 
 func buildInstance(config []byte) (*core.Instance, error) {
-	patched, replacements, err := preprocess.NormalizeJSON(config)
-	if err != nil {
-		return nil, err
-	}
-	coreConfig, err := core.LoadConfig("json", strings.NewReader(string(patched)))
-	if err != nil {
-		return nil, err
-	}
-	if err := preprocess.Apply(coreConfig, replacements); err != nil {
-		return nil, err
-	}
-	return core.New(coreConfig)
+        patched, replacements, err := preprocess.NormalizeJSON(config)
+        if err != nil {
+                return nil, err
+        }
+        coreConfig, err := core.LoadConfig("json", strings.NewReader(string(patched)))
+        if err != nil {
+                return nil, err
+        }
+        if err := preprocess.Apply(coreConfig, replacements); err != nil {
+                return nil, err
+        }
+        return core.New(coreConfig)
 }
 
 func validateOnly(config []byte) error {
-	instance, err := buildInstance(config)
-	if err != nil {
-		return err
-	}
-	fmt.Println("OK: конфиг валиден (протоколы Xray + backuppc)")
-	return instance.Close()
+        instance, err := buildInstance(config)
+        if err != nil {
+                return err
+        }
+        fmt.Println("OK: конфиг валиден (протоколы Xray + backuppc)")
+        return instance.Close()
 }
 
 func startAndWait(config []byte) error {
-	instance, err := buildInstance(config)
-	if err != nil {
-		return err
-	}
-	if err := instance.Start(); err != nil {
-		_ = instance.Close()
-		return err
-	}
-	defer instance.Close()
+        instance, err := buildInstance(config)
+        if err != nil {
+                return err
+        }
+        if err := instance.Start(); err != nil {
+                _ = instance.Close()
+                return err
+        }
+        defer instance.Close()
 
-	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
-	defer signal.Stop(signals)
+        signals := make(chan os.Signal, 1)
+        signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
+        defer signal.Stop(signals)
 
-	fmt.Println("backuppc-xray: ядро запущено (Ctrl+C для остановки)")
-	<-signals
-	fmt.Println("backuppc-xray: остановка…")
-	return nil
+        fmt.Println("backuppc-xray: ядро запущено (Ctrl+C для остановки)")
+        <-signals
+        fmt.Println("backuppc-xray: остановка…")
+        return nil
 }

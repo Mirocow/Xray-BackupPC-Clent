@@ -40,6 +40,21 @@ type Client struct {
         metrics ClientMetrics
 }
 
+// isV1Only — проверяет, ограничен ли клиент только V1 протоколом.
+// Возвращает true когда AllowedProtocols=["v1"] (только V1 разрешён).
+// Когда AllowedProtocols пуст или содержит "v2" — клиент использует V2.
+func (c *Client) isV1Only() bool {
+        if len(c.cfg.AllowedProtocols) == 0 {
+                return false // пустой = оба разрешены → V2 используется когда UseV2Auth=true
+        }
+        for _, p := range c.cfg.AllowedProtocols {
+                if p == "v1" {
+                        return true
+                }
+        }
+        return false
+}
+
 // NewClient — конструктор outbound-транспорта.
 func NewClient(cfg *ClientConfig, logger *slog.Logger) (*Client, error) {
         if err := cfg.Validate(); err != nil {
@@ -126,22 +141,31 @@ func (c *Client) aggClose(st LogicalStats) {
 // метод backuppc.* (endpointPaths) с метаданными чанка.
 func (c *Client) DialChunk(ctx context.Context, sessionID string, index uint32, firstPayload []byte) (*ChunkHandle, error) {
         path := c.cfg.randomEndpoint()
-        url := "https://" + c.cfg.ServerAddr + path
-
-        tr := &http.Transport{
-                TLSClientConfig:       c.tlsConf.Clone(),
-                ForceAttemptHTTP2:     true,
-                DisableCompression:    true,
-                MaxConnsPerHost:       1,
-                ResponseHeaderTimeout: 20 * time.Second,
-                // освобождение соединений отработавших чанков без резкого
-                // CloseIdleConnections (END_STREAM успевает достичь сервера)
-                IdleConnTimeout: 90 * time.Second,
-                // DialContext — VPN-protect на Android: каждый TCP-коннект к
-                // серверу вызывает VpnService.protect() через Xray's
-                // internet.DialSystem → трафик туннеля НЕ идёт обратно в TUN.
-                // nil → стандартный net.Dialer (Linux/OpenWrt/desktop).
-                DialContext: c.cfg.DialContext,
+        // Sidecar mode (audit 2026-10-13): when SidecarAddr is set, use h2c
+        // (HTTP/2 over cleartext TCP) to talk to the local utls-tunnel sidecar.
+        // The sidecar wraps bytes in uTLS+TLS+ECH+Noise and relays to the real
+        // server. Server sees HTTP/2 inside TLS (single TLS layer, no double-TLS).
+        //
+        // When SidecarAddr is empty: standard HTTPS path (TLS+HTTP/2 directly
+        // to server) — original V1 behavior unchanged.
+        var url string
+        var tr ChunkCloser
+        if c.cfg.SidecarAddr != "" {
+                url = "http://" + c.cfg.SidecarAddr + path
+                // h2c transport: HTTP/2 over plain TCP, prior-knowledge mode
+                // (no ALPN — sidecar local listener is plain TCP).
+                tr = newH2CTransport(c.cfg.DialContext)
+        } else {
+                url = "https://" + c.cfg.ServerAddr + path
+                tr = &http.Transport{
+                        TLSClientConfig:       c.tlsConf.Clone(),
+                        ForceAttemptHTTP2:     true,
+                        DisableCompression:    true,
+                        MaxConnsPerHost:       1,
+                        ResponseHeaderTimeout: 20 * time.Second,
+                        IdleConnTimeout:       90 * time.Second,
+                        DialContext:            c.cfg.DialContext,
+                }
         }
 
         pr, pw := io.Pipe()
@@ -163,7 +187,18 @@ func (c *Client) DialChunk(ctx context.Context, sessionID string, index uint32, 
         req.Header.Set("grpc-accept-encoding", "identity")
         req.Header.Set(hdrSessionID, sessionID)
         req.Header.Set(hdrChunkIndex, strconv.FormatUint(uint64(index), 10))
-        req.Header.Set(hdrChunkAuth, BackupAuthHeader(c.uuid, sessionID, index))
+        // V2 auth (audit 2026-10-13): when cfg.UseV2Auth is true, send
+        // X-Backup-Timestamp + V2 HMAC (includes tsMin in message).
+        // Server validates ±2-min window + replay guard sync.Map.
+        // When V2 disabled (UseV2Auth=false) OR allowedProtocols=["v1"]:
+        // send V1 HMAC (no timestamp, no replay protection).
+        if c.cfg.UseV2Auth && !c.isV1Only() {
+                tsMin := currentTsMin()
+                req.Header.Set(HdrTimestamp, formatTsMinHeader(tsMin))
+                req.Header.Set(hdrChunkAuth, BackupAuthHeaderV2(c.cfg.UUID, sessionID, index, tsMin))
+        } else {
+                req.Header.Set(hdrChunkAuth, BackupAuthHeader(c.uuid, sessionID, index))
+        }
 
         stream := &ChunkStream{pw: pw, mw: newGrpcMsgWriter(pw)}
         emu := NewEmulatedConn(stream, &c.cfg.TransportConfig)
@@ -367,5 +402,18 @@ func socksReply(conn net.Conn, code byte) error {
 //
 // На Linux/desktop: diater=nil → стандартный net.Dialer (backward compat).
 func (c *Client) SetDialContext(d func(ctx context.Context, network, addr string) (net.Conn, error)) {
-	c.cfg.DialContext = d
+        c.cfg.DialContext = d
+}
+
+// SetSidecarAddr — set the local utls-tunnel sidecar address (e.g.
+// "127.0.0.1:54321"). When non-empty, DialChunk uses h2c (HTTP/2 over
+// cleartext TCP) to talk to the sidecar instead of HTTPS to the server.
+//
+// The sidecar wraps bytes in uTLS+TLS+ECH+Noise and relays to the real
+// server (cfg.ServerAddr). Server sees HTTP/2 inside TLS (single layer).
+//
+// Called by router's outbound.Handler after spawning utls-tunnel.
+// Pass empty string to disable sidecar mode (revert to direct HTTPS).
+func (c *Client) SetSidecarAddr(addr string) {
+        c.cfg.SidecarAddr = addr
 }

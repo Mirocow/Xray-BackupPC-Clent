@@ -3,6 +3,12 @@
 // Конфиг передается в core.OutboundHandlerConfig.ProxySettings
 // (serial.TypedMessage) и материализуется registered-креатором из
 // пакета core/outbound. Полное имя сообщения: backuppc.Config.
+//
+// V2 fields (16-23) добавлены в 2026-10 (commit protocol-v2 на branch
+// protocol-v2). V2 = V1 baseline + replay-protected auth + ECH + Noise
+// inner layer + QUIC fallback + uTLS fingerprint mimicry. Все V2 поля
+// опциональны — V1-клиенты (бинарники собранные до добавления V2) видят
+// только V1-поля (1-15) и игнорируют V2 (proto3 unknown-field rule).
 syntax = "proto3";
 
 package backuppc;
@@ -12,6 +18,7 @@ option go_package = "backuppc-core/backuppcpb";
 // Config — настройки одного backuppc-outbound (соответствует
 // backuppc.ClientConfig транспортной библиотеки).
 message Config {
+  // ─── V1 baseline (поля 1-15) ─────────────────────────────────────
   // address — адрес сервера xray-backuppc (хост[:порт], домен или IP).
   string address = 1;
   // port — TLS-порт сервера (обычно 443).
@@ -35,10 +42,62 @@ message Config {
   int64 session_duration_ms = 11;
   // session_bytes — лимит чанка по объему (байты).
   int64 session_bytes = 12;
-  // ping_base_ms — базовый интервал keep-alive心跳 (мс).
+  // ping_base_ms — базовый интервал keep-alive сердцебиения (мс).
   int64 ping_base_ms = 13;
   // ping_jitter_ms — разброс jitter keep-alive (мс).
   int64 ping_jitter_ms = 14;
   // balancing_interval_ms — интервал балансировщика rx/tx (мс).
   int64 balancing_interval_ms = 15;
+
+  // ─── V2 Security Features (поля 16-23, опциональны) ─────────────
+  // V2 = replay-protected auth + ECH + Noise + QUIC + uTLS.
+  // Когда ВСЕ V2 поля пустые/false → клиент работает как V1 (legacy).
+  // Любое V2-поле в non-default значении активирует V2 режим.
+
+  // use_v2_auth — V2 аутентификация: X-Backup-Timestamp +
+  // HMAC-SHA256(SHA256(uuid), sid|idx|tsMin). ±2-минутное окно +
+  // replay guard (sync.Map, 4-мин TTL на сервере). V2 auth несовместим
+  // с V1-сервером — fallback на V1 через allowed_protocols.
+  bool use_v2_auth = 16;
+
+  // ech_config_list — base64-encoded ECHConfigList (RFC 9460). Когда
+  // непусто + ech_auto_fetch=false: клиент использует указанный список.
+  // Когда ech_auto_fetch=true: список fetched с /api/ech-config сервера
+  // до первого TLS handshake.
+  string ech_config_list = 17;
+
+  // ech_auto_fetch — авто-fetch ECHConfigList с сервера. ECH и uTLS
+  // взаимоисключающие (uTLS не поддерживает ECH extension). Когда
+  // ech_auto_fetch=true → ut_fingerprint игнорируется.
+  bool ech_auto_fetch = 18;
+
+  // noise_pub_key — публичный X25519 ключ сервера (hex, 64 символа) для
+  // Noise IK inner layer (X25519+ChaCha20-Poly1305+BLAKE2s). Когда
+  // непусто: после TLS handshake, клиент делает Noise IK handshake с
+  // сервером; все последующие bytes идут через Noise AEAD. Защита от
+  // MITM и post-quantum passive attack (X25519 + BLAKE2s).
+  string noise_pub_key = 19;
+
+  // quic_fallback — HTTP/3 over QUIC (UDP) fallback когда TCP HTTP/2
+  // заблокирован ТСПУ. Когда true: клиент пытается QUIC dial перед TCP.
+  // utls не поддерживает QUIC — QUIC mode использует native crypto/tls.
+  bool quic_fallback = 20;
+
+  // ut_fingerprint — uTLS JA3 fingerprint: chrome|firefox|safari|ios|random.
+  // Когда непусто: клиент использует uTLS UClient вместо stdlib TLS.
+  // uTLS имитирует ClientHello браузера — защита от JA3-based DPI.
+  // Отключено когда ech_auto_fetch=true (ECH несовместим с uTLS).
+  string ut_fingerprint = 21;
+
+  // utls_tunnel_path — путь к utls-tunnel sidecar binary. Когда непусто:
+  // outbound spawnит utls-tunnel как локальный TCP-relay, весь трафик
+  // идёт через sidecar (который делает uTLS/ECH/Noise/QUIC). Когда пусто:
+  // V2 фичи активны только в транспортной библиотеке backuppc.
+  string utls_tunnel_path = 22;
+
+  // allowed_protocols — какие auth-протоколы разрешены этому пользователю.
+  // Пустой список = оба (V1 и V2). ["v2"] = V2-only (V1 отклоняется сервером).
+  // ["v1"] = V1-only (V2 auth заголовки не отправляются).
+  // Сервер использует это для per-user policy enforcement.
+  repeated string allowed_protocols = 23;
 }
