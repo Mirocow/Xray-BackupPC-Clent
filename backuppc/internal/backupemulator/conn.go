@@ -399,6 +399,10 @@ const (
 	grpcHdrLen   = 5 // 1B флаг сжатия + 4B длина сообщения (BE)
 	grpcMsgMax   = frameMaxTotal
 	grpcMaxFrame = 1 << 20 // верхняя страховочная граница (не достигается)
+
+	// V3 raw wire format (audit 2026-10-16, v3.0 perf):
+	// v3MagicByte — first byte of V3 raw stream. 0x42 = 'B' (bulk).
+	v3MagicByte = 0x42
 )
 
 // grpcMsgReader — чтение gRPC-сообщений из тела HTTP/2 (запрос/ответ).
@@ -409,6 +413,8 @@ type grpcMsgReader struct {
 	hdr     [grpcHdrLen]byte
 	pending []byte // остаток текущего сообщения
 	pendBuf []byte // пул-буфер под остаток
+	rawMode bool   // V3 raw mode (no gRPC prefix)
+	rHdr    [frameHeaderSize]byte
 }
 
 // Read выдает байты текущего gRPC-сообщения, при исчерпании читает следующее.
@@ -446,9 +452,10 @@ func (m *grpcMsgReader) Read(p []byte) (int, error) {
 
 // grpcMsgWriter — запись кадров ТЗ как gRPC-сообщений (префикс + кадр, flush).
 type grpcMsgWriter struct {
-	w     io.Writer
-	flush func()
-	hdr   [grpcHdrLen]byte
+	w       io.Writer
+	flush   func()
+	hdr     [grpcHdrLen]byte
+	rawMode bool // V3 raw mode (no gRPC prefix)
 }
 
 // newGrpcMsgWriter строит gRPC-писатель поверх тела запроса/ответа.
@@ -464,6 +471,13 @@ func newGrpcMsgWriter(w io.Writer) *grpcMsgWriter {
 	return g
 }
 
+// newGrpcMsgWriterWithMode — V3-aware constructor (audit 2026-10-16, v3.0).
+func newGrpcMsgWriterWithMode(w io.Writer, rawMode bool) *grpcMsgWriter {
+	g := newGrpcMsgWriter(w)
+	g.rawMode = rawMode
+	return g
+}
+
 // Write оборачивает кадр ТЗ в gRPC-сообщение и отправляет его целиком.
 func (g *grpcMsgWriter) Write(p []byte) (int, error) {
 	if len(p) == 0 {
@@ -471,6 +485,13 @@ func (g *grpcMsgWriter) Write(p []byte) (int, error) {
 	}
 	if len(p) > grpcMsgMax {
 		return 0, fmt.Errorf("grpc: кадр %d байт превышает лимит сообщения %d", len(p), grpcMsgMax)
+	}
+	if g.rawMode {
+		if _, err := g.w.Write(p); err != nil {
+			return 0, err
+		}
+		g.flush()
+		return len(p), nil
 	}
 	g.hdr[0] = 0
 	binary.BigEndian.PutUint32(g.hdr[1:grpcHdrLen], uint32(len(p)))

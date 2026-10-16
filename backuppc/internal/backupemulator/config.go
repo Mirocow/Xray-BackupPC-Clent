@@ -94,6 +94,11 @@ type TransportConfig struct {
         // --- Расширения прототипа (не входили в базовое ТЗ) ---
 
         MaxWriteChunk int `json:"maxWriteChunk"` // Максимум payload в одном кадре, дефолт: 65535
+        // RawHTTP2Bulk — V3 wire format: bypass gRPC prefix for bulk-transfer
+        // (audit 2026-10-16, v3.0 perf). When true: client writes V3 magic byte
+        // (0x42), server auto-detects and switches to raw frame mode.
+        // Throughput impact: +10-15% on bulk transfer.
+        RawHTTP2Bulk bool `json:"rawHttp2Bulk,omitempty"`
         // FakeUploadChunk — объем фейкового аплоада за одно срабатывание
         // балансировщика, дефолт: 512 KiB (ТЗ 4.2: 1024*512).
         FakeUploadChunk int `json:"fakeUploadChunk"`

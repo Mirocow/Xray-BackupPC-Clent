@@ -1,0 +1,6 @@
+# asdf tool-versions for core/ — inherits from parent .tool-versions
+# but asdf on macOS doesn't always traverse up, so we pin here.
+#
+# golang 1.27.x — required by core/go.mod (go 1.26.0)
+# Mirrors parent .tool-versions so `cd core && go build` works.
+golang 1.27.1

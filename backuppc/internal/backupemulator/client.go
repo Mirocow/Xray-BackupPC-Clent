@@ -233,7 +233,13 @@ func (c *Client) DialChunk(ctx context.Context, sessionID string, index uint32, 
                 req.Header.Set(hdrChunkAuth, BackupAuthHeader(c.uuid, sessionID, index))
         }
 
-        stream := &ChunkStream{pw: pw, mw: newGrpcMsgWriter(pw)}
+        var mw *grpcMsgWriter
+        if c.cfg.TransportConfig.RawHTTP2Bulk {
+                mw = newGrpcMsgWriterWithMode(pw, true)
+        } else {
+                mw = newGrpcMsgWriter(pw)
+        }
+        stream := &ChunkStream{pw: pw, mw: mw}
         emu := NewEmulatedConn(stream, &c.cfg.TransportConfig)
 
         // RoundTrip запускается параллельно записи VLESS-заголовка: тело запроса
@@ -248,6 +254,19 @@ func (c *Client) DialChunk(ctx context.Context, sessionID string, index uint32, 
                 resp, err := tr.RoundTrip(req)
                 rtCh <- rtResult{resp, err}
         }()
+
+        // V3 magic byte: write AFTER RoundTrip goroutine launch.
+        if c.cfg.TransportConfig.RawHTTP2Bulk {
+                if _, err := pw.Write([]byte{v3MagicByte}); err != nil {
+                        pw.CloseWithError(err)
+                        tr.CloseIdleConnections()
+                        res := <-rtCh
+                        if res.resp != nil {
+                                res.resp.Body.Close()
+                        }
+                        return nil, fmt.Errorf("v3 magic write: %w", err)
+                }
+        }
 
         if len(firstPayload) > 0 {
                 if _, werr := emu.Write(firstPayload); werr != nil {
@@ -281,7 +300,7 @@ func (c *Client) DialChunk(ctx context.Context, sessionID string, index uint32, 
                 return nil, fmt.Errorf("chunk dial: ответ не gRPC (content-type %q)", ct)
         }
         stream.body = resp.Body
-        stream.mr = &grpcMsgReader{r: resp.Body}
+        stream.mr = &grpcMsgReader{r: resp.Body, rawMode: false}
 
         return &ChunkHandle{
                 Stream:    stream,
