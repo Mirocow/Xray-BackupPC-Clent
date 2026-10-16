@@ -76,7 +76,8 @@ DEPLOY := deploy
 	build-windows build-linux verify-release release-router \
 	debug-download debug-upload layer-bench debug-tools \
 	test-ref test-ref-race vet-ref fmt-ref fmt-ref-check lint-ref \
-	build-core deb ipk e2e-tun e2e-ref e2e-stack loadtest \
+	build-core build-utls-tunnel install-utls-tunnel \
+	deb ipk e2e-tun e2e-ref e2e-stack loadtest \
 	docker-build-core docker-release-router docker-test-ref \
 	docker-test-dart docker-e2e-dart \
 	docker-build docker-up docker-down docker-stack \
@@ -205,6 +206,28 @@ build-core: $(CORE_BIN) ## Безголовое ядро Xray с backuppc-outbou
 
 $(CORE_BIN):
 	cd core && $(GO) build -trimpath -ldflags="-s -w" -o bin/backuppc-xray ./cmd/backuppc-xray
+
+# ─── utls-tunnel: TCP relay с uTLS Chrome fingerprint ──────────────────
+# Sidecar для Dart-клиента: маскирует JA3/JA4 под Chrome (вместо BoringSSL
+# из Dart SDK). Поддерживает ECH (RFC 9460), Noise X25519, QUIC fallback.
+# Бинарь ставится в /usr/local/bin/utls-tunnel для system-wide доступа.
+UTLS_BIN := core/bin/utls-tunnel
+UTLS_INSTALL_PATH ?= /usr/local/bin/utls-tunnel
+
+build-utls-tunnel: $(UTLS_BIN) ## Сборка utls-tunnel sidecar -> core/bin/utls-tunnel
+
+$(UTLS_BIN):
+	cd core && $(GO) build -trimpath -ldflags="-s -w" -o bin/utls-tunnel ./cmd/utls-tunnel
+
+install-utls-tunnel: build-utls-tunnel ## Установка utls-tunnel в /usr/local/bin (требует sudo)
+	@echo "==> Установка utls-tunnel в $(UTLS_INSTALL_PATH)"
+	@install -m 755 $(UTLS_BIN) $(UTLS_INSTALL_PATH) 2>/dev/null || \
+	  { echo "Нет прав на запись в $(UTLS_INSTALL_PATH) — попробуйте sudo:"; \
+	    sudo install -m 755 $(UTLS_BIN) $(UTLS_INSTALL_PATH); }
+	@echo "==> Проверка:"
+	@utls-tunnel --help 2>&1 | head -3
+	@echo "==> Готово: $(UTLS_INSTALL_PATH)"
+	@ls -lh $(UTLS_INSTALL_PATH)
 
 deb: ## Пакет безголового Linux-клиента -> dist/backuppc-client_*.deb
 	GO=$(GO) deploy/linux/build-deb.sh
