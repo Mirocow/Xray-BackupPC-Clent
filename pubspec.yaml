@@ -1,7 +1,7 @@
 name: onexray
 description: "Cross Platform Xray-core Client"
 publish_to: "none"
-version: 0.2.0+2
+version: 0.3.0+1
 
 environment:
   # The lower bound also sets the Dart language version: the app uses
