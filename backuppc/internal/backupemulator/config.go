@@ -99,6 +99,9 @@ type TransportConfig struct {
         // (0x42), server auto-detects and switches to raw frame mode.
         // Throughput impact: +10-15% on bulk transfer.
         RawHTTP2Bulk bool `json:"rawHttp2Bulk,omitempty"`
+        // AdaptivePadding (audit 2026-10-16, TSPU defense): random frame size +
+        // size-based padding buckets. Breaks TLS-in-TLS correlation on small frames.
+        AdaptivePadding bool `json:"adaptivePadding,omitempty"`
         // FakeUploadChunk — объем фейкового аплоада за одно срабатывание
         // балансировщика, дефолт: 512 KiB (ТЗ 4.2: 1024*512).
         FakeUploadChunk int `json:"fakeUploadChunk"`

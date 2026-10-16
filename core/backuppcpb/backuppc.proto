@@ -120,4 +120,21 @@ message Config {
   // Когда use_v2_auth=false (V1 mode):
   //   - user_token игнорируется, используется uuid (proto field 3) как раньше.
   string user_token = 24;
+
+  // ─── V3 + TSPU defense (поля 25-26, опциональны, audit 2026-10-16) ───
+  // V3 = raw wire format (bypass gRPC prefix) + adaptive padding.
+  // Когда ВСЕ V3 поля false → клиент работает как V2 (legacy).
+  // Любое V3-поле в non-default значении активирует V3 режим.
+
+  // adaptive_padding — random frame size + size-based padding buckets.
+  // Breaks TLS-in-TLS correlation on small frames (TSPU defense).
+  // <2KB frames → padding 32-4096B, 2-16KB → 32-1400B, >16KB → 0-256B.
+  bool adaptive_padding = 25;
+
+  // raw_http2_bulk — V3 raw wire format: bypass 5B gRPC prefix per frame.
+  // Когда true: клиент шлёт V3 magic byte (0x42) как первый байт request body,
+  // сервер auto-detects и переключается в raw mode (no gRPC prefix).
+  // Throughput impact: +10-15% на bulk transfer (loopback measured).
+  // Backward compatible: V2 клиенты (raw_http2_bulk=false) продолжают работать.
+  bool raw_http2_bulk = 26;
 }

@@ -45,6 +45,15 @@ type settingsJSON struct {
         AllowedProtocols []string `json:"allowedProtocols,omitempty"`
         // V2 user token (audit 2026-10-14) — replaces UUID in V2 protocol.
         UserToken string `json:"userToken,omitempty"`
+
+        // ─── V3 + TSPU defense (audit 2026-10-16) ───────────────────────
+        // AdaptivePadding — random frame size + size-based padding buckets.
+        // Breaks TLS-in-TLS correlation on small frames (TSPU defense).
+        AdaptivePadding bool `json:"adaptivePadding,omitempty"`
+        // RawHTTP2Bulk — V3 raw wire format: bypass 5B gRPC prefix per frame.
+        // When true: client writes V3 magic byte (0x42), server auto-detects.
+        // Throughput impact: +10-15% on bulk transfer (loopback measured).
+        RawHTTP2Bulk bool `json:"rawHttp2Bulk,omitempty"`
 }
 
 // ParseSettingsJSON разбирает JSON settings backuppc-outbound и собирает
@@ -104,6 +113,10 @@ func ParseSettingsJSON(raw []byte) (*backuppcpb.Config, error) {
         cfg.AllowedProtocols = s.AllowedProtocols
         // V2 user token (audit 2026-10-14): server-issued, replaces UUID in V2.
         cfg.UserToken = strings.ToLower(s.UserToken)
+
+        // V3 + TSPU defense (audit 2026-10-16).
+        cfg.AdaptivePadding = s.AdaptivePadding
+        cfg.RawHttp2Bulk = s.RawHTTP2Bulk
         return cfg, nil
 }
 
@@ -169,6 +182,10 @@ func ClientConfigFromProto(p *backuppcpb.Config) *backuppc.ClientConfig {
         c.AllowedProtocols = p.GetAllowedProtocols()
         // V2 user token (audit 2026-10-14): replaces UUID in V2 protocol.
         c.UserToken = strings.ToLower(p.GetUserToken())
+
+        // V3 + TSPU defense (audit 2026-10-16).
+        t.AdaptivePadding = p.GetAdaptivePadding()
+        t.RawHTTP2Bulk = p.GetRawHttp2Bulk()
         return c
 }
 
@@ -217,6 +234,10 @@ func SettingsJSONFromProto(p *backuppcpb.Config) ([]byte, error) {
         s.AllowedProtocols = p.GetAllowedProtocols()
         // V2 user token (audit 2026-10-14): replaces UUID in V2 protocol.
         s.UserToken = p.GetUserToken()
+
+        // V3 + TSPU defense (audit 2026-10-16).
+        s.AdaptivePadding = p.GetAdaptivePadding()
+        s.RawHTTP2Bulk = p.GetRawHttp2Bulk()
 
         return json.Marshal(s)
 }
