@@ -76,6 +76,8 @@ func usage() string {
     -mtu N           MTU TUN (1500)
     -dns IP[,IP]     DNS через туннель, по TCP (1.1.1.1,8.8.8.8)
     -loglevel LEVEL  debug|info|warning|error|none (warning)
+    -ipv6            IPv6 через туннель (у сервера есть IPv6); без флага
+                     TUN-режим только IPv4, IPv6-соединения отклоняются
 `
 	if serverModeSupported {
 		s += `    -server-mode     TUN на сервере: входящие соединения и ответы на них —
@@ -96,6 +98,7 @@ func cmdImport(args []string, stdin io.Reader, stdout io.Writer) error {
 	dns := fs.String("dns", "1.1.1.1,8.8.8.8", "")
 	logLevel := fs.String("loglevel", "warning", "")
 	serverMode := fs.Bool("server-mode", false, "")
+	ipv6 := fs.Bool("ipv6", false, "")
 	fs.SetOutput(io.Discard)
 	if err := fs.Parse(args); err != nil {
 		return fmt.Errorf("import: %w\n%s", err, usage())
@@ -122,7 +125,7 @@ func cmdImport(args []string, stdin io.Reader, stdout io.Writer) error {
 	}
 	p := Profile{
 		SocksListen: *socks, TunName: *tun, TunMTU: *mtu,
-		DNS: splitList(*dns), LogLevel: *logLevel, ServerMode: *serverMode,
+		DNS: splitList(*dns), LogLevel: *logLevel, ServerMode: *serverMode, IPv6: *ipv6,
 	}
 	if err := p.validate(); err != nil {
 		return err

@@ -90,10 +90,13 @@ func TestTunConfig(t *testing.T) {
 	if srv := dns["servers"].([]any); len(srv) != 1 || srv[0] != "tcp://9.9.9.9" {
 		t.Errorf("dns servers: %v", srv)
 	}
+	if dns["queryStrategy"] != "UseIPv4" {
+		t.Errorf("dns without -ipv6 must be IPv4-only: %v", dns)
+	}
 	// DNS-модуль ходит через прокси; UDP:53 из TUN — в dns-outbound;
-	// прочий UDP блокируется (протокол переносит только TCP).
+	// IPv6 (без -ipv6) и прочий UDP блокируются (протокол переносит только TCP).
 	rules := cfg["routing"].(map[string]any)["rules"].([]any)
-	want := []string{"proxy", "dns-out", "direct", "block"}
+	want := []string{"proxy", "dns-out", "direct", "block", "block"}
 	if len(rules) != len(want) {
 		t.Fatalf("rules: %v", rules)
 	}
@@ -209,5 +212,18 @@ func TestServerMode(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "TUN:      сервер") {
 		t.Errorf("show:\n%s", out.String())
+	}
+}
+
+func TestTunConfigIPv6(t *testing.T) {
+	dir := importTo(t, "-ipv6", testLink)
+	cfg := readJSON(t, filepath.Join(dir, "tun.json"))
+	if qs, ok := cfg["dns"].(map[string]any)["queryStrategy"]; ok {
+		t.Errorf("-ipv6: queryStrategy %v", qs)
+	}
+	for _, r := range cfg["routing"].(map[string]any)["rules"].([]any) {
+		if ips, ok := r.(map[string]any)["ip"].([]any); ok && len(ips) == 1 && ips[0] == "::/0" {
+			t.Errorf("-ipv6: IPv6 still blocked: %v", r)
+		}
 	}
 }

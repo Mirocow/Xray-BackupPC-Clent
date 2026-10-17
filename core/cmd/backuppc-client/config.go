@@ -18,6 +18,11 @@ type Profile struct {
 	// ServerMode — режим для серверов (TUN): входящие соединения и ответы
 	// на них идут мимо туннеля (tun-routes), прочий UDP — напрямую.
 	ServerMode bool
+	// IPv6 — IPv6 через туннель (у сервера есть IPv6-выход). Без него DNS
+	// отдаёт только A-записи, а IPv6-соединения из TUN отклоняются: иначе
+	// система с IPv6-маршрутом в туннель предпочитала бы v6, а сервер без
+	// IPv6 рвал бы такие соединения.
+	IPv6 bool
 }
 
 // Теги, на которые опираются правила маршрутизации.
@@ -129,22 +134,26 @@ func TunConfig(o *link.Outbound, p Profile) map[string]any {
 	outbounds := append(baseOutbounds(o),
 		map[string]any{"tag": tagDNSOut, "protocol": "dns",
 			"settings": map[string]any{"nonIPQuery": "reject"}})
+	dns := map[string]any{"tag": tagDNSIn, "servers": servers}
+	rules := []any{
+		map[string]any{"inboundTag": []any{tagDNSIn}, "outboundTag": tagProxy},
+		map[string]any{"inboundTag": []any{tagTun}, "network": "udp", "port": 53, "outboundTag": tagDNSOut},
+		map[string]any{"ip": loopbackCIDRs, "outboundTag": tagDirect},
+	}
+	if !p.IPv6 {
+		dns["queryStrategy"] = "UseIPv4"
+		rules = append(rules, map[string]any{"ip": []any{"::/0"}, "outboundTag": tagBlock})
+	}
+	rules = append(rules, map[string]any{"network": "udp", "outboundTag": udpTag})
 	return map[string]any{
 		"log": logSection(p),
-		"dns": map[string]any{"tag": tagDNSIn, "servers": servers},
+		"dns": dns,
 		"inbounds": []any{map[string]any{
 			"tag": tagTun, "protocol": "tun", "port": 0,
 			"settings": map[string]any{"name": p.TunName, "MTU": p.TunMTU},
 		}},
 		"outbounds": outbounds,
-		"routing": map[string]any{
-			"rules": []any{
-				map[string]any{"inboundTag": []any{tagDNSIn}, "outboundTag": tagProxy},
-				map[string]any{"inboundTag": []any{tagTun}, "network": "udp", "port": 53, "outboundTag": tagDNSOut},
-				map[string]any{"ip": loopbackCIDRs, "outboundTag": tagDirect},
-				map[string]any{"network": "udp", "outboundTag": udpTag},
-			},
-		},
+		"routing":   map[string]any{"rules": rules},
 	}
 }
 

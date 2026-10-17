@@ -184,13 +184,46 @@ func tunUp(p *tunPlan, _ *tunState, logger *log.Logger) error {
 			}
 		}
 	}
+	// DNS адаптера мало: Windows продолжает спрашивать DNS других адаптеров
+	// (роутер, в т.ч. с FakeIP) — правило NRPT «все имена → DNS туннеля»
+	if err := setNRPT(p.DNS); err != nil {
+		return fmt.Errorf("правило NRPT для DNS: %w", err)
+	}
 	_, _ = sh("ipconfig", "/flushdns")
 	return nil
 }
 
+// nrptComment помечает своё правило NRPT (хранится в реестре и переживает
+// перезагрузку — снимается в tunDown, после сбоя — при следующем запуске).
+const nrptComment = "backuppc-client"
+
+func powershell(script string) error {
+	_, err := sh("powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script)
+	return err
+}
+
+func removeNRPT() error {
+	return powershell(`Get-DnsClientNrptRule | Where-Object { $_.Comment -eq '` + nrptComment +
+		`' } | ForEach-Object { Remove-DnsClientNrptRule -Name $_.Name -Force }`)
+}
+
+func setNRPT(servers []string) error {
+	_ = removeNRPT()
+	quoted := make([]string, len(servers))
+	for i, s := range servers {
+		quoted[i] = "'" + s + "'"
+	}
+	return powershell(`Add-DnsClientNrptRule -Namespace '.' -NameServers @(` +
+		strings.Join(quoted, ",") + `) -Comment '` + nrptComment + `'`)
+}
+
 // tunDown — маршруты адаптера исчезают вместе с ним; удаляем явно на случай,
 // если адаптер пережил процесс (ядро открывает существующий по имени).
-func tunDown(st *tunState, _ *log.Logger) {
+func tunDown(st *tunState, logger *log.Logger) {
+	if err := removeNRPT(); err != nil {
+		logger.Printf("правило NRPT не снято: %v", err)
+	}
+	_, _ = sh("ipconfig", "/flushdns")
 	ifc, err := net.InterfaceByName(st.Tun)
 	if err != nil {
 		return
@@ -202,7 +235,6 @@ func tunDown(st *tunState, _ *log.Logger) {
 	for _, r := range splitRoutes6 {
 		_ = netsh("interface", "ipv6", "delete", "route", "prefix="+r, "interface="+idx, "store=active")
 	}
-	_, _ = sh("ipconfig", "/flushdns")
 }
 
 // lockTun — один TUN-запуск на каталог конфигов: второй снял бы маршруты

@@ -200,7 +200,7 @@ func runTun(dir string, raw []byte, stop <-chan struct{}, logger *log.Logger) er
 		return err
 	}
 
-	inst, err := startCore(pinned)
+	inst, err := startTunCore(pinned, stop, logger)
 	if err != nil {
 		return err
 	}
@@ -254,6 +254,25 @@ func runTun(dir string, raw []byte, stop <-chan struct{}, logger *log.Logger) er
 			def, u = nd, nu
 			st.Uplink = &u
 			_ = st.save()
+		}
+	}
+}
+
+// startTunCore — ядро с TUN-интерфейсом. Сразу после остановки прошлого
+// запуска ОС может ещё удалять старый интерфейс (Windows: «файл уже
+// существует»), поэтому старт повторяется до ~30 с.
+func startTunCore(config []byte, stop <-chan struct{}, logger *log.Logger) (*core.Instance, error) {
+	const attempts = 10
+	for i := 1; ; i++ {
+		inst, err := startCore(config)
+		if err == nil || i == attempts {
+			return inst, err
+		}
+		logger.Printf("TUN-интерфейс не создан (%v), повтор %d/%d через 3 с", err, i, attempts-1)
+		select {
+		case <-stop:
+			return nil, err
+		case <-time.After(3 * time.Second):
 		}
 	}
 }
