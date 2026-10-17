@@ -1,16 +1,18 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:onexray/core/ffi/windows/mode.dart';
+import 'package:onexray/service/connect/backuppc/outbound.dart';
 import 'package:onexray/service/connect/compiler.dart';
 import 'package:onexray/service/connect/routing/region_catalog.dart';
 import 'package:onexray/service/connect/settings.dart';
 
-// Android: узлы backuppc — нативный outbound ядра (settings.nativeBackuppcOutbound,
-// по умолчанию включён) вместо socks на Dart-туннель.
+// Android и Windows (EXE): узлы backuppc — нативный outbound ядра
+// (settings.nativeBackuppcOutbound, по умолчанию включён) вместо socks на
+// Dart-туннель.
 
 final _catalog = RegionCatalog.fromJson(
-  {
-    'geosite': <String, List<String>>{},
-    'geoip': <String, List<String>>{},
-  },
+  {'geosite': <String, List<String>>{}, 'geoip': <String, List<String>>{}},
   geositeCodes: const [],
   geoipCodes: const [],
 );
@@ -79,6 +81,114 @@ void main() {
     final plan = _compile(_allVpn(native: false));
     expect(_outbound(plan, 'app-entry-0')['protocol'], 'socks');
     expect(plan.backuppcTunnels.single.port, 20001);
+  });
+
+  CompiledConnection compileWindows(WindowsMode mode, {bool native = true}) =>
+      ConnectionCompiler.compile(
+        settings: _allVpn(native: native),
+        entries: [_backuppc(1)],
+        regions: _catalog,
+        options: RuntimeOptions(
+          platform: ConnectionPlatform.windows,
+          windowsMode: mode,
+          sessionDirectory: '/unused-session',
+          metricsPort: 18186,
+          socksPort: 18187,
+          interfaceName: 'Ethernet',
+        ),
+        backuppcPorts: const [20001],
+      );
+
+  test('Windows EXE, native on: backuppc stays a core outbound', () {
+    final plan = compileWindows(WindowsMode.exe);
+    final entry = _outbound(plan, 'app-entry-0');
+    expect(entry['protocol'], 'backuppc');
+    expect(entry['settings'], _backuppcOutbound()['settings']);
+    expect(plan.backuppcTunnels, isEmpty);
+    expect(_proxyDns(plan), 'tcp://8.8.8.8');
+  });
+
+  test('Windows EXE, native off: socks to the local Dart tunnel', () {
+    final plan = compileWindows(WindowsMode.exe, native: false);
+    expect(_outbound(plan, 'app-entry-0')['protocol'], 'socks');
+    expect(plan.backuppcTunnels.single.port, 20001);
+  });
+
+  test('Windows MSIX keeps the Dart tunnel even with the flag on', () {
+    final plan = compileWindows(WindowsMode.msix);
+    expect(_outbound(plan, 'app-entry-0')['protocol'], 'socks');
+    expect(plan.backuppcTunnels, hasLength(1));
+  });
+
+  test('native availability by platform', () {
+    expect(
+      nativeBackuppcAvailable(ConnectionPlatform.android, WindowsMode.exe),
+      isTrue,
+    );
+    expect(
+      nativeBackuppcAvailable(ConnectionPlatform.windows, WindowsMode.exe),
+      isTrue,
+    );
+    expect(
+      nativeBackuppcAvailable(ConnectionPlatform.windows, WindowsMode.msix),
+      isFalse,
+    );
+    for (final p in [
+      ConnectionPlatform.ios,
+      ConnectionPlatform.macos,
+      ConnectionPlatform.linux,
+    ]) {
+      expect(
+        nativeBackuppcAvailable(p, WindowsMode.exe),
+        isFalse,
+        reason: '$p',
+      );
+    }
+  });
+
+  group('pinBackuppcServerAddress', () {
+    Map<String, dynamic> outbound(String serverAddr, {String? host}) => {
+      'protocol': 'backuppc',
+      'settings': {'serverAddr': serverAddr, 'uuid': 'u', 'host': ?host},
+    };
+    Future<List<InternetAddress>> Function(String) lookup(List<String> ips) =>
+        (_) async => [for (final ip in ips) InternetAddress(ip)];
+
+    test('domain → IPv4, the profile host is kept', () async {
+      final pinned = await pinBackuppcServerAddress(
+        outbound('srv.example.net:8443', host: 'backup.example.org'),
+        lookup: lookup(['2001:db8::1', '198.51.100.9']),
+      );
+      expect(pinned['settings']['serverAddr'], '198.51.100.9:8443');
+      expect(pinned['settings']['host'], 'backup.example.org');
+    });
+
+    test('without a profile host the domain becomes host (SNI)', () async {
+      final pinned = await pinBackuppcServerAddress(
+        outbound('srv.example.net:8443'),
+        lookup: lookup(['2001:db8::1']),
+      );
+      expect(pinned['settings']['serverAddr'], '[2001:db8::1]:8443');
+      expect(pinned['settings']['host'], 'srv.example.net');
+    });
+
+    test('IP addresses and lookup failures are left alone', () async {
+      for (final addr in ['203.0.113.7:8443', '[2001:db8::7]:8443']) {
+        final o = outbound(addr);
+        expect(
+          await pinBackuppcServerAddress(o, lookup: lookup(['192.0.2.1'])),
+          o,
+        );
+      }
+      final o = outbound('srv.example.net:8443');
+      expect(
+        await pinBackuppcServerAddress(
+          o,
+          lookup: (_) async => throw const SocketException('no dns'),
+        ),
+        o,
+      );
+    });
   });
 
   test('other platforms keep the Dart tunnel even with the flag on', () {

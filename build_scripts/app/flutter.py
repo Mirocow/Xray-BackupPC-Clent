@@ -107,9 +107,12 @@ class FlutterBuilder(Builder):
         cmd = [flutter_command(), "build", self.build_type[self.system]]
         if self.system == "android":
             cmd.extend(["--target-platform", "android-arm64,android-x64"])
-        elif self.system == "windows":
+        if self.system == "windows":
             cmd.append(f"--dart-define=ONEXRAY_WINDOWS_MODE={self.builder.mode}")
-        run_command(cmd, cwd=self.root_dir)
+            # windows/app.cmake ships VCore only for MSIX
+            run_command(cmd, cwd=self.root_dir, env={"ONEXRAY_WINDOWS_MODE": self.builder.mode})
+        else:
+            run_command(cmd, cwd=self.root_dir)
         self.builder.build_app()
 
     def after_build(self):

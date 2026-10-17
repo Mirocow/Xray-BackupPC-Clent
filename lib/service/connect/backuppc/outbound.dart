@@ -141,6 +141,51 @@ String _capitalizeOS(String os) {
   return (ips, domains);
 }
 
+/// Нативный outbound на Windows: адрес сервера закрепляется IP до старта
+/// VPN. Иначе ядро резолвит домен системным DNS, который во время VPN
+/// указывает в туннель: первое подключение ждёт таймаута DNS, пока Windows
+/// не спросит DNS другого адаптера. Домен остаётся в `host` (SNI и
+/// Host-заголовок), если в профиле не было своего host. При ошибке
+/// резолва профиль возвращается без изменений.
+Future<Map<String, dynamic>> pinBackuppcServerAddress(
+  Map<String, dynamic> outbound, {
+  Future<List<InternetAddress>> Function(String host)? lookup,
+}) async {
+  final settings = outbound['settings'];
+  if (settings is! Map<String, dynamic>) return outbound;
+  final serverAddr = settings['serverAddr'];
+  if (serverAddr is! String) return outbound;
+  final i = serverAddr.lastIndexOf(':');
+  if (i <= 0) return outbound;
+  final host = serverAddr.substring(0, i);
+  final port = serverAddr.substring(i + 1);
+  if (host.startsWith('[') || InternetAddress.tryParse(host) != null) {
+    return outbound;
+  }
+  List<InternetAddress> addresses;
+  try {
+    addresses = await (lookup ?? InternetAddress.lookup)(host);
+  } on Object {
+    return outbound;
+  }
+  if (addresses.isEmpty) return outbound;
+  final ip = addresses.firstWhere(
+    (a) => a.type == InternetAddressType.IPv4,
+    orElse: () => addresses.first,
+  );
+  final pinned = <String, dynamic>{
+    ...settings,
+    'serverAddr': ip.type == InternetAddressType.IPv6
+        ? '[${ip.address}]:$port'
+        : '${ip.address}:$port',
+  };
+  final donor = settings['host'];
+  if (donor is! String || donor.trim().isEmpty) {
+    pinned['host'] = host;
+  }
+  return {...outbound, 'settings': pinned};
+}
+
 /// Адрес (домен) сервера для пинга.
 (String, int)? backuppcPingTarget(Map<String, dynamic> outbound) {
   final cfg = backuppcClientConfig(outbound);

@@ -117,7 +117,7 @@ class WindowsPackagingTest(unittest.TestCase):
                         "--flutter-build-args", "build-number=412",
                         "--artifact-name", f"OneXray-windows-{package_arch}." + "{{ext}}",
                     ),
-                    env={"PROCESSOR_ARCHITECTURE": processor_arch},
+                    env={"PROCESSOR_ARCHITECTURE": processor_arch, "ONEXRAY_WINDOWS_MODE": "exe"},
                 )
                 for extension in ("exe", "zip"):
                     self.assertEqual(
@@ -150,6 +150,46 @@ class WindowsPackagingTest(unittest.TestCase):
         with patch.object(self.builder, "fastforge_build"), self.assertRaisesRegex(FileNotFoundError, "Fastforge package missing"):
             self.builder.package_exe_and_zip()
         self.assertEqual(list(Path(self.builder.output_dir).iterdir()), [])
+
+    def test_exe_bundle_and_build_do_not_need_vcore(self):
+        self.builder.mode = "exe"
+        source = self._bundle()
+        for name in _VCORE_ARTIFACTS:
+            (source / name).unlink()
+        self.builder._release_bundle()
+        calls = []
+        with (
+            patch("app.builder.Builder.before_build"),
+            patch.object(self.builder, "build_core", lambda: calls.append("core")),
+            patch.object(self.builder, "build_vcore", lambda: calls.append("vcore")),
+            patch.object(self.builder, "install_wintun", lambda: calls.append("wintun")),
+        ):
+            self.builder.before_build()
+        self.assertEqual(calls, ["core", "wintun"])
+
+    def test_msix_build_still_requires_vcore(self):
+        source = self._bundle()
+        (source / "vcore.dll").unlink()
+        with self.assertRaises(FileNotFoundError):
+            self.builder._release_bundle()
+        calls = []
+        with (
+            patch("app.builder.Builder.before_build"),
+            patch.object(self.builder, "build_core", lambda: None),
+            patch.object(self.builder, "build_vcore", lambda: calls.append("vcore")),
+            patch.object(self.builder, "install_wintun", lambda: None),
+        ):
+            self.builder.before_build()
+        self.assertEqual(calls, ["vcore"])
+
+    def test_cmake_ships_vcore_only_in_msix_mode(self):
+        cmake = (Path(__file__).resolve().parents[2] / "windows/app.cmake").read_text()
+        core, vcore = cmake.split('if(ONEXRAY_WINDOWS_MODE STREQUAL "msix")', 1)
+        for name in ("libXray.dll", "OneXrayCore.exe", "wintun.dll"):
+            self.assertIn(name, core)
+        for name in _VCORE_ARTIFACTS:
+            self.assertNotIn(name, core)
+            self.assertIn(name, vcore)
 
     def test_bundle_rejects_missing_dependencies_and_wrong_architecture(self):
         source = self._bundle()
