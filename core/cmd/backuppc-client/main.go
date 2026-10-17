@@ -1,4 +1,4 @@
-// backuppc-client — настройка безголового Linux-клиента backuppc.
+// backuppc-client — безголовый клиент backuppc (Linux, macOS, Windows).
 //
 // Разбирает share-ссылку backuppc:// (панель сервера → «Конфиг клиента»)
 // и генерирует конфиги ядра backuppc-xray для двух режимов:
@@ -12,6 +12,10 @@
 //	backuppc-client import [флаги] 'backuppc://…'   # или «-» — ссылка из stdin
 //	backuppc-client show   [-dir DIR]                # текущий профиль
 //	backuppc-client version
+//
+// На Linux ядро запускают systemd-юниты пакета (deploy/linux). На macOS и
+// Windows ядро встроено в сам backuppc-client (desktop.go): run запускает
+// его и в TUN-режиме ставит маршруты и DNS, service — службы launchd/SCM.
 package main
 
 import (
@@ -33,10 +37,7 @@ import (
 // version подставляется при сборке: -ldflags "-X main.version=…".
 var version = "dev"
 
-const (
-	defaultDir   = "/etc/backuppc-client"
-	serviceGroup = "backuppc-client"
-)
+const serviceGroup = "backuppc-client"
 
 func main() {
 	if err := run(os.Args[1:], os.Stdin, os.Stdout); err != nil {
@@ -58,40 +59,52 @@ func run(args []string, stdin io.Reader, stdout io.Writer) error {
 		fmt.Fprintln(stdout, "backuppc-client", version)
 		return nil
 	case "help", "-h", "--help":
-		fmt.Fprint(stdout, usage)
+		fmt.Fprint(stdout, usage())
 		return nil
 	}
-	return fmt.Errorf("неизвестная команда %q (import | show | version)", args[0])
+	if cmd, ok := platformCommands[args[0]]; ok {
+		return cmd(args[1:], stdout)
+	}
+	return fmt.Errorf("неизвестная команда %q (import | show | version%s)", args[0], platformCommandList)
 }
 
-const usage = `backuppc-client import [флаги] <backuppc://…|->
+func usage() string {
+	s := `backuppc-client import [флаги] <backuppc://…|->
     -dir DIR         каталог конфигов (` + defaultDir + `)
     -socks ADDR      SOCKS5-вход (127.0.0.1:1080)
-    -tun NAME        имя TUN-интерфейса (bpc0)
+    -tun NAME        имя TUN-интерфейса (` + defaultTun + `)
     -mtu N           MTU TUN (1500)
     -dns IP[,IP]     DNS через туннель, по TCP (1.1.1.1,8.8.8.8)
     -loglevel LEVEL  debug|info|warning|error|none (warning)
-    -server-mode     TUN на сервере: входящие соединения и ответы на них —
-                     мимо туннеля, UDP — напрямую (нужен nftables)
-backuppc-client show [-dir DIR]
-backuppc-client version
 `
+	if serverModeSupported {
+		s += `    -server-mode     TUN на сервере: входящие соединения и ответы на них —
+                     мимо туннеля, UDP — напрямую (нужен nftables)
+`
+	}
+	return s + `backuppc-client show [-dir DIR]
+` + platformUsage + `backuppc-client version
+`
+}
 
 func cmdImport(args []string, stdin io.Reader, stdout io.Writer) error {
 	fs := flag.NewFlagSet("import", flag.ContinueOnError)
 	dir := fs.String("dir", defaultDir, "")
 	socks := fs.String("socks", "127.0.0.1:1080", "")
-	tun := fs.String("tun", "bpc0", "")
+	tun := fs.String("tun", defaultTun, "")
 	mtu := fs.Int("mtu", 1500, "")
 	dns := fs.String("dns", "1.1.1.1,8.8.8.8", "")
 	logLevel := fs.String("loglevel", "warning", "")
 	serverMode := fs.Bool("server-mode", false, "")
 	fs.SetOutput(io.Discard)
 	if err := fs.Parse(args); err != nil {
-		return fmt.Errorf("import: %w\n%s", err, usage)
+		return fmt.Errorf("import: %w\n%s", err, usage())
 	}
 	if fs.NArg() != 1 {
-		return fmt.Errorf("import: ожидается одна ссылка backuppc:// или «-»\n%s", usage)
+		return fmt.Errorf("import: ожидается одна ссылка backuppc:// или «-»\n%s", usage())
+	}
+	if *serverMode && !serverModeSupported {
+		return errors.New("import: -server-mode поддерживается только на Linux")
 	}
 	raw := fs.Arg(0)
 	if raw == "-" {
@@ -140,6 +153,9 @@ func cmdImport(args []string, stdin io.Reader, stdout io.Writer) error {
 	if err := os.MkdirAll(*dir, 0o750); err != nil {
 		return err
 	}
+	if err := secureDir(*dir); err != nil {
+		return fmt.Errorf("права на %s: %w", *dir, err)
+	}
 	gid := lookupGroup(serviceGroup)
 	for _, f := range files {
 		if err := writeSecret(filepath.Join(*dir, f.name), f.data, gid); err != nil {
@@ -147,7 +163,7 @@ func cmdImport(args []string, stdin io.Reader, stdout io.Writer) error {
 		}
 	}
 	fmt.Fprintf(stdout, "сервер %s (%s) → конфиги в %s\n", o.ServerAddr, displayTag(o), *dir)
-	fmt.Fprintln(stdout, "перезапустите службу: systemctl restart backuppc-client  (или backuppc-client-tun)")
+	fmt.Fprintln(stdout, restartHint)
 	return nil
 }
 

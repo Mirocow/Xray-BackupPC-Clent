@@ -3,8 +3,10 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -42,7 +44,8 @@ func TestImportWritesSecretFiles(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: %v", name, err)
 		}
-		if st.Mode().Perm() != 0o640 {
+		// Windows: права задаёт DACL каталога (secureDir), не биты режима
+		if runtime.GOOS != "windows" && st.Mode().Perm() != 0o640 {
 			t.Errorf("%s: mode %o, want 640", name, st.Mode().Perm())
 		}
 	}
@@ -132,7 +135,7 @@ func TestImportRejectsBadInput(t *testing.T) {
 		{"vless://x@h:1"},
 		{"-socks", "localhost:1080", testLink},
 		{"-socks", "127.0.0.1", testLink},
-		{"-tun", "this-name-is-too-long", testLink},
+		{"-tun", "bad/name", testLink},
 		{"-mtu", "100", testLink},
 		{"-dns", "dns.google", testLink},
 		{"-loglevel", "loud", testLink},
@@ -181,6 +184,14 @@ func TestAccessLogOffUnlessDebug(t *testing.T) {
 }
 
 func TestServerMode(t *testing.T) {
+	if !serverModeSupported {
+		dir := t.TempDir()
+		err := run([]string{"import", "-dir", dir, "-server-mode", testLink}, strings.NewReader(""), io.Discard)
+		if err == nil {
+			t.Error("-server-mode accepted where unsupported")
+		}
+		return
+	}
 	dir := importTo(t, "-server-mode", testLink)
 	cfg := readJSON(t, filepath.Join(dir, "tun.json"))
 	rules := cfg["routing"].(map[string]any)["rules"].([]any)

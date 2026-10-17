@@ -55,8 +55,8 @@ func (p Profile) validate() error {
 	if net.ParseIP(host) == nil {
 		return fmt.Errorf("socks: адрес %q должен быть IP", host)
 	}
-	if p.TunName == "" || len(p.TunName) > 15 || strings.ContainsAny(p.TunName, " /") {
-		return fmt.Errorf("tun: некорректное имя интерфейса %q", p.TunName)
+	if !validTunName(p.TunName) {
+		return fmt.Errorf("tun: некорректное имя интерфейса %q%s", p.TunName, tunNameHint)
 	}
 	if p.TunMTU < 576 || p.TunMTU > 9000 {
 		return fmt.Errorf("tun: MTU %d вне диапазона 576..9000", p.TunMTU)
