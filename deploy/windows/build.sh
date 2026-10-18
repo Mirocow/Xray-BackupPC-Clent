@@ -3,7 +3,7 @@
 #   dist/backuppc-client_<версия>_windows_amd64.zip
 #     backuppc-client.exe   ядро Xray + backuppc, import/run/service
 #     wintun.dll            драйвер TUN (официальная подписанная сборка Wintun)
-#     install.ps1, uninstall.ps1, README.md
+#     install.cmd, install.ps1, uninstall.ps1, README.md
 #
 #   deploy/windows/build.sh
 #   VERSION=0.3.0 deploy/windows/build.sh
@@ -65,7 +65,7 @@ with zipfile.ZipFile(src) as z:
 PY
 # CRLF: скрипты и README открываются в Блокноте/PowerShell как есть;
 # BOM: Windows PowerShell 5.1 без него читает .ps1 как ANSI (кириллица ломается)
-for f in install.ps1 uninstall.ps1 README.md; do
+for f in install.cmd install.ps1 uninstall.ps1 README.md; do
     case "$f" in *.ps1) printf '\357\273\277' > "$pkg/$f" ;; *) : > "$pkg/$f" ;; esac
     sed 's/\r*$/\r/' "$HERE/$f" >> "$pkg/$f"
 done

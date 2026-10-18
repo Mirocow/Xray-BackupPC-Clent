@@ -6,6 +6,7 @@
 |---|---|
 | `backuppc-client.exe` | ядро Xray с нативным backuppc-outbound, импорт ссылок, запуск, службы |
 | `wintun.dll` | драйвер TUN — официальная подписанная сборка [Wintun](https://www.wintun.net) 0.14.1 |
+| `install.cmd` | установка двойным щелчком: запросит права администратора и запустит `install.ps1` |
 | `install.ps1` / `uninstall.ps1` | установка в `C:\Program Files\backuppc-client` и в PATH / удаление |
 
 Программа не подписана, поэтому SmartScreen может показать «Windows защитила
@@ -14,11 +15,15 @@
 
 ## Установка
 
-Распакуйте архив, откройте PowerShell **от имени администратора** в его каталоге:
+Распакуйте архив и дважды щёлкните `install.cmd`. Или в PowerShell **от имени
+администратора** в каталоге архива:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\install.ps1
 ```
+
+Просто `.\install.ps1` не сработает: Windows по умолчанию запрещает запуск
+сценариев («выполнение сценариев отключено в этой системе»).
 
 ## Настройка и запуск
 
