@@ -113,6 +113,7 @@ class ConnectionSettings {
   final TrafficMode trafficMode;
   final int? customId;
   final SmartRoutingSettings smart;
+
   /// Native backuppc outbound on Android: Xray handles backuppc protocol
   /// directly in VPN process (no Dart tunnel, single TUN pass, Go TLS).
   /// Default: true on Android, false on iOS/desktop.

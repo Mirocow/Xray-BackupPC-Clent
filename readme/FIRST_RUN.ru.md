@@ -95,7 +95,7 @@ chmod +x linux/app/OneXrayCore
 git clone https://github.com/OneXray/VCore.git ../VCore
 ```
 
-Оба режима Windows требуют `libXray.dll`, `OneXrayCore.exe`, `wintun.dll` и три файла VCore: `vcore.dll`, `vcore-windows-vpn-host.exe` и `vcore-windows-session-host.exe`. Копирования только libXray недостаточно.
+Оба режима Windows требуют `libXray.dll`, `BackupPCVPNCore.exe`, `wintun.dll` и три файла VCore: `vcore.dll`, `vcore-windows-vpn-host.exe` и `vcore-windows-session-host.exe`. Копирования только libXray недостаточно.
 
 Подготовьте зависимости по [руководству Windows](../docs/windows-build.md) (на китайском) и [скриптам сборки](../build_scripts/README.md#русский). Скрипт собирает оба Core, проверяет и копирует VCore, Wintun и GeoData. По умолчанию Fastforge создаёт EXE + ZIP; для EXE дополнительно нужен Inno Setup:
 

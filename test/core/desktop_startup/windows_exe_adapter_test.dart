@@ -121,10 +121,10 @@ void main() {
     expect(store.shortcut?.arguments, isEmpty);
   });
 
-  test('enabling replaces a missing OneXray shortcut target', () async {
+  test('enabling replaces a missing app shortcut target', () async {
     final executable = Platform.resolvedExecutable;
     final store = _FakeWindowsLaunchAtLoginStore(
-      shortcut: _shortcut(r'C:\Removed\OneXray.exe'),
+      shortcut: _shortcut(r'C:\Removed\BackupPCVPN.exe'),
     );
     final adapter = WindowsExeLaunchAtLoginAdapter(
       executable: executable,

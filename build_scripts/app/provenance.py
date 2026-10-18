@@ -27,12 +27,12 @@ _GITHUB_RELEASE_PACKAGES = {
         "linux-arm64/OneXray-linux-aarch64.deb",
     ),
     ("windows", "x64", "exe"): (
-        "windows-x64/OneXray-windows-amd64.exe",
-        "windows-x64/OneXray-windows-amd64.zip",
+        "windows-x64/backuppc-vpn-windows-amd64.exe",
+        "windows-x64/backuppc-vpn-windows-amd64.zip",
     ),
     ("windows", "arm64", "exe"): (
-        "windows-arm64/OneXray-windows-arm64.exe",
-        "windows-arm64/OneXray-windows-arm64.zip",
+        "windows-arm64/backuppc-vpn-windows-arm64.exe",
+        "windows-arm64/backuppc-vpn-windows-arm64.zip",
     ),
 }
 
@@ -213,8 +213,9 @@ def finish_build(builder, receipt: dict) -> Path:
     }
     if target == "windows":
         extensions = ("msix",) if receipt["windowsMode"] == "msix" else ("exe", "zip")
-        patterns["windows"] = tuple(f"OneXray-{builder.builder.package_suffix}.{ext}"
-                                    for ext in extensions)
+        patterns["windows"] = tuple(
+            f"{builder.builder.package_name}-{builder.builder.package_suffix}.{ext}"
+            for ext in extensions)
         if not all((output / name).is_file() for name in patterns["windows"]):
             raise ValueError("Missing Windows packages for build provenance")
     packages = {path.name: sha256(path) for pattern in patterns[target]
@@ -325,7 +326,7 @@ def verify_release(artifacts: Path, run: dict, *, tag: str | None = None,
     if windows_only:
         packages = [path for path in packages if path.suffix == ".msix"]
         if {path.name for path in packages} != {
-            "OneXray-windows-amd64.msix", "OneXray-windows-arm64.msix",
+            "backuppc-vpn-windows-amd64.msix", "backuppc-vpn-windows-arm64.msix",
         } or len(packages) != 2:
             raise ValueError("Expected exactly two Windows Store packages")
     if not packages:
@@ -338,8 +339,8 @@ def verify_release(artifacts: Path, run: dict, *, tag: str | None = None,
     if windows_only:
         if build_target not in {"all", "windows"}:
             raise ValueError("Build target does not include Windows Store packages")
-        for architecture, name in (("x64", "OneXray-windows-amd64.msix"),
-                                   ("arm64", "OneXray-windows-arm64.msix")):
+        for architecture, name in (("x64", "backuppc-vpn-windows-amd64.msix"),
+                                   ("arm64", "backuppc-vpn-windows-arm64.msix")):
             if name not in receipts[("windows", architecture, "msix")]:
                 raise ValueError("Store package missing from MSIX mode provenance")
         return sorted(packages)

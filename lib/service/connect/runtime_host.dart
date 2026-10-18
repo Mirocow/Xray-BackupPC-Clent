@@ -213,8 +213,8 @@ class ConnectionRuntimeHost {
           service
               .ensureStarted(runtime.identity, runtime.backuppcTunnels)
               .catchError((Object error) {
-            ygLogger('backuppc tunnel restore failed: $error');
-          }),
+                ygLogger('backuppc tunnel restore failed: $error');
+              }),
         );
       }
     }

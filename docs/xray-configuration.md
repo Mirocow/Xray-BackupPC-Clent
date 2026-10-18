@@ -308,7 +308,7 @@ MSIX 通过已有的 `sessionBackend.processes[].arguments` 传入诊断路径�
 不解析或传输 Core 诊断，MSIX 的连接状态仍由系统 VPN 提供。
 输入目录不复用，也不保留历史。Windows MSIX 的
 `snapshotToken` 仅用于 VCore Session Snapshot 的宿主归属校验，不能删除或当作 App 运行快照。
-Windows EXE 使用系统进程列表按精确进程名 `OneXrayCore.exe` 管理所有存活匹配进程，
+Windows EXE 使用系统进程列表按精确进程名 `BackupPCVPNCore.exe` 管理所有存活匹配进程，
 按 Windows 名称规则忽略大小写，不匹配完整命令行、名称前缀或其它 `xray` 进程。不保存或
 读取旧 PID 记录，不按安装路径、创建时间、用户、Windows session 或配置参数筛选；重开
 App 同样直接发现匹配进程。启动前先停止全部匹配进程，再准备新输入；启动确认必须找到

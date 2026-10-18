@@ -152,7 +152,7 @@ void main() {
           if (method == 'startVpn') {
             final process =
                 request['payload']['sessionBackend']['processes'].single;
-            expect(process['executableRelativePath'], 'OneXrayCore.exe');
+            expect(process['executableRelativePath'], 'BackupPCVPNCore.exe');
             arguments = (process['arguments'] as List).cast<String>();
             final config = arguments![arguments!.indexOf('-config') + 1];
             errorFile = File('$config.error');

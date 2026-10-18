@@ -19,7 +19,7 @@ install(FILES
         COMPONENT Runtime)
 
 install(PROGRAMS
-        "${APP_DIR}/OneXrayCore.exe"
+        "${APP_DIR}/BackupPCVPNCore.exe"
         DESTINATION "${CMAKE_INSTALL_PREFIX}"
         COMPONENT Runtime)
 

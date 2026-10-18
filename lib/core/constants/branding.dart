@@ -8,6 +8,14 @@
 abstract final class AppBranding {
   static const name = 'BackupPC VPN';
 
+  /// Имя TUN-интерфейса в конфигурации Xray (адаптер Wintun в Windows).
+  static const tunName = 'BackupPCVPN';
+
+  /// Windows: файл приложения (BINARY_NAME в windows/CMakeLists.txt) и ядра
+  /// (core.bin.dst.file.windows в build_scripts/app/config.py).
+  static const windowsExecutable = 'BackupPCVPN.exe';
+  static const windowsCore = 'BackupPCVPNCore.exe';
+
   static const upstreamName = 'OneXray';
   static const upstreamUrl = 'https://github.com/OneXray/OneXray';
   static const license = 'GPL-3.0';

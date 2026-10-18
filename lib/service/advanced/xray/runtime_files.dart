@@ -39,7 +39,7 @@ abstract final class RuntimeDiagnosticFiles {
 
   static Future<bool> exportConfiguration(String text) => FileTool.saveData(
     Uint8List.fromList(utf8.encode(text)),
-    'OneXray-runtime.json',
+    'backuppc-vpn-runtime.json',
     'json',
   );
 

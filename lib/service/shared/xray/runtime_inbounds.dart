@@ -1,3 +1,4 @@
+import 'package:onexray/core/constants/branding.dart';
 import 'package:onexray/core/model/xray_json.dart';
 import 'package:onexray/core/network/constants.dart';
 import 'package:onexray/core/pigeon/constants.dart';
@@ -12,7 +13,7 @@ XrayInbound createTunInbound({
   listen: NetConstants.proxyHost,
   protocol: 'tun',
   settings: XrayInboundTunSettings(
-    name: 'OneXrayTun',
+    name: AppBranding.tunName,
     mtu: VpnConstants.tunMtu,
     gateway: gateway,
     dns: dns,

@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:onexray/core/constants/branding.dart';
 import 'package:onexray/core/desktop_startup/adapter.dart';
 import 'package:onexray/core/desktop_startup/model.dart';
 import 'package:path/path.dart' as path;
@@ -64,7 +65,7 @@ final class LinuxLaunchAtLoginAdapter extends LaunchAtLoginAdapter {
       }
       if (!await File(_executable).exists()) {
         return const LaunchAtLoginStatus.error(
-          'The OneXray executable does not exist.',
+          'The ${AppBranding.name} executable does not exist.',
         );
       }
 
@@ -105,7 +106,7 @@ final class LinuxLaunchAtLoginAdapter extends LaunchAtLoginAdapter {
   String get _desktopEntry =>
       '[Desktop Entry]\n'
       'Type=Application\n'
-      'Name=OneXray\n'
+      'Name=${AppBranding.name}\n'
       'Exec=$_execValue\n'
       'TryExec=$_tryExecValue\n'
       'Terminal=false\n';

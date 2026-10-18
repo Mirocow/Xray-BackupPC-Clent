@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:onexray/core/constants/branding.dart';
 import 'package:onexray/core/ffi/base_ffi_api.dart';
 import 'package:onexray/core/ffi/windows/ffi_api.dart';
 import 'package:onexray/core/ffi/windows/model.dart';
@@ -28,7 +29,7 @@ class WindowsMsixFfiApi extends WindowsFfiApi {
            notifyError ?? AppFlutterApi().vpnStatusController.addError,
        super.base();
 
-  static const _coreRelativePath = 'OneXrayCore.exe';
+  static const _coreRelativePath = AppBranding.windowsCore;
 
   final WindowsNativeApi _native;
   final Future<StartVpnRequest> Function() _readRequest;

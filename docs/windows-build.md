@@ -34,10 +34,10 @@ uv run --project build_scripts python build_scripts/main.py OneXray windows --wi
 ### EXE 与 ZIP
 
 - EXE 和 ZIP 通过同一次 `fastforge package --platform windows --targets exe,zip` 构建与打包，并显式传入 EXE 模式的 dart-define、构建号与产物名称；不在 Python 编排层重复调用 Flutter build。Flutter 使用原生主机架构，不传入其 Windows 命令不支持的 `--target-platform`。
-- EXE 沿用 v26.8.4 的 Fastforge `make_config.yaml` 与 Inno Setup 模板方式，保留安装标识、桌面 / 开始菜单快捷方式及 `onexray:` 协议注册。明确指定 `OneXray.exe` 为主程序，避免把同目录的 Core / VCore 可执行文件当成 App。按当前用户安装，App 本身不要求管理员权限；Core 的启动 / 停止需要时再通过 UAC 提权。
+- EXE 沿用 v26.8.4 的 Fastforge `make_config.yaml` 与 Inno Setup 模板方式，保留安装标识、桌面 / 开始菜单快捷方式及 `onexray:` 协议注册。明确指定 `BackupPCVPN.exe` 为主程序，避免把同目录的 Core / VCore 可执行文件当成 App。按当前用户安装，App 本身不要求管理员权限；Core 的启动 / 停止需要时再通过 UAC 提权。
 - 构建时按目标架构设置安装器配置，临时使用不含 `+build` 的发布版本号供 Fastforge 打包，并通过 Flutter 参数保留构建号；成功或失败后均恢复安装器配置与完整 `pubspec.yaml`。只归集当前版本、当前架构的 EXE / ZIP，不扫描并混入旧包。
 - 卸载只删除指向当前安装位置的 Startup 快捷方式和协议注册，不删除用户数据库，也不关闭其他安装的 Core。安装 / 升级 / 卸载前应先停止 VPN 并退出 App。
-- ZIP 由 Fastforge 压缩同一份 Release 目录；必须完整解压后运行，不能只复制 `OneXray.exe`。它不注册协议、不自动创建快捷方式，也不把用户数据放在解压目录；数据根目录与 EXE 安装版相同。
+- ZIP 由 Fastforge 压缩同一份 Release 目录；必须完整解压后运行，不能只复制 `BackupPCVPN.exe`。它不注册协议、不自动创建快捷方式，也不把用户数据放在解压目录；数据根目录与 EXE 安装版相同。
 - CMake 从目标 MSVC 工具链的 Redistributable 目录安装应用本地 VC++ runtime，随同一份 Release 目录进入 EXE、ZIP 和 MSIX；不复制开发机 System32 中的 DLL，不要求用户先安装 Visual Studio 或全局 VC++ runtime。Windows 10/11 的系统 UCRT 不重复打包。
 - 提权、查询进程和等待退出在 worker isolate 执行。拒绝 UAC 或启动失败时停在失败状态，不恢复旧连接。
 
@@ -67,11 +67,11 @@ GitHub 发布从 EXE 模式产物读取两种架构的 EXE 和 ZIP；`windows` �
 
 - Windows CMake 工程使用 C++17。
 - MSVC 编译启用 `/W4 /WX`，警告会导致构建失败。
-- Flutter、Go、libXray 生成的 `OneXrayCore.exe`、Wintun 和三个 VCore 产物的架构必须与矩阵项一致。
-- CMake 在两种模式下都必须安装 `libXray.dll`、`OneXrayCore.exe`、`wintun.dll` 及目标 MSVC runtime；三个 VCore 产物只在 MSIX 模式安装（`windows/app.cmake` 读取配置期环境变量 `ONEXRAY_WINDOWS_MODE`，由构建脚本设置），EXE 模式既不构建也不打包 VCore，因此本地 EXE 构建不需要 VCore 检出；与 App EXE 平铺在同一目录，不使用旧 `bin/` 布局。必需运行库与目标架构校验规则以 [Windows 打包实现](../build_scripts/app/windows.py) 为准。缺失依赖直接构建失败；MSIX 打包前、Fastforge 产物归集前再次检查运行文件、PE 架构与 Flutter 数据。
+- Flutter、Go、libXray 生成的 `BackupPCVPNCore.exe`、Wintun 和三个 VCore 产物的架构必须与矩阵项一致。
+- CMake 在两种模式下都必须安装 `libXray.dll`、`BackupPCVPNCore.exe`、`wintun.dll` 及目标 MSVC runtime；三个 VCore 产物只在 MSIX 模式安装（`windows/app.cmake` 读取配置期环境变量 `ONEXRAY_WINDOWS_MODE`，由构建脚本设置），EXE 模式既不构建也不打包 VCore，因此本地 EXE 构建不需要 VCore 检出；与 App EXE 平铺在同一目录，不使用旧 `bin/` 布局。必需运行库与目标架构校验规则以 [Windows 打包实现](../build_scripts/app/windows.py) 为准。缺失依赖直接构建失败；MSIX 打包前、Fastforge 产物归集前再次检查运行文件、PE 架构与 Flutter 数据。
 - Wintun 从官方发行包获取，固定下载摘要，只提取目标架构的未修改 DLL；下载缓存放在工作区 `references/windows-build/`。App 不增加 Wintun 许可文件或许可 UI，来源与上游分发说明记录在 [文档站](https://onexray.com/zh/docs/credits/)。
 - MSIX 最低系统版本为 Windows 10 20H2（build 19042），只声明一个主 Application，但保留完全信任前台、AppContainer VPN Provider 和 full-trust Session Host 三个进程。
-- Provider 通过无参数 `FullTrustProcessLauncher` 启动 Session Host。VCore Provider 将系统 IP 包交给 Session Host；Session Host 用 kill-on-close Job Object 启动并监督普通权限 `OneXrayCore.exe`，VCore 再通过动态 loopback SOCKS5 转发。`sessionBackend` 只管理进程存活，不检查端口或 readiness；该 SOCKS5 仅监听 `127.0.0.1`，不是用户代理入口。
+- Provider 通过无参数 `FullTrustProcessLauncher` 启动 Session Host。VCore Provider 将系统 IP 包交给 Session Host；Session Host 用 kill-on-close Job Object 启动并监督普通权限 `BackupPCVPNCore.exe`，VCore 再通过动态 loopback SOCKS5 转发。`sessionBackend` 只管理进程存活，不检查端口或 readiness；该 SOCKS5 仅监听 `127.0.0.1`，不是用户代理入口。
 - `startVpn` 每次完整发送用户保存的 Windows 策略，不由 VCore 补默认值；CIDR 与 IPv6 / DNS 冲突由 VCore 校验。Session Snapshot token 用于宿主归属校验，其格式与 bridge revision 独立。打包的 `vcore.dll` 必须匹配 [原生桥合同](../lib/core/ffi/windows/native_api.dart)；源码契约测试不代表打包 DLL 或 Windows 实机验证通过。
 - MSIX 声明 `networkingVpnProvider`、网络和 `runFullTrust` 能力，注册 `VCore.VpnBackgroundTask` 及默认关闭的 `VCoreStartup`。Provider extension 显式保持 `windowsApp` / `appContainer`，Session Host extension 保持 `packagedClassicApp` / `mediumIL`。Core 不使用 `allowElevation`。
 - `msix:create` 生成基础包后，`build_scripts/app/windows_msix.py` 把两个 VCore extension 放入现有主 Application，并补充 package-level in-process server，再由 `makeappx` 原路径重打包。已有 VCore extension 或 Application 数量不为一时直接失败。

@@ -1,14 +1,15 @@
-app_id: 835d7bbd-85bb-4c73-97f8-ce0740f151a7
-publisher_name: YuanDevLLC
-publisher_url: https://onexray.com
-display_name: OneXray
-executable_name: OneXray.exe
+app_id: 00b752d0-2039-4fab-8462-68ca587fba8d
+publisher_name: BackupPC VPN
+publisher_url: https://github.com/Mirocow/Xray-BackupPC-Clent
+display_name: BackupPC VPN
+executable_name: BackupPCVPN.exe
 script_template: inno_setup.iss
 create_desktop_icon: true
 setup_icon_file: windows\runner\resources\app_icon.ico
-install_dir_name: '{autopf}\OneXray'
+install_dir_name: '{autopf}\BackupPC VPN'
 privileges_required: lowest
 architectures_allowed: x64os
 architectures_install_in_64bit_mode: x64os
 locales:
   - en
+  - ru
