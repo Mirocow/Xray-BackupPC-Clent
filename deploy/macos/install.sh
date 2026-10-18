@@ -1,11 +1,11 @@
 #!/bin/sh
-# install.sh — установка backuppc-client в /usr/local/bin (запуск: sudo ./install.sh
+# install.sh — установка backuppc-client в /usr/local/bin (запуск: sudo sh install.sh
 # из распакованного архива). Уже установленные службы перезапускаются на
 # новом бинарнике.
 set -eu
 
 if [ "$(id -u)" != 0 ]; then
-    echo "запустите с правами root: sudo ./install.sh" >&2
+    echo "запустите с правами root: sudo sh install.sh" >&2
     exit 1
 fi
 HERE=$(cd "$(dirname "$0")" && pwd)

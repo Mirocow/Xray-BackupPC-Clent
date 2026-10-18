@@ -4,7 +4,7 @@
 set -eu
 
 if [ "$(id -u)" != 0 ]; then
-    echo "запустите с правами root: sudo ./uninstall.sh" >&2
+    echo "запустите с правами root: sudo sh uninstall.sh" >&2
     exit 1
 fi
 BIN=/usr/local/bin/backuppc-client

@@ -13,13 +13,15 @@ backuppc-outbound, импорт ссылок, запуск и службы launc
 ```bash
 tar xzf backuppc-client_<версия>_macos_arm64.tar.gz
 cd backuppc-client_<версия>_macos_arm64
-sudo ./install.sh                     # → /usr/local/bin/backuppc-client
+sudo sh install.sh                    # → /usr/local/bin/backuppc-client
 ```
 
-Если архив скачан браузером, macOS помечает файлы «карантином»;
-`install.sh` его снимает (`xattr -d com.apple.quarantine`). Вручную
-запущенный неустановленный бинарник может вызвать окно «не удаётся
-проверить разработчика» — тогда снимите карантин той же командой.
+Файлы, скачанные браузером или мессенджером (Telegram и т. п.), macOS
+помечает «карантином». Помеченный сценарий напрямую не запускается
+(`sudo ./install.sh` → `Operation not permitted`), поэтому сценарий
+передаётся `sh`. `install.sh` снимает карантин с бинарника сам
+(`xattr -d com.apple.quarantine`). Чтобы снять его со всей папки разом:
+`xattr -dr com.apple.quarantine .`
 
 ## Настройка и запуск
 
@@ -78,11 +80,11 @@ curl https://ifconfig.me
 
 ## Обновление и удаление
 
-Обновление — `sudo ./install.sh` из нового архива (службы перезапускаются).
+Обновление — `sudo sh install.sh` из нового архива (службы перезапускаются).
 
 ```bash
-sudo ./uninstall.sh            # службы и бинарник; конфиги остаются
-sudo PURGE=1 ./uninstall.sh    # + /usr/local/etc/backuppc-client
+sudo sh uninstall.sh          # службы и бинарник; конфиги остаются
+sudo PURGE=1 sh uninstall.sh  # + /usr/local/etc/backuppc-client
 ```
 
 ## Сборка
