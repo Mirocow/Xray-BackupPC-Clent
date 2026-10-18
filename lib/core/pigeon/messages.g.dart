@@ -10,9 +10,9 @@ import 'package:flutter/services.dart';
 import 'package:meta/meta.dart' show immutable, protected, visibleForTesting;
 
 Object? _extractReplyValueOrThrow(
-  List<Object?>? replyList,
-  String channelName, {
-  required bool isNullValid,
+    List<Object?>? replyList,
+    String channelName, {
+    required bool isNullValid,
 }) {
   if (replyList == null) {
     throw PlatformException(
@@ -34,11 +34,8 @@ Object? _extractReplyValueOrThrow(
   return replyList.firstOrNull;
 }
 
-List<Object?> wrapResponse({
-  Object? result,
-  PlatformException? error,
-  bool empty = false,
-}) {
+
+List<Object?> wrapResponse({Object? result, PlatformException? error, bool empty = false}) {
   if (empty) {
     return <Object?>[];
   }
@@ -47,7 +44,6 @@ List<Object?> wrapResponse({
   }
   return <Object?>[error.code, error.message, error.details];
 }
-
 bool _deepEquals(Object? a, Object? b) {
   if (identical(a, b)) {
     return true;
@@ -60,9 +56,8 @@ bool _deepEquals(Object? a, Object? b) {
   }
   if (a is List && b is List) {
     return a.length == b.length &&
-        a.indexed.every(
-          ((int, dynamic) item) => _deepEquals(item.$2, b[item.$1]),
-        );
+        a.indexed
+            .every(((int, dynamic) item) => _deepEquals(item.$2, b[item.$1]));
   }
   if (a is Map && b is Map) {
     if (a.length != b.length) {
@@ -111,9 +106,19 @@ int _deepHash(Object? value) {
   return value.hashCode;
 }
 
-enum VpnStatus { disconnecting, disconnected, connecting, connected }
 
-enum RefreshVpnResult { installed, notInstalled, waitForApproval }
+enum VpnStatus {
+  disconnecting,
+  disconnected,
+  connecting,
+  connected,
+}
+
+enum RefreshVpnResult {
+  installed,
+  notInstalled,
+  waitForApproval,
+}
 
 enum PlatformPermissionKind {
   none,
@@ -132,7 +137,11 @@ enum PlatformPermissionState {
   failed,
 }
 
-enum NativeVpnCommandState { success, waitingForPlatformPermission, failed }
+enum NativeVpnCommandState {
+  success,
+  waitingForPlatformPermission,
+  failed,
+}
 
 enum NativeLaunchAtLoginState {
   enabled,
@@ -143,19 +152,24 @@ enum NativeLaunchAtLoginState {
 }
 
 class BackupLocation {
-  BackupLocation({required this.identifier, required this.label});
+  BackupLocation({
+    required this.identifier,
+    required this.label,
+  });
 
   String identifier;
 
   String label;
 
   List<Object?> _toList() {
-    return <Object?>[identifier, label];
+    return <Object?>[
+      identifier,
+      label,
+    ];
   }
 
   Object encode() {
-    return _toList();
-  }
+    return _toList();  }
 
   static BackupLocation decode(Object result) {
     result as List<Object?>;
@@ -174,8 +188,7 @@ class BackupLocation {
     if (identical(this, other)) {
       return true;
     }
-    return _deepEquals(identifier, other.identifier) &&
-        _deepEquals(label, other.label);
+    return _deepEquals(identifier, other.identifier) && _deepEquals(label, other.label);
   }
 
   @override
@@ -199,12 +212,14 @@ class AppleVpnCapabilities {
   bool deviceCommunication;
 
   List<Object?> _toList() {
-    return <Object?>[serviceExclusions, deviceCommunication];
+    return <Object?>[
+      serviceExclusions,
+      deviceCommunication,
+    ];
   }
 
   Object encode() {
-    return _toList();
-  }
+    return _toList();  }
 
   static AppleVpnCapabilities decode(Object result) {
     result as List<Object?>;
@@ -223,8 +238,7 @@ class AppleVpnCapabilities {
     if (identical(this, other)) {
       return true;
     }
-    return _deepEquals(serviceExclusions, other.serviceExclusions) &&
-        _deepEquals(deviceCommunication, other.deviceCommunication);
+    return _deepEquals(serviceExclusions, other.serviceExclusions) && _deepEquals(deviceCommunication, other.deviceCommunication);
   }
 
   @override
@@ -238,19 +252,24 @@ class AppleVpnCapabilities {
 }
 
 class NativeLaunchAtLoginResult {
-  NativeLaunchAtLoginResult({required this.state, this.message});
+  NativeLaunchAtLoginResult({
+    required this.state,
+    this.message,
+  });
 
   NativeLaunchAtLoginState state;
 
   String? message;
 
   List<Object?> _toList() {
-    return <Object?>[state, message];
+    return <Object?>[
+      state,
+      message,
+    ];
   }
 
   Object encode() {
-    return _toList();
-  }
+    return _toList();  }
 
   static NativeLaunchAtLoginResult decode(Object result) {
     result as List<Object?>;
@@ -263,15 +282,13 @@ class NativeLaunchAtLoginResult {
   @override
   // ignore: avoid_equals_and_hash_code_on_mutable_classes
   bool operator ==(Object other) {
-    if (other is! NativeLaunchAtLoginResult ||
-        other.runtimeType != runtimeType) {
+    if (other is! NativeLaunchAtLoginResult || other.runtimeType != runtimeType) {
       return false;
     }
     if (identical(this, other)) {
       return true;
     }
-    return _deepEquals(state, other.state) &&
-        _deepEquals(message, other.message);
+    return _deepEquals(state, other.state) && _deepEquals(message, other.message);
   }
 
   @override
@@ -298,12 +315,15 @@ class PlatformPermissionResult {
   String? message;
 
   List<Object?> _toList() {
-    return <Object?>[kind, state, message];
+    return <Object?>[
+      kind,
+      state,
+      message,
+    ];
   }
 
   Object encode() {
-    return _toList();
-  }
+    return _toList();  }
 
   static PlatformPermissionResult decode(Object result) {
     result as List<Object?>;
@@ -317,16 +337,13 @@ class PlatformPermissionResult {
   @override
   // ignore: avoid_equals_and_hash_code_on_mutable_classes
   bool operator ==(Object other) {
-    if (other is! PlatformPermissionResult ||
-        other.runtimeType != runtimeType) {
+    if (other is! PlatformPermissionResult || other.runtimeType != runtimeType) {
       return false;
     }
     if (identical(this, other)) {
       return true;
     }
-    return _deepEquals(kind, other.kind) &&
-        _deepEquals(state, other.state) &&
-        _deepEquals(message, other.message);
+    return _deepEquals(kind, other.kind) && _deepEquals(state, other.state) && _deepEquals(message, other.message);
   }
 
   @override
@@ -356,12 +373,16 @@ class NativeVpnCommandResult {
   String? message;
 
   List<Object?> _toList() {
-    return <Object?>[state, status, permission, message];
+    return <Object?>[
+      state,
+      status,
+      permission,
+      message,
+    ];
   }
 
   Object encode() {
-    return _toList();
-  }
+    return _toList();  }
 
   static NativeVpnCommandResult decode(Object result) {
     result as List<Object?>;
@@ -382,10 +403,7 @@ class NativeVpnCommandResult {
     if (identical(this, other)) {
       return true;
     }
-    return _deepEquals(state, other.state) &&
-        _deepEquals(status, other.status) &&
-        _deepEquals(permission, other.permission) &&
-        _deepEquals(message, other.message);
+    return _deepEquals(state, other.state) && _deepEquals(status, other.status) && _deepEquals(permission, other.permission) && _deepEquals(message, other.message);
   }
 
   @override
@@ -399,19 +417,24 @@ class NativeVpnCommandResult {
 }
 
 class AndroidAppInfo {
-  AndroidAppInfo({required this.name, required this.packageName});
+  AndroidAppInfo({
+    required this.name,
+    required this.packageName,
+  });
 
   String name;
 
   String packageName;
 
   List<Object?> _toList() {
-    return <Object?>[name, packageName];
+    return <Object?>[
+      name,
+      packageName,
+    ];
   }
 
   Object encode() {
-    return _toList();
-  }
+    return _toList();  }
 
   static AndroidAppInfo decode(Object result) {
     result as List<Object?>;
@@ -430,8 +453,7 @@ class AndroidAppInfo {
     if (identical(this, other)) {
       return true;
     }
-    return _deepEquals(name, other.name) &&
-        _deepEquals(packageName, other.packageName);
+    return _deepEquals(name, other.name) && _deepEquals(packageName, other.packageName);
   }
 
   @override
@@ -444,6 +466,7 @@ class AndroidAppInfo {
   }
 }
 
+
 class _PigeonCodec extends StandardMessageCodec {
   const _PigeonCodec();
   @override
@@ -451,40 +474,40 @@ class _PigeonCodec extends StandardMessageCodec {
     if (value is int) {
       buffer.putUint8(4);
       buffer.putInt64(value);
-    } else if (value is VpnStatus) {
+    }    else if (value is VpnStatus) {
       buffer.putUint8(129);
       writeValue(buffer, value.index);
-    } else if (value is RefreshVpnResult) {
+    }    else if (value is RefreshVpnResult) {
       buffer.putUint8(130);
       writeValue(buffer, value.index);
-    } else if (value is PlatformPermissionKind) {
+    }    else if (value is PlatformPermissionKind) {
       buffer.putUint8(131);
       writeValue(buffer, value.index);
-    } else if (value is PlatformPermissionState) {
+    }    else if (value is PlatformPermissionState) {
       buffer.putUint8(132);
       writeValue(buffer, value.index);
-    } else if (value is NativeVpnCommandState) {
+    }    else if (value is NativeVpnCommandState) {
       buffer.putUint8(133);
       writeValue(buffer, value.index);
-    } else if (value is NativeLaunchAtLoginState) {
+    }    else if (value is NativeLaunchAtLoginState) {
       buffer.putUint8(134);
       writeValue(buffer, value.index);
-    } else if (value is BackupLocation) {
+    }    else if (value is BackupLocation) {
       buffer.putUint8(135);
       writeValue(buffer, value.encode());
-    } else if (value is AppleVpnCapabilities) {
+    }    else if (value is AppleVpnCapabilities) {
       buffer.putUint8(136);
       writeValue(buffer, value.encode());
-    } else if (value is NativeLaunchAtLoginResult) {
+    }    else if (value is NativeLaunchAtLoginResult) {
       buffer.putUint8(137);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformPermissionResult) {
+    }    else if (value is PlatformPermissionResult) {
       buffer.putUint8(138);
       writeValue(buffer, value.encode());
-    } else if (value is NativeVpnCommandResult) {
+    }    else if (value is NativeVpnCommandResult) {
       buffer.putUint8(139);
       writeValue(buffer, value.encode());
-    } else if (value is AndroidAppInfo) {
+    }    else if (value is AndroidAppInfo) {
       buffer.putUint8(140);
       writeValue(buffer, value.encode());
     } else {
@@ -535,13 +558,9 @@ class BridgeHostApi {
   /// Constructor for [BridgeHostApi]. The [binaryMessenger] named argument is
   /// available for dependency injection. If it is left null, the default
   /// BinaryMessenger will be used which routes to the host platform.
-  BridgeHostApi({
-    BinaryMessenger? binaryMessenger,
-    String messageChannelSuffix = '',
-  }) : pigeonVar_binaryMessenger = binaryMessenger,
-       pigeonVar_messageChannelSuffix = messageChannelSuffix.isNotEmpty
-           ? '.$messageChannelSuffix'
-           : '';
+  BridgeHostApi({BinaryMessenger? binaryMessenger, String messageChannelSuffix = ''})
+      : pigeonVar_binaryMessenger = binaryMessenger,
+        pigeonVar_messageChannelSuffix = messageChannelSuffix.isNotEmpty ? '.$messageChannelSuffix' : '';
   final BinaryMessenger? pigeonVar_binaryMessenger;
 
   static const MessageCodec<Object?> pigeonChannelCodec = _PigeonCodec();
@@ -549,8 +568,7 @@ class BridgeHostApi {
   final String pigeonVar_messageChannelSuffix;
 
   Future<String> getTunFilesDir() async {
-    final pigeonVar_channelName =
-        'dev.flutter.pigeon.onexray.BridgeHostApi.getTunFilesDir$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName = 'dev.flutter.pigeon.onexray.BridgeHostApi.getTunFilesDir$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -560,16 +578,16 @@ class BridgeHostApi {
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-      pigeonVar_replyList,
-      pigeonVar_channelName,
-      isNullValid: false,
-    );
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: false,
+    )
+    ;
     return pigeonVar_replyValue! as String;
   }
 
   Future<NativeVpnCommandResult> readVpnStatus() async {
-    final pigeonVar_channelName =
-        'dev.flutter.pigeon.onexray.BridgeHostApi.readVpnStatus$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName = 'dev.flutter.pigeon.onexray.BridgeHostApi.readVpnStatus$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -579,16 +597,16 @@ class BridgeHostApi {
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-      pigeonVar_replyList,
-      pigeonVar_channelName,
-      isNullValid: false,
-    );
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: false,
+    )
+    ;
     return pigeonVar_replyValue! as NativeVpnCommandResult;
   }
 
   Future<NativeVpnCommandResult> startVpn() async {
-    final pigeonVar_channelName =
-        'dev.flutter.pigeon.onexray.BridgeHostApi.startVpn$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName = 'dev.flutter.pigeon.onexray.BridgeHostApi.startVpn$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -598,16 +616,16 @@ class BridgeHostApi {
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-      pigeonVar_replyList,
-      pigeonVar_channelName,
-      isNullValid: false,
-    );
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: false,
+    )
+    ;
     return pigeonVar_replyValue! as NativeVpnCommandResult;
   }
 
   Future<NativeVpnCommandResult> stopVpn() async {
-    final pigeonVar_channelName =
-        'dev.flutter.pigeon.onexray.BridgeHostApi.stopVpn$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName = 'dev.flutter.pigeon.onexray.BridgeHostApi.stopVpn$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -617,37 +635,35 @@ class BridgeHostApi {
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-      pigeonVar_replyList,
-      pigeonVar_channelName,
-      isNullValid: false,
-    );
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: false,
+    )
+    ;
     return pigeonVar_replyValue! as NativeVpnCommandResult;
   }
 
   Future<String> invoke(String requestJson) async {
-    final pigeonVar_channelName =
-        'dev.flutter.pigeon.onexray.BridgeHostApi.invoke$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName = 'dev.flutter.pigeon.onexray.BridgeHostApi.invoke$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
       binaryMessenger: pigeonVar_binaryMessenger,
     );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
-      <Object?>[requestJson],
-    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[requestJson]);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-      pigeonVar_replyList,
-      pigeonVar_channelName,
-      isNullValid: false,
-    );
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: false,
+    )
+    ;
     return pigeonVar_replyValue! as String;
   }
 
   Future<PlatformPermissionResult> queryPlatformPermission() async {
-    final pigeonVar_channelName =
-        'dev.flutter.pigeon.onexray.BridgeHostApi.queryPlatformPermission$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName = 'dev.flutter.pigeon.onexray.BridgeHostApi.queryPlatformPermission$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -657,16 +673,16 @@ class BridgeHostApi {
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-      pigeonVar_replyList,
-      pigeonVar_channelName,
-      isNullValid: false,
-    );
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: false,
+    )
+    ;
     return pigeonVar_replyValue! as PlatformPermissionResult;
   }
 
   Future<PlatformPermissionResult> requestPlatformPermission() async {
-    final pigeonVar_channelName =
-        'dev.flutter.pigeon.onexray.BridgeHostApi.requestPlatformPermission$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName = 'dev.flutter.pigeon.onexray.BridgeHostApi.requestPlatformPermission$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -676,16 +692,16 @@ class BridgeHostApi {
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-      pigeonVar_replyList,
-      pigeonVar_channelName,
-      isNullValid: false,
-    );
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: false,
+    )
+    ;
     return pigeonVar_replyValue! as PlatformPermissionResult;
   }
 
   Future<List<AndroidAppInfo>> getInstalledApps() async {
-    final pigeonVar_channelName =
-        'dev.flutter.pigeon.onexray.BridgeHostApi.getInstalledApps$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName = 'dev.flutter.pigeon.onexray.BridgeHostApi.getInstalledApps$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -695,37 +711,35 @@ class BridgeHostApi {
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-      pigeonVar_replyList,
-      pigeonVar_channelName,
-      isNullValid: false,
-    );
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: false,
+    )
+    ;
     return (pigeonVar_replyValue! as List<Object?>).cast<AndroidAppInfo>();
   }
 
   Future<Uint8List?> getAppIcon(String packageName) async {
-    final pigeonVar_channelName =
-        'dev.flutter.pigeon.onexray.BridgeHostApi.getAppIcon$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName = 'dev.flutter.pigeon.onexray.BridgeHostApi.getAppIcon$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
       binaryMessenger: pigeonVar_binaryMessenger,
     );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
-      <Object?>[packageName],
-    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[packageName]);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-      pigeonVar_replyList,
-      pigeonVar_channelName,
-      isNullValid: true,
-    );
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: true,
+    )
+    ;
     return pigeonVar_replyValue as Uint8List?;
   }
 
   Future<bool> useSystemExtension() async {
-    final pigeonVar_channelName =
-        'dev.flutter.pigeon.onexray.BridgeHostApi.useSystemExtension$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName = 'dev.flutter.pigeon.onexray.BridgeHostApi.useSystemExtension$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -735,16 +749,16 @@ class BridgeHostApi {
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-      pigeonVar_replyList,
-      pigeonVar_channelName,
-      isNullValid: false,
-    );
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: false,
+    )
+    ;
     return pigeonVar_replyValue! as bool;
   }
 
   Future<AppleVpnCapabilities> appleVpnCapabilities() async {
-    final pigeonVar_channelName =
-        'dev.flutter.pigeon.onexray.BridgeHostApi.appleVpnCapabilities$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName = 'dev.flutter.pigeon.onexray.BridgeHostApi.appleVpnCapabilities$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -754,16 +768,16 @@ class BridgeHostApi {
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-      pigeonVar_replyList,
-      pigeonVar_channelName,
-      isNullValid: false,
-    );
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: false,
+    )
+    ;
     return pigeonVar_replyValue! as AppleVpnCapabilities;
   }
 
   Future<NativeLaunchAtLoginResult> queryLaunchAtLogin() async {
-    final pigeonVar_channelName =
-        'dev.flutter.pigeon.onexray.BridgeHostApi.queryLaunchAtLogin$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName = 'dev.flutter.pigeon.onexray.BridgeHostApi.queryLaunchAtLogin$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -773,37 +787,35 @@ class BridgeHostApi {
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-      pigeonVar_replyList,
-      pigeonVar_channelName,
-      isNullValid: false,
-    );
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: false,
+    )
+    ;
     return pigeonVar_replyValue! as NativeLaunchAtLoginResult;
   }
 
   Future<NativeLaunchAtLoginResult> setLaunchAtLogin(bool enabled) async {
-    final pigeonVar_channelName =
-        'dev.flutter.pigeon.onexray.BridgeHostApi.setLaunchAtLogin$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName = 'dev.flutter.pigeon.onexray.BridgeHostApi.setLaunchAtLogin$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
       binaryMessenger: pigeonVar_binaryMessenger,
     );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
-      <Object?>[enabled],
-    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[enabled]);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-      pigeonVar_replyList,
-      pigeonVar_channelName,
-      isNullValid: false,
-    );
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: false,
+    )
+    ;
     return pigeonVar_replyValue! as NativeLaunchAtLoginResult;
   }
 
   Future<bool> openLaunchAtLoginSettings() async {
-    final pigeonVar_channelName =
-        'dev.flutter.pigeon.onexray.BridgeHostApi.openLaunchAtLoginSettings$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName = 'dev.flutter.pigeon.onexray.BridgeHostApi.openLaunchAtLoginSettings$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -813,37 +825,35 @@ class BridgeHostApi {
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-      pigeonVar_replyList,
-      pigeonVar_channelName,
-      isNullValid: false,
-    );
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: false,
+    )
+    ;
     return pigeonVar_replyValue! as bool;
   }
 
   Future<bool> setAppIcon(String appIcon) async {
-    final pigeonVar_channelName =
-        'dev.flutter.pigeon.onexray.BridgeHostApi.setAppIcon$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName = 'dev.flutter.pigeon.onexray.BridgeHostApi.setAppIcon$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
       binaryMessenger: pigeonVar_binaryMessenger,
     );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
-      <Object?>[appIcon],
-    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[appIcon]);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-      pigeonVar_replyList,
-      pigeonVar_channelName,
-      isNullValid: false,
-    );
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: false,
+    )
+    ;
     return pigeonVar_replyValue! as bool;
   }
 
   Future<String> getCurrentAppIcon() async {
-    final pigeonVar_channelName =
-        'dev.flutter.pigeon.onexray.BridgeHostApi.getCurrentAppIcon$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName = 'dev.flutter.pigeon.onexray.BridgeHostApi.getCurrentAppIcon$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -853,10 +863,11 @@ class BridgeHostApi {
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-      pigeonVar_replyList,
-      pigeonVar_channelName,
-      isNullValid: false,
-    );
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: false,
+    )
+    ;
     return pigeonVar_replyValue! as String;
   }
 }
@@ -865,13 +876,9 @@ class BackupHostApi {
   /// Constructor for [BackupHostApi]. The [binaryMessenger] named argument is
   /// available for dependency injection. If it is left null, the default
   /// BinaryMessenger will be used which routes to the host platform.
-  BackupHostApi({
-    BinaryMessenger? binaryMessenger,
-    String messageChannelSuffix = '',
-  }) : pigeonVar_binaryMessenger = binaryMessenger,
-       pigeonVar_messageChannelSuffix = messageChannelSuffix.isNotEmpty
-           ? '.$messageChannelSuffix'
-           : '';
+  BackupHostApi({BinaryMessenger? binaryMessenger, String messageChannelSuffix = ''})
+      : pigeonVar_binaryMessenger = binaryMessenger,
+        pigeonVar_messageChannelSuffix = messageChannelSuffix.isNotEmpty ? '.$messageChannelSuffix' : '';
   final BinaryMessenger? pigeonVar_binaryMessenger;
 
   static const MessageCodec<Object?> pigeonChannelCodec = _PigeonCodec();
@@ -879,64 +886,58 @@ class BackupHostApi {
   final String pigeonVar_messageChannelSuffix;
 
   Future<BackupLocation?> selectBackupFile(bool create) async {
-    final pigeonVar_channelName =
-        'dev.flutter.pigeon.onexray.BackupHostApi.selectBackupFile$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName = 'dev.flutter.pigeon.onexray.BackupHostApi.selectBackupFile$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
       binaryMessenger: pigeonVar_binaryMessenger,
     );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
-      <Object?>[create],
-    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[create]);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-      pigeonVar_replyList,
-      pigeonVar_channelName,
-      isNullValid: true,
-    );
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: true,
+    )
+    ;
     return pigeonVar_replyValue as BackupLocation?;
   }
 
   Future<void> requireBackupAccess(String identifier) async {
-    final pigeonVar_channelName =
-        'dev.flutter.pigeon.onexray.BackupHostApi.requireBackupAccess$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName = 'dev.flutter.pigeon.onexray.BackupHostApi.requireBackupAccess$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
       binaryMessenger: pigeonVar_binaryMessenger,
     );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
-      <Object?>[identifier],
-    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[identifier]);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     _extractReplyValueOrThrow(
-      pigeonVar_replyList,
-      pigeonVar_channelName,
-      isNullValid: true,
-    );
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: true,
+    )
+    ;
   }
 
   Future<void> releaseBackupFile(String identifier) async {
-    final pigeonVar_channelName =
-        'dev.flutter.pigeon.onexray.BackupHostApi.releaseBackupFile$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName = 'dev.flutter.pigeon.onexray.BackupHostApi.releaseBackupFile$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
       binaryMessenger: pigeonVar_binaryMessenger,
     );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
-      <Object?>[identifier],
-    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[identifier]);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     _extractReplyValueOrThrow(
-      pigeonVar_replyList,
-      pigeonVar_channelName,
-      isNullValid: true,
-    );
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: true,
+    )
+    ;
   }
 }
 
@@ -947,20 +948,12 @@ abstract class BridgeFlutterApi {
 
   Future<void> refreshVpn(RefreshVpnResult result);
 
-  static void setUp(
-    BridgeFlutterApi? api, {
-    BinaryMessenger? binaryMessenger,
-    String messageChannelSuffix = '',
-  }) {
-    messageChannelSuffix = messageChannelSuffix.isNotEmpty
-        ? '.$messageChannelSuffix'
-        : '';
+  static void setUp(BridgeFlutterApi? api, {BinaryMessenger? binaryMessenger, String messageChannelSuffix = '',}) {
+    messageChannelSuffix = messageChannelSuffix.isNotEmpty ? '.$messageChannelSuffix' : '';
     {
       final pigeonVar_channel = BasicMessageChannel<Object?>(
-        'dev.flutter.pigeon.onexray.BridgeFlutterApi.vpnStatusChanged$messageChannelSuffix',
-        pigeonChannelCodec,
-        binaryMessenger: binaryMessenger,
-      );
+          'dev.flutter.pigeon.onexray.BridgeFlutterApi.vpnStatusChanged$messageChannelSuffix', pigeonChannelCodec,
+          binaryMessenger: binaryMessenger);
       if (api == null) {
         pigeonVar_channel.setMessageHandler(null);
       } else {
@@ -972,20 +965,16 @@ abstract class BridgeFlutterApi {
             return wrapResponse(empty: true);
           } on PlatformException catch (e) {
             return wrapResponse(error: e);
-          } catch (e) {
-            return wrapResponse(
-              error: PlatformException(code: 'error', message: e.toString()),
-            );
+          }          catch (e) {
+            return wrapResponse(error: PlatformException(code: 'error', message: e.toString()));
           }
         });
       }
     }
     {
       final pigeonVar_channel = BasicMessageChannel<Object?>(
-        'dev.flutter.pigeon.onexray.BridgeFlutterApi.refreshVpn$messageChannelSuffix',
-        pigeonChannelCodec,
-        binaryMessenger: binaryMessenger,
-      );
+          'dev.flutter.pigeon.onexray.BridgeFlutterApi.refreshVpn$messageChannelSuffix', pigeonChannelCodec,
+          binaryMessenger: binaryMessenger);
       if (api == null) {
         pigeonVar_channel.setMessageHandler(null);
       } else {
@@ -997,10 +986,8 @@ abstract class BridgeFlutterApi {
             return wrapResponse(empty: true);
           } on PlatformException catch (e) {
             return wrapResponse(error: e);
-          } catch (e) {
-            return wrapResponse(
-              error: PlatformException(code: 'error', message: e.toString()),
-            );
+          }          catch (e) {
+            return wrapResponse(error: PlatformException(code: 'error', message: e.toString()));
           }
         });
       }

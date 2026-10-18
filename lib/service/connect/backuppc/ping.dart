@@ -29,7 +29,11 @@ Future<int?> backuppcPingOutbound(Map<String, dynamic> outbound) async {
       : serverAddr.substring(0, i).replaceAll('[', '').replaceAll(']', '');
   final port = i < 0 ? 443 : int.tryParse(serverAddr.substring(i + 1)) ?? 443;
   final sw = Stopwatch()..start();
-  final socket = await Socket.connect(host, port, timeout: _pingTimeout);
+  final socket = await Socket.connect(
+    host,
+    port,
+    timeout: _pingTimeout,
+  );
   sw.stop();
   socket.destroy();
   return sw.elapsedMilliseconds;

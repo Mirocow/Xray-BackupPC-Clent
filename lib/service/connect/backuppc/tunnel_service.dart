@@ -211,10 +211,8 @@ class BackupPcTunnelService {
           ? error
           : StateError('backuppc: $error');
     }
-    running.log(
-      'tunnels ready (${profiles.length}): '
-      '${[for (final p in profiles) '127.0.0.1:${p.port}'].join(', ')}',
-    );
+    running.log('tunnels ready (${profiles.length}): '
+        '${[for (final p in profiles) '127.0.0.1:${p.port}'].join(', ')}');
   }
 
   /// Полная остановка туннелей (соединение разорвано).

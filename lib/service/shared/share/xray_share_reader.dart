@@ -111,8 +111,7 @@ class XrayShareReader {
     if (input.contains('://')) return false;
     final lower = input.toLowerCase();
     // Check for backuppc share-link query params.
-    final hasBackupPcParams =
-        lower.contains('endpoints=') ||
+    final hasBackupPcParams = lower.contains('endpoints=') ||
         lower.contains('fp=') ||
         lower.contains('&host=') ||
         lower.contains('?host=') ||
@@ -121,8 +120,7 @@ class XrayShareReader {
         lower.contains('&ua=') ||
         lower.contains('?ua=');
     // Check for backuppc endpoint service names.
-    final hasBackupPcServices =
-        lower.contains('backuppc.') &&
+    final hasBackupPcServices = lower.contains('backuppc.') &&
         (lower.contains('backupservice') ||
             lower.contains('chunkservice') ||
             lower.contains('storageservice') ||
@@ -166,8 +164,7 @@ class XrayShareReader {
         continue;
       }
       final scheme = Uri.tryParse(trimmed)?.scheme.toLowerCase() ?? '';
-      final startsWithScheme =
-          scheme.isNotEmpty &&
+      final startsWithScheme = scheme.isNotEmpty &&
           (trimmed.contains('://') || scheme == 'backuppcvpn');
       if (startsWithScheme) {
         // New URL starts here.
