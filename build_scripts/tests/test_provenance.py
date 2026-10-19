@@ -36,7 +36,7 @@ class ProvenanceTest(unittest.TestCase):
 
     def receipt(self, architecture, *, target="windows", paths=None, mode="msix"):
         suffix = "amd64" if architecture == "x64" else "arm64"
-        paths = paths or [f"windows-store-{architecture}/OneXray-windows-{suffix}.msix"]
+        paths = paths or [f"windows-store-{architecture}/backuppc-vpn-windows-{suffix}.msix"]
         packages = [self.artifacts / path for path in paths]
         for package in packages:
             package.parent.mkdir(parents=True, exist_ok=True)
@@ -68,10 +68,10 @@ class ProvenanceTest(unittest.TestCase):
                                  "linux-x64/OneXray-linux-x86_64.deb"]),
             ("linux", "aarch64", ["linux-arm64/OneXray-linux-aarch64.zip",
                                   "linux-arm64/OneXray-linux-aarch64.deb"]),
-            ("windows", "x64", ["windows-x64/OneXray-windows-amd64.exe",
-                                 "windows-x64/OneXray-windows-amd64.zip"]),
-            ("windows", "arm64", ["windows-arm64/OneXray-windows-arm64.exe",
-                                   "windows-arm64/OneXray-windows-arm64.zip"]),
+            ("windows", "x64", ["windows-x64/backuppc-vpn-windows-amd64.exe",
+                                 "windows-x64/backuppc-vpn-windows-amd64.zip"]),
+            ("windows", "arm64", ["windows-arm64/backuppc-vpn-windows-arm64.exe",
+                                   "windows-arm64/backuppc-vpn-windows-arm64.zip"]),
         ):
             if build_target not in {"all", "macos" if target == "macos_se" else target}:
                 continue
@@ -313,7 +313,7 @@ class ProvenanceTest(unittest.TestCase):
         (root / "pubspec.lock").write_text("fixture lock")
         package = output / "OneXray-linux-x86_64.zip"
         package.write_bytes(b"fixture package")
-        (output / "OneXray-windows-amd64.msix").write_bytes(b"other target")
+        (output / "backuppc-vpn-windows-amd64.msix").write_bytes(b"other target")
         builder = SimpleNamespace(
             root_dir=str(root), output_dir=str(output), workspace_dir=str(self.artifacts),
             project_dir=str(root / "linux"), system="linux", build_number=401,
@@ -349,14 +349,15 @@ class ProvenanceTest(unittest.TestCase):
         compiler = inno_directory / "ISCC.exe"
         compiler.write_bytes(b"compiler fixture")
         for extension in ("msix", "exe", "zip"):
-            (output / f"OneXray-windows-amd64.{extension}").write_bytes(extension.encode())
+            (output / f"backuppc-vpn-windows-amd64.{extension}").write_bytes(extension.encode())
         vendored = root / "third_party/libXray"
         vendored.mkdir(parents=True)
         (vendored / "manifest.json").write_text(json.dumps({"commit": "b" * 40}))
         builder = SimpleNamespace(
             root_dir=str(root), output_dir=str(output), workspace_dir=str(self.artifacts),
             project_dir=str(root / "windows"), system="windows", build_number=401,
-            builder=SimpleNamespace(package_suffix="windows-amd64", target_architecture="x64",
+            builder=SimpleNamespace(package_suffix="windows-amd64", package_name="backuppc-vpn",
+                                    target_architecture="x64",
                                     _vcore_dir=lambda: str(vcore), msix_version=lambda: "26.9.1.0"),
             project_config={"core.dir": "third_party/libXray", "core.lib.dst.dir.windows": "app",
                             "core.lib.src.files.windows": ["libXray.dll"]},
@@ -375,7 +376,7 @@ class ProvenanceTest(unittest.TestCase):
                 destination = finish_build(builder, receipt)
             self.assertEqual(receipt["windowsMode"], mode)
             self.assertEqual(destination.name, f"provenance-windows-x64-{mode}.json")
-            self.assertEqual(set(receipt["packages"]), {f"OneXray-windows-amd64.{ext}" for ext in extensions})
+            self.assertEqual(set(receipt["packages"]), {f"backuppc-vpn-windows-amd64.{ext}" for ext in extensions})
             self.assertEqual("msixVersion" in receipt, mode == "msix")
             self.assertEqual("fastforge" in receipt["tools"], mode == "exe")
             self.assertEqual("innoSetup" in receipt["tools"], mode == "exe")

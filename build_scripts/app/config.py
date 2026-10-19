@@ -16,7 +16,10 @@ PROJECT_CONFIG = {
         "core.bin.src.file.linux": "bin/xray",
         "core.bin.src.file.windows": "bin/xray.exe",
         "core.bin.dst.file.linux": "app/OneXrayCore",
-        "core.bin.dst.file.windows": "app/OneXrayCore.exe",
+        "core.bin.dst.file.windows": "app/BackupPCVPNCore.exe",
+        # Windows: BINARY_NAME in windows/CMakeLists.txt and the package prefix.
+        "windows.binary": "BackupPCVPN",
+        "windows.package": "backuppc-vpn",
         "app.release.dir.android": "../build/app/outputs",
         "app.release.dir.linux": "../dist",
     },

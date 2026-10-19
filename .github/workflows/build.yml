@@ -618,7 +618,7 @@ jobs:
         run: uv run --project build_scripts python build_scripts/main.py OneXray windows --windows-mode ${{ matrix.mode }}
 
       - name: Verify core CLI
-        run: ./windows/app/OneXrayCore.exe -h
+        run: ./windows/app/BackupPCVPNCore.exe -h
 
       - name: Upload Microsoft Store artifact
         if: matrix.mode == 'msix'

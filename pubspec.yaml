@@ -105,8 +105,8 @@ dependency_overrides:
   isolate_manager: ^6.3.2
 
 msix_config:
-  display_name: OneXray
-  publisher_display_name: Yuan Dev LLC
+  display_name: BackupPC VPN
+  publisher_display_name: BackupPC VPN
   identity_name: YuanDevLLC.OneXray
   publisher: CN=3666BCB5-5482-46DD-9C19-D8A7290A39FD
   logo_path: assets/logo.png
@@ -120,9 +120,9 @@ msix_config:
   protocol_activation: backuppcvpn,backuppc
   protocols:
     - name: BackupPC VPN Protocol
-      exec: OneXray.exe
+      exec: BackupPCVPN.exe
     - name: BackupPC Share Protocol
-      exec: OneXray.exe
+      exec: BackupPCVPN.exe
   languages: en-us
   capabilities: internetClientServer, privateNetworkClientServer, networkingVpnProvider
   startup_task:

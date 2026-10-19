@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'dart:io';
 
+import 'package:onexray/core/constants/branding.dart';
 import 'package:onexray/service/advanced/platform_policy.dart';
 
 class OutboundInterfaceOption {
@@ -31,7 +33,7 @@ Future<List<NetworkInterface>> queryInterfaceList() async {
 
 Future<List<NetworkInterface>> queryXrayOutboundInterfaceList() async => [
   for (final row in await queryInterfaceList())
-    if (row.name != 'OneXrayTun' &&
+    if (row.name != AppBranding.tunName &&
         !row.addresses.any(
           (address) =>
               address.address == PlatformPolicy.tunIpv4Address ||
@@ -69,12 +71,15 @@ Future<String?> _currentInternetInterface() async {
       return routes.isEmpty ? null : routes.first.first;
     }
     if (Platform.isWindows) {
+      // PowerShell writes in the OEM code page by default; a localized
+      // alias such as «Беспроводная сеть» would come back garbled.
       final result = await Process.run('powershell.exe', [
         '-NoProfile',
         '-NonInteractive',
         '-Command',
-        '(Get-NetRoute -DestinationPrefix "0.0.0.0/0" | Sort-Object RouteMetric | Select-Object -First 1).InterfaceAlias',
-      ]).timeout(const Duration(seconds: 5));
+        '[Console]::OutputEncoding = [Text.Encoding]::UTF8; '
+            '(Get-NetRoute -DestinationPrefix "0.0.0.0/0" | Sort-Object RouteMetric | Select-Object -First 1).InterfaceAlias',
+      ], stdoutEncoding: utf8).timeout(const Duration(seconds: 5));
       return result.exitCode == 0 ? '${result.stdout}'.trim() : null;
     }
   } on Exception {

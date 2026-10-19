@@ -74,7 +74,7 @@ class WindowsPackagingTest(unittest.TestCase):
                   self.builder.target_architecture / "runner/Release")
         source.mkdir(parents=True, exist_ok=True)
         runtime_files = self.builder._required_crt_files()
-        for name in ("OneXray.exe", "flutter_windows.dll", *_RUNTIME_FILES, *runtime_files):
+        for name in ("BackupPCVPN.exe", "flutter_windows.dll", *_RUNTIME_FILES, *runtime_files):
             (source / name).write_bytes(_pe(self.builder._machine()))
         for name in ("data/icudtl.dat", "data/app.so", "data/flutter_assets/AssetManifest.bin",
                      "data/flutter_assets/assets/dat/geoip.dat", "plugin.dll"):
@@ -103,7 +103,7 @@ class WindowsPackagingTest(unittest.TestCase):
                     dist = Path(self.builder.root_dir) / "dist" / self.builder.read_version()
                     dist.mkdir(parents=True, exist_ok=True)
                     for extension in ("exe", "zip"):
-                        (dist / f"OneXray-windows-{package_arch}.{extension}").write_bytes(
+                        (dist / f"backuppc-vpn-windows-{package_arch}.{extension}").write_bytes(
                             f"Fastforge {target} {extension}".encode()
                         )
                     (dist / "unrelated.msix").write_bytes(b"not an EXE-mode artifact")
@@ -115,13 +115,13 @@ class WindowsPackagingTest(unittest.TestCase):
                     arguments=(
                         "--build-dart-define", "ONEXRAY_WINDOWS_MODE=exe",
                         "--flutter-build-args", "build-number=412",
-                        "--artifact-name", f"OneXray-windows-{package_arch}." + "{{ext}}",
+                        "--artifact-name", f"backuppc-vpn-windows-{package_arch}." + "{{ext}}",
                     ),
                     env={"PROCESSOR_ARCHITECTURE": processor_arch, "ONEXRAY_WINDOWS_MODE": "exe"},
                 )
                 for extension in ("exe", "zip"):
                     self.assertEqual(
-                        (Path(self.builder.output_dir) / f"OneXray-windows-{package_arch}.{extension}").read_bytes(),
+                        (Path(self.builder.output_dir) / f"backuppc-vpn-windows-{package_arch}.{extension}").read_bytes(),
                         f"Fastforge {target} {extension}".encode(),
                     )
                 self.assertFalse((Path(self.builder.output_dir) / "unrelated.msix").exists())
@@ -146,7 +146,7 @@ class WindowsPackagingTest(unittest.TestCase):
             directory = dist / version
             directory.mkdir(parents=True)
             for extension in extensions:
-                (directory / f"OneXray-windows-amd64.{extension}").write_bytes(b"fixture")
+                (directory / f"backuppc-vpn-windows-amd64.{extension}").write_bytes(b"fixture")
         with patch.object(self.builder, "fastforge_build"), self.assertRaisesRegex(FileNotFoundError, "Fastforge package missing"):
             self.builder.package_exe_and_zip()
         self.assertEqual(list(Path(self.builder.output_dir).iterdir()), [])
@@ -185,7 +185,7 @@ class WindowsPackagingTest(unittest.TestCase):
     def test_cmake_ships_vcore_only_in_msix_mode(self):
         cmake = (Path(__file__).resolve().parents[2] / "windows/app.cmake").read_text()
         core, vcore = cmake.split('if(ONEXRAY_WINDOWS_MODE STREQUAL "msix")', 1)
-        for name in ("libXray.dll", "OneXrayCore.exe", "wintun.dll"):
+        for name in ("libXray.dll", "BackupPCVPNCore.exe", "wintun.dll"):
             self.assertIn(name, core)
         for name in _VCORE_ARTIFACTS:
             self.assertNotIn(name, core)
@@ -217,7 +217,7 @@ class WindowsPackagingTest(unittest.TestCase):
             dist = Path(self.builder.root_dir) / "dist/26.7.3"
             dist.mkdir(parents=True, exist_ok=True)
             for extension in ("exe", "zip"):
-                (dist / f"OneXray-windows-{package_arch}.{extension}").write_bytes(b"fixture")
+                (dist / f"backuppc-vpn-windows-{package_arch}.{extension}").write_bytes(b"fixture")
             for name in required_files:
                 with self.subTest(architecture=architecture, runtime=name):
                     original = (source / name).read_bytes()
@@ -263,8 +263,8 @@ class WindowsPackagingTest(unittest.TestCase):
         root = Path(__file__).resolve().parents[2]
         installer = (root / "windows/packaging/exe/inno_setup.iss").read_text()
         config = (root / "windows/packaging/exe/make_config.yaml").read_text()
-        self.assertIn("app_id: 835d7bbd-85bb-4c73-97f8-ce0740f151a7", config)
-        self.assertIn("executable_name: OneXray.exe", config)
+        self.assertIn("app_id: 00b752d0-2039-4fab-8462-68ca587fba8d", config)
+        self.assertIn("executable_name: BackupPCVPN.exe", config)
         self.assertIn("privileges_required: lowest", config)
         self.assertIn("AppId={{APP_ID}}", installer)
         self.assertIn("PrivilegesRequired={{PRIVILEGES_REQUIRED}}", installer)
@@ -307,11 +307,11 @@ class WindowsPackagingTest(unittest.TestCase):
         self.assertIn("secrets.PACKAGE_MANAGER_GITHUB_TOKEN", workflow)
         self.assertEqual(workflow.count("if: steps.verify.outputs.should_update == 'true'"), 2)
         pattern = re.search(r"installers-regex: '([^']+)'", workflow).group(1)
-        for name in ("OneXray-windows-amd64.exe", "OneXray-windows-arm64.exe"):
+        for name in ("backuppc-vpn-windows-amd64.exe", "backuppc-vpn-windows-arm64.exe"):
             self.assertRegex(name, pattern)
             self.assertIn(name, workflow)
-        for name in ("OneXray-windows-amd64.zip", "OneXray-windows-arm64.msix",
-                     "OneXrayCore.exe", "OneXray-windows-amd64.exe.sig"):
+        for name in ("backuppc-vpn-windows-amd64.zip", "backuppc-vpn-windows-arm64.msix",
+                     "BackupPCVPNCore.exe", "backuppc-vpn-windows-amd64.exe.sig"):
             self.assertNotRegex(name, pattern)
 
     def test_msix_uses_store_version_without_rebuilding_windows(self):
@@ -337,14 +337,14 @@ class WindowsPackagingTest(unittest.TestCase):
                 "--output-path",
                 self.builder.output_dir,
                 "--output-name",
-                "OneXray-windows-amd64",
+                "backuppc-vpn-windows-amd64",
             ],
             cwd=self.builder.root_dir,
         )
         package_with_vcore.assert_called_once_with(
             os.path.join(
                 self.builder.output_dir,
-                "OneXray-windows-amd64.msix",
+                "backuppc-vpn-windows-amd64.msix",
             ),
             local_development=False,
             certificate_thumbprint=None,
@@ -366,7 +366,7 @@ class WindowsPackagingTest(unittest.TestCase):
 
         command = run_command.call_args.args[0]
         self.assertEqual(command[command.index("--architecture") + 1], "arm64")
-        self.assertEqual(command[-1], "OneXray-windows-arm64")
+        self.assertEqual(command[-1], "backuppc-vpn-windows-arm64")
 
     def test_vcore_build_lets_vcore_detect_native_architecture(self):
         vcore_dir = os.path.join(self.temp_dir.name, "VCore")
@@ -420,7 +420,7 @@ class WindowsPackagingTest(unittest.TestCase):
                     "arm64",
                     "runner",
                     "Release",
-                    "OneXray.exe",
+                    "BackupPCVPN.exe",
                 )
             )
         )

@@ -15,6 +15,7 @@ from app.command_line import (
     is_arm64,
     run_command,
 )
+from app.config import PROJECT_CONFIG
 from app.windows_msix import package_with_vcore
 
 _VCORE_ARTIFACTS = (
@@ -27,7 +28,7 @@ _VCORE_IDENTITY = (
 )
 _WINTUN_VERSION = "0.14.1"
 _WINTUN_SHA256 = "07c256185d6ee3652e09fa55c0b673e2624b565e02c4b9091c79ca7d2f24ef51"
-_CORE_RUNTIME_FILES = ("libXray.dll", "OneXrayCore.exe", "wintun.dll")
+_CORE_RUNTIME_FILES = ("libXray.dll", "BackupPCVPNCore.exe", "wintun.dll")
 # VCore is the MSIX system-VPN backend; EXE builds neither build nor ship it.
 _RUNTIME_FILES = (*_CORE_RUNTIME_FILES, *_VCORE_ARTIFACTS)
 
@@ -48,6 +49,16 @@ class WindowsBuilder(Builder):
         self.target_architecture = self._target_architecture()
         package_architecture = "amd64" if self.target_architecture == "x64" else "arm64"
         self.package_suffix = f"windows-{package_architecture}"
+
+    @property
+    def binary_name(self) -> str:
+        """windows/CMakeLists.txt BINARY_NAME, without .exe."""
+        return PROJECT_CONFIG[self.project].get("windows.binary", self.project)
+
+    @property
+    def package_name(self) -> str:
+        """Prefix of the EXE, ZIP and MSIX package names."""
+        return PROJECT_CONFIG[self.project].get("windows.package", self.project)
 
     @staticmethod
     def _target_architecture() -> str:
@@ -153,7 +164,7 @@ class WindowsBuilder(Builder):
         source = (Path(self.root_dir) / "build" / "windows" /
                   self.target_architecture / "runner" / "Release")
         for name in (
-            f"{self.project}.exe", "flutter_windows.dll", *self._runtime_files(),
+            f"{self.binary_name}.exe", "flutter_windows.dll", *self._runtime_files(),
             *self._required_crt_files(),
         ):
             artifact = source / name
@@ -191,7 +202,7 @@ class WindowsBuilder(Builder):
                 arguments=(
                     "--build-dart-define", "ONEXRAY_WINDOWS_MODE=exe",
                     "--flutter-build-args", f"build-number={build_number or self.build_number}",
-                    "--artifact-name", f"{self.project}-{self.package_suffix}." + "{{ext}}",
+                    "--artifact-name", f"{self.package_name}-{self.package_suffix}." + "{{ext}}",
                 ),
                 # Fastforge resolves the bundle directory from this variable.
                 # windows/app.cmake reads the mode to decide whether VCore ships.
@@ -207,7 +218,7 @@ class WindowsBuilder(Builder):
         self._release_bundle()
         packages = [
             Path(self.root_dir) / "dist" / marketing_version /
-            f"{self.project}-{self.package_suffix}.{extension}"
+            f"{self.package_name}-{self.package_suffix}.{extension}"
             for extension in ("exe", "zip")
         ]
         for package in packages:
@@ -218,7 +229,7 @@ class WindowsBuilder(Builder):
 
     def package_msix(self):
         self._prepare_msix_bundle()
-        output_name = f"{self.project}-{self.package_suffix}"
+        output_name = f"{self.package_name}-{self.package_suffix}"
         run_command(
             [
                 dart_command(),

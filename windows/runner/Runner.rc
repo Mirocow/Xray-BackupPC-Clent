@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "YuanDevLLC" "\0"
-            VALUE "FileDescription", "OneXray" "\0"
+            VALUE "CompanyName", "BackupPC VPN" "\0"
+            VALUE "FileDescription", "BackupPC VPN" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "OneXray" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2025-2026 Yuan Dev LLC. All rights reserved." "\0"
-            VALUE "OriginalFilename", "OneXray.exe" "\0"
-            VALUE "ProductName", "OneXray" "\0"
+            VALUE "InternalName", "BackupPCVPN" "\0"
+            VALUE "LegalCopyright", "BackupPC VPN, a modified OneXray (C) 2025-2026 Yuan Dev LLC. GPL-3.0." "\0"
+            VALUE "OriginalFilename", "BackupPCVPN.exe" "\0"
+            VALUE "ProductName", "BackupPC VPN" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

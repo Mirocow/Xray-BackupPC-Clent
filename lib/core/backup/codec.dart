@@ -2,8 +2,9 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:onexray/core/backup/model.dart';
+import 'package:onexray/core/constants/branding.dart';
 
-const backupFileName = 'OneXray-backup.json';
+const backupFileName = 'backuppc-vpn-backup.json';
 const backupByteLimit = 64 * 1024 * 1024;
 
 BackupDocument decodeBackup(Uint8List bytes) {
@@ -24,7 +25,9 @@ BackupDocument decodeBackup(Uint8List bytes) {
     DateTime.fromMillisecondsSinceEpoch(document.createdAt);
     return document;
   } catch (_) {
-    throw const FormatException('Invalid or unsupported OneXray backup');
+    throw const FormatException(
+      'Invalid or unsupported ${AppBranding.name} backup',
+    );
   }
 }
 

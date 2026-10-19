@@ -115,7 +115,7 @@ void main() {
           expect(tun['settings']['desc'], 'Keep');
           expect(tun['settings']['userLevel'], 5);
           expect(tun['settings']['futureSetting'], 'retain');
-          expect(tun['settings']['name'], 'OneXrayTun');
+          expect(tun['settings']['name'], 'BackupPCVPN');
           expect(tun['settings']['mtu'], VpnConstants.tunMtu);
           if (platform != ConnectionPlatform.windows &&
               platform != ConnectionPlatform.linux) {
@@ -520,7 +520,7 @@ void main() {
               expect(inbound['protocol'], 'tun');
               expect(inbound.containsKey('port'), false);
               expect(inbound['settings'], {
-                'name': 'OneXrayTun',
+                'name': 'BackupPCVPN',
                 'mtu': VpnConstants.tunMtu,
                 'gateway': ['198.18.0.1/15', if (ipv6) 'fc00::1/64'],
                 'dns': ['8.8.8.8', if (ipv6) '2001:4860:4860::8888'],
@@ -610,7 +610,7 @@ void main() {
           inbounds.singleWhere(
             (inbound) => inbound['tag'] == 'tunIn',
           )['settings'],
-          {'name': 'OneXrayTun', 'mtu': 1500},
+          {'name': 'BackupPCVPN', 'mtu': 1500},
         );
         expect(inbounds, hasLength(1));
         config['outbounds'].clear();
@@ -1029,7 +1029,7 @@ void main() {
     );
     final runtime = plan.config;
     expect(runtime['inbounds'][1]['tag'], 'extra');
-    expect(runtime['inbounds'].first['settings']['name'], 'OneXrayTun');
+    expect(runtime['inbounds'].first['settings']['name'], 'BackupPCVPN');
     expect(runtime['policy']['levels']['0']['handshake'], 7);
     expect(runtime['policy']['levels']['0']['statsUserUplink'], false);
     expect(runtime['policy']['system']['statsOutboundUplink'], false);
@@ -1209,7 +1209,7 @@ void main() {
             });
             if (platform == ConnectionPlatform.linux) {
               expect(config['inbounds'].single['settings'], {
-                'name': 'OneXrayTun',
+                'name': 'BackupPCVPN',
                 'mtu': VpnConstants.tunMtu,
                 'gateway': ['198.18.0.1/15', if (ipv6) 'fc00::1/64'],
                 'dns': ['8.8.8.8', if (ipv6) '2001:4860:4860::8888'],

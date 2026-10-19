@@ -4,6 +4,7 @@ import 'dart:isolate';
 
 import 'package:ffi/ffi.dart';
 import 'package:flutter/foundation.dart';
+import 'package:onexray/core/constants/branding.dart';
 import 'package:onexray/core/ffi/desktop_core_exit.dart';
 import 'package:path/path.dart' as p;
 import 'package:win32/win32.dart';
@@ -12,7 +13,7 @@ import 'package:win32/win32.dart';
 class WindowsCoreProcess {
   final String _name;
 
-  WindowsCoreProcess() : _name = 'OneXrayCore.exe';
+  WindowsCoreProcess() : _name = AppBranding.windowsCore;
 
   @visibleForTesting
   WindowsCoreProcess.forTesting({required String processName})

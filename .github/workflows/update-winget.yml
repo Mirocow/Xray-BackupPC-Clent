@@ -77,8 +77,8 @@ jobs:
           fi
 
           for asset in \
-            OneXray-windows-amd64.exe \
-            OneXray-windows-arm64.exe; do
+            backuppc-vpn-windows-amd64.exe \
+            backuppc-vpn-windows-arm64.exe; do
             if [ -z "$(jq -r --arg asset "$asset" '.assets[] | select(.name == $asset) | .url' <<<"$release_json")" ]; then
               echo "Release $RELEASE_TAG is missing required asset: $asset" >&2
               exit 1
@@ -117,6 +117,6 @@ jobs:
         with:
           identifier: YuanDevLLC.OneXray
           release-tag: ${{ steps.release.outputs.tag }}
-          installers-regex: '^OneXray-windows-(amd64|arm64)\.exe$'
+          installers-regex: '^backuppc-vpn-windows-(amd64|arm64)\.exe$'
           max-versions-to-keep: 0
           token: ${{ secrets.PACKAGE_MANAGER_GITHUB_TOKEN }}

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:onexray/core/constants/branding.dart';
 import 'package:onexray/core/ffi/base_ffi_api.dart';
 import 'package:onexray/core/ffi/desktop_core_exit.dart';
 import 'package:onexray/core/ffi/windows/core_process.dart';
@@ -37,7 +38,10 @@ class WindowsExeFfiApi extends WindowsFfiApi {
   }) : _process = process ?? WindowsCoreProcess(),
        _corePath =
            executable ??
-           p.join(p.dirname(Platform.resolvedExecutable), 'OneXrayCore.exe'),
+           p.join(
+             p.dirname(Platform.resolvedExecutable),
+             AppBranding.windowsCore,
+           ),
        _readRequest = readRequest ?? StartVpnRequestReader.readFromStartFile,
        _notify = notify ?? AppFlutterApi().vpnStatusChanged,
        _notifyError =
@@ -49,8 +53,11 @@ class WindowsExeFfiApi extends WindowsFfiApi {
       _filesDirectory ?? await super.getTunFilesDir();
 
   @override
-  Future<void> ensureRuntime() =>
-      checkRuntimeFiles(const ['libXray.dll', 'OneXrayCore.exe', 'wintun.dll']);
+  Future<void> ensureRuntime() => checkRuntimeFiles(const [
+    'libXray.dll',
+    AppBranding.windowsCore,
+    'wintun.dll',
+  ]);
 
   @override
   Future<void> observeVpnStatus() async {
