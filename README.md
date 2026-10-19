@@ -53,6 +53,7 @@ Download `backuppc-vpn-<version>-arm64.apk` from the releases and allow installa
 
 
 - **Linux** — `backuppc-client` runs as a systemd service: a local SOCKS5 proxy, or a TUN mode that routes the whole host, with a server mode that keeps incoming connections to the host's public services working. See [deploy/linux](./deploy/linux/README.md).
+- **macOS and Windows** — the same headless client as one binary with the Xray core built in: SOCKS5 or TUN mode as a launchd daemon / Windows service, no Apple Developer account or code signing required. See [deploy/macos](./deploy/macos/README.md) and [deploy/windows](./deploy/windows/README.md).
 - **OpenWrt** — `backuppc-socks` (≈6 MB, no Xray core) runs one SOCKS5 port per server; [podkop](https://github.com/itdoginfo/podkop) decides which domains and subnets go where, with URLTest/Selector for several servers. See [openwrt](./openwrt/README.md).in
 
 ## Privacy
@@ -67,6 +68,8 @@ Shared configurations and subscription URLs contain credentials — review them 
 | --- | --- |
 | Android APK | `flutter build apk --release --split-per-abi --target-platform android-arm64` (first build the core with `python3 build/main.py android` in [third_party/libXray](./third_party/libXray/README.md) and copy `libXray.aar` to `android/app/libs/`) |
 | Linux DEB | `make deb` |
+| macOS headless (arm64, amd64) | `make macos-tgz` |
+| Windows headless (x64) | `make windows-zip` |
 | OpenWrt IPK | `make ipk ARCH=aarch64_cortex-a53` |
 
 - [Development setup](./readme/FIRST_RUN.md) and [build scripts](./build_scripts/README.md).

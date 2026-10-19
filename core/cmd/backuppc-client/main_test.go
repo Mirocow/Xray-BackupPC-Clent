@@ -3,8 +3,10 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -42,7 +44,8 @@ func TestImportWritesSecretFiles(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: %v", name, err)
 		}
-		if st.Mode().Perm() != 0o640 {
+		// Windows: права задаёт DACL каталога (secureDir), не биты режима
+		if runtime.GOOS != "windows" && st.Mode().Perm() != 0o640 {
 			t.Errorf("%s: mode %o, want 640", name, st.Mode().Perm())
 		}
 	}
@@ -87,10 +90,13 @@ func TestTunConfig(t *testing.T) {
 	if srv := dns["servers"].([]any); len(srv) != 1 || srv[0] != "tcp://9.9.9.9" {
 		t.Errorf("dns servers: %v", srv)
 	}
+	if dns["queryStrategy"] != "UseIPv4" {
+		t.Errorf("dns without -ipv6 must be IPv4-only: %v", dns)
+	}
 	// DNS-модуль ходит через прокси; UDP:53 из TUN — в dns-outbound;
-	// прочий UDP блокируется (протокол переносит только TCP).
+	// IPv6 (без -ipv6) и прочий UDP блокируются (протокол переносит только TCP).
 	rules := cfg["routing"].(map[string]any)["rules"].([]any)
-	want := []string{"proxy", "dns-out", "direct", "block"}
+	want := []string{"proxy", "dns-out", "direct", "block", "block"}
 	if len(rules) != len(want) {
 		t.Fatalf("rules: %v", rules)
 	}
@@ -132,7 +138,7 @@ func TestImportRejectsBadInput(t *testing.T) {
 		{"vless://x@h:1"},
 		{"-socks", "localhost:1080", testLink},
 		{"-socks", "127.0.0.1", testLink},
-		{"-tun", "this-name-is-too-long", testLink},
+		{"-tun", "bad/name", testLink},
 		{"-mtu", "100", testLink},
 		{"-dns", "dns.google", testLink},
 		{"-loglevel", "loud", testLink},
@@ -181,6 +187,14 @@ func TestAccessLogOffUnlessDebug(t *testing.T) {
 }
 
 func TestServerMode(t *testing.T) {
+	if !serverModeSupported {
+		dir := t.TempDir()
+		err := run([]string{"import", "-dir", dir, "-server-mode", testLink}, strings.NewReader(""), io.Discard)
+		if err == nil {
+			t.Error("-server-mode accepted where unsupported")
+		}
+		return
+	}
 	dir := importTo(t, "-server-mode", testLink)
 	cfg := readJSON(t, filepath.Join(dir, "tun.json"))
 	rules := cfg["routing"].(map[string]any)["rules"].([]any)
@@ -198,5 +212,18 @@ func TestServerMode(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "TUN:      сервер") {
 		t.Errorf("show:\n%s", out.String())
+	}
+}
+
+func TestTunConfigIPv6(t *testing.T) {
+	dir := importTo(t, "-ipv6", testLink)
+	cfg := readJSON(t, filepath.Join(dir, "tun.json"))
+	if qs, ok := cfg["dns"].(map[string]any)["queryStrategy"]; ok {
+		t.Errorf("-ipv6: queryStrategy %v", qs)
+	}
+	for _, r := range cfg["routing"].(map[string]any)["rules"].([]any) {
+		if ips, ok := r.(map[string]any)["ip"].([]any); ok && len(ips) == 1 && ips[0] == "::/0" {
+			t.Errorf("-ipv6: IPv6 still blocked: %v", r)
+		}
 	}
 }
