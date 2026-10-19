@@ -19,6 +19,9 @@ import 'package:onexray/service/shared/event_bus/service.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:onexray/core/constants/branding.dart';
+import 'package:onexray/core/ffi/windows/mode.dart';
+import 'package:onexray/service/advanced/platform_policy.dart';
+import 'package:onexray/service/connect/compiler.dart' as connect;
 
 class SettingsPageState {
   final String appVersion;
@@ -109,8 +112,8 @@ class SettingsController extends PageCubit<SettingsPageState> {
   Future<void> _readPreferences() async {
     try {
       final connect = await PreferencesKey().readConnectOnAppLaunch();
-      final nativeOutbound =
-          await PreferencesKey().readNativeBackuppcOutbound();
+      final nativeOutbound = await PreferencesKey()
+          .readNativeBackuppcOutbound();
       final icon = showAppIcon
           ? AppIcon.fromString(await AppHostApi().getCurrentAppIcon())
           : null;
@@ -127,7 +130,11 @@ class SettingsController extends PageCubit<SettingsPageState> {
     }
   }
 
-  /// Toggle native backuppc outbound (Android only).
+  /// The native backuppc outbound toggle exists on Android and Windows (EXE).
+  bool get nativeBackuppcAvailable =>
+      connect.nativeBackuppcAvailable(connectionPlatform, windowsBuildMode);
+
+  /// Toggle native backuppc outbound (Android, Windows EXE).
   /// When enabled: Xray handles backuppc protocol directly in VPN process.
   /// When disabled: Dart tunnel fallback (same as iOS/desktop).
   Future<void> toggleNativeBackuppcOutbound(bool value) async {

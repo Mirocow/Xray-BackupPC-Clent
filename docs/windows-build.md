@@ -8,7 +8,7 @@ Windows 构建以 [`.github/workflows/build.yml`](../.github/workflows/build.yml
 
 | 模式 | Xray 入站与进程 | 登录项 | 分发产物 |
 | --- | --- | --- | --- |
-| `exe`（默认） | Native TUN / Wintun；App 通过 UAC 提权启动独立 Core | 当前用户 Startup 快捷方式 | EXE 安装程序与 ZIP |
+| `exe`（默认） | Native TUN / Wintun；App 通过 UAC 提权启动独立 Core；backuppc 节点默认使用 Core 内的原生 outbound（设置中可切回 Dart 隧道） | 当前用户 Startup 快捷方式 | EXE 安装程序与 ZIP |
 | `msix` | VCore 系统 VPN；Session Host 启动普通权限 Core，连接其私有 SOCKS 入站 | 包内 `VCoreStartup` | Microsoft Store MSIX |
 
 两种模式都要求选择 Xray 出口网卡。`Windows 系统 VPN` 页面及其策略只用于 MSIX；EXE 不应用这些策略。数据根目录和权限边界见 [App 启动](app-startup.md)，生成配置和进程状态见 [Xray 配置](xray-configuration.md)。
@@ -68,7 +68,7 @@ GitHub 发布从 EXE 模式产物读取两种架构的 EXE 和 ZIP；`windows` �
 - Windows CMake 工程使用 C++17。
 - MSVC 编译启用 `/W4 /WX`，警告会导致构建失败。
 - Flutter、Go、libXray 生成的 `OneXrayCore.exe`、Wintun 和三个 VCore 产物的架构必须与矩阵项一致。
-- CMake 在两种模式下都必须安装 `libXray.dll`、`OneXrayCore.exe`、`wintun.dll`、三个 VCore 产物及目标 MSVC runtime；与 App EXE 平铺在同一目录，不使用旧 `bin/` 布局。必需运行库与目标架构校验规则以 [Windows 打包实现](../build_scripts/app/windows.py) 为准。缺失依赖直接构建失败；MSIX 打包前、Fastforge 产物归集前再次检查运行文件、PE 架构与 Flutter 数据。
+- CMake 在两种模式下都必须安装 `libXray.dll`、`OneXrayCore.exe`、`wintun.dll` 及目标 MSVC runtime；三个 VCore 产物只在 MSIX 模式安装（`windows/app.cmake` 读取配置期环境变量 `ONEXRAY_WINDOWS_MODE`，由构建脚本设置），EXE 模式既不构建也不打包 VCore，因此本地 EXE 构建不需要 VCore 检出；与 App EXE 平铺在同一目录，不使用旧 `bin/` 布局。必需运行库与目标架构校验规则以 [Windows 打包实现](../build_scripts/app/windows.py) 为准。缺失依赖直接构建失败；MSIX 打包前、Fastforge 产物归集前再次检查运行文件、PE 架构与 Flutter 数据。
 - Wintun 从官方发行包获取，固定下载摘要，只提取目标架构的未修改 DLL；下载缓存放在工作区 `references/windows-build/`。App 不增加 Wintun 许可文件或许可 UI，来源与上游分发说明记录在 [文档站](https://onexray.com/zh/docs/credits/)。
 - MSIX 最低系统版本为 Windows 10 20H2（build 19042），只声明一个主 Application，但保留完全信任前台、AppContainer VPN Provider 和 full-trust Session Host 三个进程。
 - Provider 通过无参数 `FullTrustProcessLauncher` 启动 Session Host。VCore Provider 将系统 IP 包交给 Session Host；Session Host 用 kill-on-close Job Object 启动并监督普通权限 `OneXrayCore.exe`，VCore 再通过动态 loopback SOCKS5 转发。`sessionBackend` 只管理进程存活，不检查端口或 readiness；该 SOCKS5 仅监听 `127.0.0.1`，不是用户代理入口。

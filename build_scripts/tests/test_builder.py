@@ -62,6 +62,7 @@ class BuilderTest(unittest.TestCase):
                 run.assert_called_once_with(
                     ["flutter", "build", "windows", "--dart-define=ONEXRAY_WINDOWS_MODE=msix"],
                     cwd=builder.root_dir,
+                    env={"ONEXRAY_WINDOWS_MODE": "msix"},
                 )
             package.assert_called_once()
 

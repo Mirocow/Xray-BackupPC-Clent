@@ -55,6 +55,17 @@ class ResolvedServer {
   };
 }
 
+/// Нативный backuppc-outbound в ядре Xray вместо Dart-туннеля.
+///
+/// Android: VPN-служба живёт в отдельном процессе, Dart-туннель в процессе
+/// UI система выгружает в фоне. Windows (EXE): ядро — отдельный
+/// процесс OneXrayCore с правами администратора, его соединения к серверу
+/// привязаны к выходному адаптеру (`autoOutboundsInterface`), трафик не
+/// проходит TUN дважды. MSIX (системный VPN VCore) остаётся на Dart-туннеле.
+bool nativeBackuppcAvailable(ConnectionPlatform platform, WindowsMode mode) =>
+    platform == ConnectionPlatform.android ||
+    (platform == ConnectionPlatform.windows && mode == WindowsMode.exe);
+
 class RuntimeOptions {
   final ConnectionPlatform platform;
   final WindowsMode windowsMode;
@@ -99,6 +110,9 @@ class RuntimeOptions {
 
   bool get usesWindowsSystemVpn =>
       platform == ConnectionPlatform.windows && windowsMode == WindowsMode.msix;
+
+  bool get supportsNativeBackuppc =>
+      nativeBackuppcAvailable(platform, windowsMode);
 }
 
 class CompiledConnection {
@@ -218,8 +232,8 @@ class ConnectionCompiler {
         backuppcPortIt,
         backuppcTunnels,
         options,
-        useNativeOutbound: options.platform == ConnectionPlatform.android &&
-            settings.nativeBackuppcOutbound,
+        useNativeOutbound:
+            options.supportsNativeBackuppc && settings.nativeBackuppcOutbound,
       );
     } else {
       final required = settings.requiredEntries(
@@ -242,27 +256,31 @@ class ConnectionCompiler {
       }
       if (settings.trafficMode == TrafficMode.custom &&
           custom is AdvancedRoutingProfile) {
-        // Android: use native backuppc outbound (no Dart tunnel).
-        // iOS/desktop: use Dart tunnel (useNativeOutbound=false).
-        final useNative = options.platform == ConnectionPlatform.android &&
-            settings.nativeBackuppcOutbound;
+        // Android, Windows EXE: native backuppc outbound (no Dart tunnel).
+        // iOS/macOS/Linux/MSIX: Dart tunnel (useNativeOutbound=false).
+        final useNative =
+            options.supportsNativeBackuppc && settings.nativeBackuppcOutbound;
         final outbounds = <Map<String, dynamic>>[];
         for (final (index, entry) in entries.indexed) {
           final tag = 'app-entry-$index';
           outbounds.add(
-            _nodeWithTunnels(entry, tag, backuppcPortIt, backuppcTunnels,
-                useNativeOutbound: useNative),
+            _nodeWithTunnels(
+              entry,
+              tag,
+              backuppcPortIt,
+              backuppcTunnels,
+              useNativeOutbound: useNative,
+            ),
           );
           nodeTags[tag] = entry.id;
         }
         _applyOutboundPolicy(outbounds, options, raw: false);
         final template = custom.fillSlots(outbounds);
         if (backuppcTunnels.isNotEmpty) {
-          _prependBackuppcDirectRules(
-            template,
-            backuppcTunnels,
-            [for (final e in entries) e, ?finalExit],
-          );
+          _prependBackuppcDirectRules(template, backuppcTunnels, [
+            for (final e in entries) e,
+            ?finalExit,
+          ]);
         }
         final inbounds = _objects(template, 'inbounds');
         for (var index = 0; index < inbounds.length; index++) {
@@ -298,10 +316,10 @@ class ConnectionCompiler {
       final entriesOutbounds = <Map<String, dynamic>>[];
       final exits = <Map<String, dynamic>>[];
       final selector = <String>[];
-      // Android: native backuppc outbound (no Dart tunnel).
-      // iOS/desktop: Dart tunnel (useNativeOutbound=false).
-      final useNative = options.platform == ConnectionPlatform.android &&
-            settings.nativeBackuppcOutbound;
+      // Android, Windows EXE: native backuppc outbound (no Dart tunnel).
+      // iOS/macOS/Linux/MSIX: Dart tunnel (useNativeOutbound=false).
+      final useNative =
+          options.supportsNativeBackuppc && settings.nativeBackuppcOutbound;
       for (final (index, entry) in entries.indexed) {
         final entryTag = 'app-entry-$index';
         final outbound = _nodeWithTunnels(
@@ -338,10 +356,10 @@ class ConnectionCompiler {
       _applyOutboundPolicy(outbounds, options, raw: false);
       final backuppcDirectRules = backuppcTunnels.isEmpty
           ? const <XrayRoutingRule>[]
-          : _backuppcDirectRules(
-              backuppcTunnels,
-              [for (final e in entries) e, ?finalExit],
-            );
+          : _backuppcDirectRules(backuppcTunnels, [
+              for (final e in entries) e,
+              ?finalExit,
+            ]);
       outbounds.addAll([
         createFreedomOutbound(
           tag: 'direct',
@@ -447,20 +465,22 @@ class ConnectionCompiler {
   /// Узлы backuppc → Dart-туннель (SOCKS5 на 127.0.0.1) или нативный
   /// outbound ({"protocol":"backuppc"}) — зависит от платформы и настроек.
   ///
-  /// Android + nativeOutbound=true → нативный backuppc outbound в Xray:
+  /// Android/Windows EXE + nativeOutbound=true → нативный backuppc outbound в Xray:
   ///   - Туннель живёт в VPN foreground service (не убивается Android)
   ///   - Один проход через TUN (вместо двух)
   ///   - Go TLS/HTTP2 (быстрее Dart)
-  ///   - protect() вызывается через internet.DialSystem → нет TUN loop
+  ///   - protect() (Android) или привязка к адаптеру (Windows,
+  ///     autoOutboundsInterface) через internet.DialSystem → нет TUN loop
   ///
-  /// iOS/desktop/nativeOutbound=false → Dart-туннель (SOCKS5):
+  /// iOS/macOS/Linux/MSIX/nativeOutbound=false → Dart-туннель (SOCKS5):
   ///   - Каждый узел получает свой порт
   ///   - outbound в Xray-конфиге — socks
   ///   - Анти-петлевые правила (_backuppcDirectRules) для TUN
   static ({
     Map<String, dynamic> outbound,
     ({int port, Map<String, dynamic> config})? tunnel,
-  }) _backuppcNode(
+  })
+  _backuppcNode(
     Map<String, dynamic> outbound,
     String tag,
     Iterator<int> ports, {
@@ -471,10 +491,7 @@ class ConnectionCompiler {
     if (useNativeOutbound) {
       // Оставляем outbound как есть (protocol: backuppc),
       // только убеждаемся что tag правильный.
-      final native = <String, dynamic>{
-        ...outbound,
-        'tag': tag,
-      };
+      final native = <String, dynamic>{...outbound, 'tag': tag};
       // tunnel = null — нет Dart-туннеля, Xray делает всё сам.
       return (outbound: native, tunnel: null);
     }
@@ -551,6 +568,7 @@ class ConnectionCompiler {
         ),
     ];
   }
+
   /// Raw-режим: backuppc-outbound'ы пользователя → socks на локальные
   /// туннели (порт из итератора); туннели регистрируются для рантайма.
   /// Анти-петлевые правила в raw не добавляются — конфиг эксперта
@@ -575,9 +593,7 @@ class ConnectionCompiler {
       }
       final tag = outbound['tag'] is String ? outbound['tag'] as String : '';
       if (tag.isEmpty) {
-        throw const FormatException(
-          'backuppc outbound in Raw requires a tag',
-        );
+        throw const FormatException('backuppc outbound in Raw requires a tag');
       }
       final replaced = _backuppcNode(outbound, tag, ports);
       outbounds[i] = replaced.outbound;
@@ -630,8 +646,12 @@ class ConnectionCompiler {
     if (!isBackupPcOutbound(outbound)) {
       return outbound;
     }
-    final replaced = _backuppcNode(outbound, tag, ports,
-        useNativeOutbound: useNativeOutbound);
+    final replaced = _backuppcNode(
+      outbound,
+      tag,
+      ports,
+      useNativeOutbound: useNativeOutbound,
+    );
     // tunnel is null when useNativeOutbound=true (no Dart tunnel needed).
     if (replaced.tunnel != null) {
       tunnels.add(replaced.tunnel!);

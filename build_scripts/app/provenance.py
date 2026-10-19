@@ -37,6 +37,10 @@ _GITHUB_RELEASE_PACKAGES = {
 }
 
 
+
+def _uses_vcore(builder, target: str) -> bool:
+    return target == "windows" and getattr(builder.builder, "mode", None) == "msix"
+
 def sha256(path: Path) -> str:
     with path.open("rb") as contents:
         return hashlib.file_digest(contents, "sha256").hexdigest()
@@ -88,7 +92,8 @@ def begin_build(builder, target: str) -> dict:
             "--", str(builder.project_config["core.dir"]),
         ], root),
     }
-    if target == "windows":
+    # VCore is the MSIX system-VPN backend; EXE builds do not use it.
+    if _uses_vcore(builder, target):
         vcore = Path(builder.builder._vcore_dir())
         dirty_status["VCore"] = (["git", "status", "--porcelain", "--untracked-files=normal"], vcore)
         sources["VCore"] = source_revision(
@@ -175,7 +180,8 @@ def finish_build(builder, receipt: dict) -> Path:
         "android/gradle/wrapper/gradle-wrapper.properties",
     )]
     lock_files.extend(root.glob("*/Podfile.lock"))
-    if target == "windows":
+    vcore = None
+    if _uses_vcore(builder, target):
         vcore = Path(builder.builder._vcore_dir())
         lock_files.extend((vcore / "Cargo.lock", vcore / "scripts/uv.lock"))
     files = {}
@@ -234,8 +240,9 @@ def finish_build(builder, receipt: dict) -> Path:
     if target == "windows":
         if receipt["windowsMode"] == "msix":
             receipt["msixVersion"] = builder.builder.msix_version()
-        receipt["vcoreArtifacts"] = json.loads((vcore / "dist/windows" /
-            receipt["architecture"] / "vcore-windows-artifacts.json").read_text())
+        if vcore is not None:
+            receipt["vcoreArtifacts"] = json.loads((vcore / "dist/windows" /
+                receipt["architecture"] / "vcore-windows-artifacts.json").read_text())
     mode_suffix = f"-{receipt['windowsMode']}" if target == "windows" else ""
     destination = output / f"provenance-{target}-{receipt['architecture']}{mode_suffix}.json"
     destination.write_text(json.dumps(receipt, indent=2) + "\n", encoding="utf-8")
@@ -289,13 +296,14 @@ def verify_release(artifacts: Path, run: dict, *, tag: str | None = None,
                 or sources.get("libXray") != expected["libXray"]):
             raise ValueError(f"Invalid build provenance: {manifest.name}")
         target = receipt.get("target")
-        required_sources = ("app", "libXray", "VCore") if target == "windows" else ("app", "libXray")
+        uses_vcore = target == "windows" and receipt.get("windowsMode") == "msix"
+        required_sources = ("app", "libXray", "VCore") if uses_vcore else ("app", "libXray")
         dirty = receipt.get("sourceDirty")
         if not isinstance(dirty, dict) or any(dirty.get(name) is not False for name in required_sources):
             raise ValueError("Release sources must be recorded and clean before building")
         mode = None
         if target == "windows":
-            if sources.get("VCore") != expected["VCore"]:
+            if uses_vcore and sources.get("VCore") != expected["VCore"]:
                 raise ValueError("VCore checkout does not match build metadata")
             mode = receipt.get("windowsMode")
             if mode not in {"exe", "msix"}:

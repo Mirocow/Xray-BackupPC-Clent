@@ -122,14 +122,15 @@ class SettingsPage extends StatelessWidget {
                           : (value) =>
                                 controller.setConnectOnLaunch(context, value),
                     ),
-                    // Native backuppc outbound toggle (Android only).
-                    // When ON: Xray handles backuppc in VPN process (single
-                    // TUN pass, Go TLS, survives app kill).
+                    // Native backuppc outbound toggle (Android, Windows EXE).
+                    // When ON: Xray handles backuppc in the VPN/core process
+                    // (single TUN pass, Go TLS, survives app kill).
                     // When OFF: Dart tunnel fallback (double TUN, Dart TLS).
-                    if (AppPlatform.isAndroid)
+                    if (controller.nativeBackuppcAvailable)
                       _StartupSettingRow(
                         title: 'Native backuppc outbound',
-                        subtitle: 'Использовать нативный outbound Xray '
+                        subtitle:
+                            'Использовать нативный outbound Xray '
                             'вместо Dart-туннеля. Туннель живёт в VPN '
                             'службе, один проход TUN, Go TLS/HTTP2. '
                             'Выключите если есть проблемы — fallback '
@@ -137,8 +138,8 @@ class SettingsPage extends StatelessWidget {
                         value: state.nativeBackuppcOutbound,
                         onChanged: state.loading || state.saving
                             ? null
-                            : (value) =>
-                                controller.toggleNativeBackuppcOutbound(value),
+                            : (value) => controller
+                                  .toggleNativeBackuppcOutbound(value),
                       ),
                     if (AppPlatform.isDesktop)
                       BlocProvider(

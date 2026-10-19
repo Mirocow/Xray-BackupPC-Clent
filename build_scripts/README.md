@@ -76,8 +76,9 @@ outputs. libXray resolves Xray-core from its Go module dependencies.
 
 The Xray-core library is vendored as patched source in
 `third_party/libXray` of this repository — the build compiles it in place,
-so no sibling libXray checkout is needed. Windows builds also require a VCore
-checkout; set `VCORE_DIR` when it is not at `workspace/VCore`. Build artifacts
+so no sibling libXray checkout is needed. Windows MSIX builds also require a
+VCore checkout (the EXE mode neither builds nor ships VCore); set `VCORE_DIR`
+when it is not at `workspace/VCore`. Build artifacts
 are written to the sibling `output` directory; the vendored tree's own build
 outputs (`bin/`, `linux_so/`, `windows_dll/`, `dat/`, …) are git-ignored
 inside `third_party/libXray`.
@@ -85,7 +86,7 @@ inside `third_party/libXray`.
 ```text
 workspace/
 ├── OneXray/           # contains third_party/libXray (the core source)
-├── VCore/              # Windows only
+├── VCore/              # Windows MSIX only
 └── output/             # created automatically
 ```
 
@@ -99,7 +100,8 @@ sibling Xray-core checkout is not used.
 ### Prerequisites
 
 - Python 3.12 or newer and `uv`. The scripts use only the Python standard library.
-- Flutter, Dart, and Go available on `PATH`; Windows also requires Rust and MSVC.
+- Flutter, Dart, and Go available on `PATH`; Windows also requires MSVC, and
+  MSIX builds Rust (for VCore).
   EXE / ZIP packaging needs Fastforge, plus Inno Setup for EXE
   (`INNO_SETUP_PATH` may specify its installation directory);
   MSIX needs the Windows SDK `makeappx`/`signtool` tools.

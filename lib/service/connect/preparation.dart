@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:onexray/core/constants/preferences.dart';
 import 'package:onexray/core/db/database/database.dart';
+import 'package:onexray/core/ffi/windows/mode.dart';
 import 'package:onexray/core/pigeon/constants.dart';
 import 'package:onexray/core/pigeon/host_api.dart';
 import 'package:onexray/core/pigeon/model.dart';
@@ -76,11 +77,12 @@ class ConnectionPreparation {
     final policy = input.policy;
     final platform = connectionPlatform;
     // Inject nativeBackuppcOutbound from app-level Preferences into
-    // per-connection ConnectionSettings. This controls whether Android
-    // uses Xray native backuppc outbound (true) or Dart tunnel (false).
-    if (platform == ConnectionPlatform.android) {
-      final nativeOutbound =
-          await PreferencesKey().readNativeBackuppcOutbound();
+    // per-connection ConnectionSettings. This controls whether Android and
+    // Windows (EXE) use Xray native backuppc outbound (true) or the Dart
+    // tunnel (false).
+    if (nativeBackuppcAvailable(platform, windowsBuildMode)) {
+      final nativeOutbound = await PreferencesKey()
+          .readNativeBackuppcOutbound();
       settings = ConnectionSettings.fromJson({
         ...settings.toJson(),
         'nativeBackuppcOutbound': nativeOutbound,
@@ -182,18 +184,28 @@ class ConnectionPreparation {
     }
     final ports = await allocateRuntimePorts(
       userInbounds.cast<Map<String, dynamic>>(),
-      count: 2 + _backuppcTunnelCount(
-        settings: settings,
-        entries: entries,
-        finalExit: finalExit,
-        rawConfig: rawConfig,
-        custom: custom,
-      ),
+      count:
+          2 +
+          _backuppcTunnelCount(
+            settings: settings,
+            entries: entries,
+            finalExit: finalExit,
+            rawConfig: rawConfig,
+            custom: custom,
+          ),
     );
     final backuppcPorts = ports.sublist(2);
+    // Windows, нативный outbound: IP сервера закрепляется только во входе
+    // компилятора — проверка «сервер изменился» ниже сравнивает исходные
+    final compileEntries =
+        platform == ConnectionPlatform.windows &&
+            nativeBackuppcAvailable(platform, windowsBuildMode) &&
+            settings.nativeBackuppcOutbound
+        ? [for (final entry in entries) await _pinBackuppc(entry)]
+        : entries;
     final compiled = ConnectionCompiler.compile(
       settings: settings,
-      entries: entries,
+      entries: compileEntries,
       finalExit: finalExit,
       raw: rawConfig,
       custom: custom,
@@ -249,6 +261,16 @@ class ConnectionPreparation {
       platform: platform,
       request: request,
       notice: notice,
+    );
+  }
+
+  static Future<ResolvedServer> _pinBackuppc(ResolvedServer entry) async {
+    final outbound = entry.outbound;
+    if (!isBackupPcOutbound(outbound)) return entry;
+    return ResolvedServer(
+      id: entry.id,
+      sourceId: entry.sourceId,
+      outbound: await pinBackuppcServerAddress(outbound),
     );
   }
 

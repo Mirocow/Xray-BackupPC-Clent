@@ -27,7 +27,9 @@ _VCORE_IDENTITY = (
 )
 _WINTUN_VERSION = "0.14.1"
 _WINTUN_SHA256 = "07c256185d6ee3652e09fa55c0b673e2624b565e02c4b9091c79ca7d2f24ef51"
-_RUNTIME_FILES = ("libXray.dll", "OneXrayCore.exe", "wintun.dll", *_VCORE_ARTIFACTS)
+_CORE_RUNTIME_FILES = ("libXray.dll", "OneXrayCore.exe", "wintun.dll")
+# VCore is the MSIX system-VPN backend; EXE builds neither build nor ship it.
+_RUNTIME_FILES = (*_CORE_RUNTIME_FILES, *_VCORE_ARTIFACTS)
 
 
 class WindowsBuilder(Builder):
@@ -63,7 +65,8 @@ class WindowsBuilder(Builder):
     def before_build(self):
         super().before_build()
         self.build_core()
-        self.build_vcore()
+        if self.mode == "msix":
+            self.build_vcore()
         self.install_wintun()
 
     def install_wintun(self):
@@ -134,6 +137,9 @@ class WindowsBuilder(Builder):
         else:
             self.package_exe_and_zip()
 
+    def _runtime_files(self) -> tuple[str, ...]:
+        return _RUNTIME_FILES if self.mode == "msix" else _CORE_RUNTIME_FILES
+
     def _machine(self) -> int:
         return 0x8664 if self.target_architecture == "x64" else 0xAA64
 
@@ -147,7 +153,7 @@ class WindowsBuilder(Builder):
         source = (Path(self.root_dir) / "build" / "windows" /
                   self.target_architecture / "runner" / "Release")
         for name in (
-            f"{self.project}.exe", "flutter_windows.dll", *_RUNTIME_FILES,
+            f"{self.project}.exe", "flutter_windows.dll", *self._runtime_files(),
             *self._required_crt_files(),
         ):
             artifact = source / name
@@ -188,7 +194,11 @@ class WindowsBuilder(Builder):
                     "--artifact-name", f"{self.project}-{self.package_suffix}." + "{{ext}}",
                 ),
                 # Fastforge resolves the bundle directory from this variable.
-                env={"PROCESSOR_ARCHITECTURE": "AMD64" if architecture == "x64os" else "ARM64"},
+                # windows/app.cmake reads the mode to decide whether VCore ships.
+                env={
+                    "PROCESSOR_ARCHITECTURE": "AMD64" if architecture == "x64os" else "ARM64",
+                    "ONEXRAY_WINDOWS_MODE": "exe",
+                },
             )
         finally:
             config_path.write_bytes(original_config)
